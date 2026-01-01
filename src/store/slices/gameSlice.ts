@@ -45,7 +45,8 @@ const initialGameState: GameState = {
     economy: { minionGold: 14, minionXp: 30 }
   },
   fieldSettings: {
-    tower: { hp: 3000, armor: 50, rewardGold: 80 },
+    // [밸런스 패치] 포탑 내구도 대폭 상향 (3000 -> 10000, 방어 50 -> 150)
+    tower: { hp: 10000, armor: 150, rewardGold: 150 },
     colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50, respawnTime: 300 },
     watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, respawnTime: 420 },
     jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS
@@ -111,7 +112,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     const { heroes, gameState, communityPosts } = state;
     let { hour, minute, second, day, totalUsers, tierConfig, liveMatches } = gameState;
 
-    // 1. 시간 누적 (소수점 보존)
+    // 1. 시간 누적
     second += deltaSeconds;
     if (second >= 60) {
       const extraMinutes = Math.floor(second / 60);
@@ -134,7 +135,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     const isNewMinute = currentTotalMinutes > prevTotalMinutes;
     const isNewHour = hour !== gameState.hour;
 
-    // 2. 유저 성장 및 활동
+    // 2. 유저 성장
     let nextTotalUsers = totalUsers;
     if (isNewHour) {
       const growth = Math.floor(Math.random() * 5) + 1 + Math.floor(totalUsers * 0.0005);
@@ -144,14 +145,12 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     if (userPool.length === 0) initUserPool(heroes, nextTotalUsers);
     if (isNewMinute || liveMatches.length === 0) updateUserActivity(hour, heroes);
 
-    // 3. 게임 시뮬레이션 및 업데이트 (불변성 유지)
-    // [중요] 1x 배속 로그 버그 해결: 맵핑을 통해 매번 새로운 객체 참조를 생성합니다.
+    // 3. 매치 업데이트
     let nextHeroes = [...heroes];
     const updatedMatchesRaw = updateLiveMatches([...liveMatches], nextHeroes, deltaSeconds);
 
     const updatedMatches = updatedMatchesRaw.map(m => ({
         ...m,
-        // 로그와 팀 배열의 참조를 강제로 변경하여 리액트가 감지하게 함
         logs: m.logs.length > 60 ? m.logs.slice(-60) : [...m.logs],
         blueTeam: [...m.blueTeam],
         redTeam: [...m.redTeam]
@@ -170,7 +169,6 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         nextGodStats.totalMatches++;
         if (result.isBlueWin) nextGodStats.danteWins++; else nextGodStats.izmanWins++;
 
-        // 아이템 통계 정산 (누락 없음)
         [...match.blueTeam, ...match.redTeam].forEach(p => {
             p.items.forEach((item: any) => {
                 if (!nextItemStats[item.id]) {
@@ -187,7 +185,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
 
     const onlineUsers = userPool.filter(u => u.status !== 'OFFLINE').length;
 
-    // 5. 새 매치 생성
+    // 5. 매치 생성
     let finalMatches = ongoingMatches;
     const shouldCreate = (Math.floor(second) % 10 === 0 && Math.floor(second) !== Math.floor(gameState.second)) || ongoingMatches.length === 0;
 
@@ -199,7 +197,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         }
     }
 
-    // 6. 분 단위 업데이트 (통계, 랭킹, 커뮤니티 AI)
+    // 6. 분 단위 통계 업데이트
     let analyzedHeroes = nextHeroes;
     let userStatus = gameState.userStatus;
     let topRankers = gameState.topRankers;
@@ -220,7 +218,6 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         newSentiment = smoothSentiment(newSentiment, calculateTargetSentiment(gameState, analyzedHeroes, communityPosts));
         nextPosts = updatePostInteractions(nextPosts, currentTotalMinutes);
 
-        // AI 커뮤니티 로직 (누락 없음)
         const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled && gameState.aiConfig.apiKey;
         if (isAIReady && Math.random() < 0.1) {
             generatePostAsync(Date.now(), analyzedHeroes, tierConfig, currentTotalMinutes, gameState.aiConfig, userPool, gameState.battleSettings, gameState.fieldSettings)
@@ -230,7 +227,6 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         }
     }
 
-    // 7. 상태 업데이트
     set({
       heroes: analyzedHeroes,
       communityPosts: nextPosts,
