@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Clock, Shield, Zap, Circle, Terminal, Swords, Briefcase, Crown, BarChart2, Activity, Coins, Ban } from 'lucide-react';
+import { X, Clock, Shield, Zap, Circle, Terminal, Swords, Briefcase, Crown, BarChart2, Activity, Coins, Ban, Skull } from 'lucide-react';
 import { LiveMatch, LivePlayer, Item, TeamStats, Hero } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';

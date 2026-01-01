@@ -611,7 +611,7 @@ const InputSlider = ({ label, icon, value, min, max, step, onChange, color, unit
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { X, Eye, Swords, Clock, User, ChevronDown, ChevronUp } from 'lucide-react';
-import { LiveMatch, LivePlayer } from '../../types';
+import { LiveMatch } from '../../types';
 
 interface Props { onClose: () => void; onSpectate: (match: LiveMatch) => void; }
 
@@ -621,14 +621,13 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
 
   // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  // 선택된 매치 ID (모바일은 처음에 아무것도 선택 안 함 = null)
+  // 선택된 매치 ID
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
-      // PC로 전환되면 첫 번째 게임 자동 선택
       if (!mobile && !selectedMatchId && matches.length > 0) {
         setSelectedMatchId(matches[0].id);
       }
@@ -649,7 +648,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     return `${m}분 ${String(s).padStart(2, '0')}초`;
   };
 
-  // 게임 목록 아이템 (공통)
+  // 게임 목록 아이템
   const MatchListItem = ({ match, isSelected, onClick }: { match: LiveMatch, isSelected: boolean, onClick: () => void }) => (
     <div 
       onClick={onClick}
@@ -679,7 +678,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
           <span style={{ color: '#e84057', fontSize: '15px', fontWeight:'900' }}>{match.score.red}</span>
         </div>
       </div>
-      {/* 모바일일 때 펼침/접힘 아이콘 표시 */}
       {isMobile && (
         <div style={{ textAlign:'center', marginTop:'-10px', marginBottom:'-5px' }}>
           {isSelected ? <ChevronUp size={14} color="#555"/> : <ChevronDown size={14} color="#333"/>}
@@ -688,51 +686,60 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     </div>
   );
 
-  // 상세 정보 뷰 (공통 - 플레이어 목록 & 스코어보드)
-  const MatchDetailView = ({ match }: { match: LiveMatch }) => (
-    <div style={{ background: '#0d1117', paddingBottom: '20px', borderBottom: '1px solid #30363d' }}>
+  // [수정됨] 안전장치가 추가된 상세 정보 뷰
+  const MatchDetailView = ({ match }: { match: LiveMatch | undefined }) => {
+    // 🚨 여기서 match가 없으면 에러 화면 대신 안내 문구를 띄움 (Crash 방지)
+    if (!match) {
+        return (
+            <div style={{ padding: '50px', textAlign: 'center', color: '#666', fontSize:'13px' }}>
+                선택된 게임이 종료되었거나 정보를 불러올 수 없습니다.
+            </div>
+        );
+    }
 
-      {/* 상단: 관전 버튼 */}
-      <div style={{ padding: '20px', textAlign: 'center', background: '#121212', borderBottom: '1px solid #333' }}>
-        <button 
-          onClick={() => onSpectate(match)}
-          style={{ 
-            padding: '10px 30px', borderRadius: '8px', 
-            background: '#238636', color: '#fff', border: 'none', 
-            fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            boxShadow: '0 4px 15px rgba(35,134,54,0.3)'
-          }}
-        >
-          <Eye size={18} /> 실시간 관전 입장
-        </button>
-      </div>
-
-      {/* 플레이어 목록 */}
-      <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
-
-        {/* 블루팀 */}
-        <div>
-          <h4 style={{ color: '#58a6ff', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #58a6ff', paddingBottom:'4px' }}>
-            BLUE TEAM (단테)
-          </h4>
-          {match.blueTeam.map((p, i) => (
-            <PlayerCard key={i} p={p} color="#58a6ff" heroName={getHeroName(p.heroId)} />
-          ))}
+    return (
+      <div style={{ background: '#0d1117', paddingBottom: '20px', borderBottom: '1px solid #30363d' }}>
+        {/* 상단: 관전 버튼 */}
+        <div style={{ padding: '20px', textAlign: 'center', background: '#121212', borderBottom: '1px solid #333' }}>
+          <button 
+            onClick={() => onSpectate(match)}
+            style={{ 
+              padding: '10px 30px', borderRadius: '8px', 
+              background: '#238636', color: '#fff', border: 'none', 
+              fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 4px 15px rgba(35,134,54,0.3)'
+            }}
+          >
+            <Eye size={18} /> 실시간 관전 입장
+          </button>
         </div>
 
-        {/* 레드팀 */}
-        <div style={{ marginTop: isMobile ? '10px' : '0' }}>
-          <h4 style={{ color: '#e84057', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #e84057', paddingBottom:'4px', textAlign: isMobile ? 'left' : 'right' }}>
-            RED TEAM (이즈마한)
-          </h4>
-          {match.redTeam.map((p, i) => (
-            <PlayerCard key={i} p={p} color="#e84057" heroName={getHeroName(p.heroId)} alignRight={!isMobile} />
-          ))}
+        {/* 플레이어 목록 */}
+        <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+          {/* 블루팀 */}
+          <div>
+            <h4 style={{ color: '#58a6ff', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #58a6ff', paddingBottom:'4px' }}>
+              BLUE TEAM (단테)
+            </h4>
+            {match.blueTeam && match.blueTeam.map((p, i) => (
+              <PlayerCard key={i} p={p} color="#58a6ff" heroName={getHeroName(p.heroId)} />
+            ))}
+          </div>
+
+          {/* 레드팀 */}
+          <div style={{ marginTop: isMobile ? '10px' : '0' }}>
+            <h4 style={{ color: '#e84057', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #e84057', paddingBottom:'4px', textAlign: isMobile ? 'left' : 'right' }}>
+              RED TEAM (이즈마한)
+            </h4>
+            {match.redTeam && match.redTeam.map((p, i) => (
+              <PlayerCard key={i} p={p} color="#e84057" heroName={getHeroName(p.heroId)} alignRight={!isMobile} />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{
@@ -779,12 +786,13 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
                   isSelected={selectedMatchId === match.id} 
                   onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)} 
                 />
-                {/* 선택되면 바로 아래에 상세 정보 표시 (아코디언) */}
+                {/* 선택되면 바로 아래에 상세 정보 표시 */}
                 {selectedMatchId === match.id && (
                   <MatchDetailView match={match} />
                 )}
               </div>
             ))}
+            {matches.length === 0 && <div style={{padding:'20px', textAlign:'center', color:'#555'}}>진행 중인 게임이 없습니다.</div>}
           </div>
         ) : (
           /* [PC] 좌우 분할 방식 렌더링 */
@@ -802,11 +810,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
             </div>
             {/* 우측 상세 */}
             <div style={{ flex: 1, overflowY: 'auto', background: '#0d1117' }}>
-              {selectedMatchId ? (
-                <MatchDetailView match={matches.find(m => m.id === selectedMatchId)!} />
-              ) : (
-                <div style={{ padding: '50px', textAlign: 'center', color: '#666' }}>게임을 선택하세요.</div>
-              )}
+              <MatchDetailView match={matches.find(m => m.id === selectedMatchId)} />
             </div>
           </div>
         )}
@@ -857,168 +861,6 @@ const PlayerCard = ({ p, color, heroName, alignRight = false }: any) => (
   </div>
 );
 
-// === FILE: /src/components/battle/LiveGameModal.tsx ===
-
-// src/components/battle/LiveGameListModal.tsx
-import React, { useState, useEffect } from 'react';
-import { useGameStore } from '../../store/useGameStore';
-import { X, Eye, Swords, Clock, User } from 'lucide-react';
-import { LiveMatch } from '../../types';
-
-interface Props {
-  onClose: () => void;
-  onSpectate: (match: LiveMatch) => void;
-}
-
-export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
-  const { gameState, heroes } = useGameStore();
-  const matches = gameState.liveMatches;
-
-  // 현재 선택된 게임 (기본값: 첫 번째 게임)
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
-
-  // 데이터가 로드되면 첫 번째 게임 자동 선택
-  useEffect(() => {
-    if (matches.length > 0 && !selectedMatchId) {
-      setSelectedMatchId(matches[0].id);
-    }
-  }, [matches]);
-
-  // 선택된 매치 데이터 찾기
-  const selectedMatch = matches.find(m => m.id === selectedMatchId) || matches[0];
-
-  const getHeroName = (id: string) => heroes.find(h => h.id === id)?.name || '?';
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-      backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9000,
-      backdropFilter: 'blur(5px)'
-    }}>
-      <div className="panel" style={{ width: '1000px', height: '80vh', background: '#1c1c1f', border: '1px solid #30363d', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.8)', overflow: 'hidden' }}>
-        
-        {/* 1. 헤더 */}
-        <div style={{ padding: '15px 20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background:'#252528' }}>
-          <h3 style={{ margin: 0, color:'#fff', display:'flex', alignItems:'center', gap:'10px' }}>
-            <Swords size={20} /> 실시간 진행 중인 게임 ({matches.length})
-          </h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={24}/></button>
-        </div>
-
-        {/* 2. 메인 컨텐츠 (좌우 분할) */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          
-          {/* [좌측] 게임 목록 리스트 */}
-          <div style={{ width: '300px', borderRight: '1px solid #333', overflowY: 'auto', background: '#161b22' }}>
-            {matches.map((match) => (
-              <div 
-                key={match.id}
-                onClick={() => setSelectedMatchId(match.id)}
-                style={{ 
-                  padding: '15px', borderBottom: '1px solid #2c2c2f', cursor: 'pointer',
-                  background: selectedMatchId === match.id ? '#2a2a2e' : 'transparent',
-                  borderLeft: selectedMatchId === match.id ? '4px solid #58a6ff' : '4px solid transparent'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px', color: '#888' }}>
-                  <span>{match.avgTier} 평균</span>
-                  <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><Clock size={10}/> {Math.floor(match.currentDuration)}분</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold' }}>
-                  <span style={{ color: '#58a6ff', fontSize: '16px' }}>{match.score.blue}</span>
-                  <span style={{ color: '#555', fontSize: '12px' }}>VS</span>
-                  <span style={{ color: '#e84057', fontSize: '16px' }}>{match.score.red}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* [우측] 상세 상황판 & 관전 버튼 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#0d1117' }}>
-            
-            {selectedMatch ? (
-              <>
-                {/* 상단 스코어보드 */}
-                <div style={{ padding: '30px', textAlign: 'center', borderBottom: '1px solid #333', background: '#121212' }}>
-                  <div style={{ fontSize: '14px', color: '#888', marginBottom: '10px' }}>경기 시간 {Math.floor(selectedMatch.currentDuration)}:00</div>
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px' }}>
-                    <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#58a6ff' }}>{selectedMatch.score.blue}</div>
-                    <div style={{ fontSize: '20px', color: '#555', fontWeight: 'bold' }}>VS</div>
-                    <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#e84057' }}>{selectedMatch.score.red}</div>
-                  </div>
-                  
-                  {/* [핵심] 관전 버튼 */}
-                  <button 
-                    onClick={() => onSpectate(selectedMatch)}
-                    style={{ 
-                      marginTop: '20px', padding: '12px 40px', borderRadius: '8px', 
-                      background: '#238636', color: '#fff', border: 'none', 
-                      fontSize: '16px', fontWeight: 'bold', cursor: 'pointer',
-                      display: 'inline-flex', alignItems: 'center', gap: '8px',
-                      boxShadow: '0 4px 15px rgba(35, 134, 54, 0.4)'
-                    }}
-                  >
-                    <Eye size={20} /> 실시간 관전 입장
-                  </button>
-                </div>
-
-                {/* 플레이어 명단 (블루팀 vs 레드팀) */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                  
-                  {/* 블루팀 */}
-                  <div>
-                    <h4 style={{ color: '#58a6ff', margin: '0 0 15px 0', borderBottom: '2px solid #58a6ff', paddingBottom: '5px' }}>BLUE TEAM</h4>
-                    {selectedMatch.blueTeam.map((p, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', marginBottom: '5px', background: '#1c1c1f', borderRadius: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '30px', height: '30px', background: '#333', borderRadius: '50%', display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #58a6ff' }}>🧙‍♂️</div>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{getHeroName(p.heroId)}</div>
-                            <div style={{ fontSize: '11px', color: '#888' }}>{p.name}</div>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ccc' }}>{p.kills}/{p.deaths}/{p.assists}</div>
-                          <div style={{ fontSize: '11px', color: '#e89d40' }}>{p.gold.toLocaleString()} G</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 레드팀 */}
-                  <div>
-                    <h4 style={{ color: '#e84057', margin: '0 0 15px 0', borderBottom: '2px solid #e84057', paddingBottom: '5px', textAlign: 'right' }}>RED TEAM</h4>
-                    {selectedMatch.redTeam.map((p, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', marginBottom: '5px', background: '#1c1c1f', borderRadius: '4px', flexDirection: 'row-reverse' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexDirection: 'row-reverse' }}>
-                          <div style={{ width: '30px', height: '30px', background: '#333', borderRadius: '50%', display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #e84057' }}>🧙‍♂️</div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>{getHeroName(p.heroId)}</div>
-                            <div style={{ fontSize: '11px', color: '#888' }}>{p.name}</div>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ccc' }}>{p.kills}/{p.deaths}/{p.assists}</div>
-                          <div style={{ fontSize: '11px', color: '#e89d40' }}>{p.gold.toLocaleString()} G</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#666' }}>
-                진행 중인 게임을 선택하세요.
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // === FILE: /src/components/battle/SpectateMap.tsx ===
 
@@ -1051,12 +893,8 @@ export const SpectateMap: React.FC = () => {
 
 // === FILE: /src/components/battle/SpectateModal.tsx ===
 
-// ==========================================
-// FILE PATH: /src/components/battle/SpectateModal.tsx
-// ==========================================
-
 import React, { useState } from 'react';
-import { X, Clock, Shield, Skull, Zap, Circle, Terminal, Swords, Briefcase, Crown, User, BarChart2, Activity, Coins, Ban } from 'lucide-react';
+import { X, Clock, Shield, Zap, Circle, Terminal, Swords, Briefcase, Crown, BarChart2, Activity, Coins, Ban } from 'lucide-react';
 import { LiveMatch, LivePlayer, Item, TeamStats, Hero } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
@@ -1066,7 +904,6 @@ interface Props { match: LiveMatch; onClose: () => void; }
 export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
   const { heroes } = useGameStore(); 
 
-  // 상태 관리
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<Hero | null>(null);
@@ -1081,7 +918,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
 
   const maxDamage = Math.max(...match.blueTeam.map(p=>p.totalDamageDealt), ...match.redTeam.map(p=>p.totalDamageDealt), 1);
 
-  // --- 밴 상세 팝업 ---
+  // [수정됨] hero 타입 명시
   const BanDetailPopup = ({ hero, onClose }: { hero: Hero, onClose: () => void }) => {
     return (
       <div 
@@ -1106,7 +943,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           <div style={{ padding: '30px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:'15px' }}>
             <div style={{ position:'relative', width: '80px', height: '80px' }}>
               <GameIcon id={hero.id} size={80} shape="rounded" border="2px solid #444" fallback={<span style={{fontSize:'30px'}}>🧙‍♂️</span>} />
-              {/* 팝업 내부에서도 빗금 표시 */}
               <div style={{ 
                 position: 'absolute', top: '50%', left: '50%', width: '120%', height: '4px', 
                 background: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)',
@@ -1131,7 +967,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- [수정됨] 밴 카드 컴포넌트 (빗금 스타일) ---
+  // [수정됨] heroId 타입 명시
   const BanCard = ({ heroId }: { heroId: string }) => {
     const hero = heroes.find(h => h.id === heroId);
     if (!hero) return null;
@@ -1144,32 +980,23 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           position: 'relative', width: '32px', height: '32px', cursor: 'pointer',
           transition: 'transform 0.1s',
           borderRadius: '6px',
-          overflow: 'hidden' // 빗금이 튀어나오지 않게
+          overflow: 'hidden' 
         }}
         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
-        {/* 1. 흑백 처리된 영웅 아이콘 */}
         <div style={{ filter: 'grayscale(100%) brightness(0.6)' }}>
           <GameIcon id={heroId} size={32} shape="square" border="1px solid #444" fallback={<span style={{fontSize:'12px'}}>🚫</span>} />
         </div>
-
-        {/* 2. 붉은색 빗금 (CSS로 구현) */}
         <div style={{ 
-          position: 'absolute', 
-          top: '50%', left: '50%', 
-          width: '150%', // 대각선 길이를 커버하기 위해 넉넉하게
-          height: '3px', 
-          backgroundColor: '#da3633', // 붉은색
-          transform: 'translate(-50%, -50%) rotate(45deg)', // 중앙 정렬 후 45도 회전
-          boxShadow: '0 0 2px #000', // 가시성을 위한 그림자
-          pointerEvents: 'none' // 클릭 통과
+          position: 'absolute', top: '50%', left: '50%', width: '150%', height: '3px', 
+          backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)',
+          boxShadow: '0 0 2px #000', pointerEvents: 'none' 
         }} />
       </div>
     );
   };
 
-  // --- 전장 현황판 ---
   const ObjectStatBox = ({ stats, color }: { stats: TeamStats, color: string }) => {
     const s = stats || { towers: { top: 0, mid: 0, bot: 0 }, colossus: 0, watcher: 0, fury: 0, nexusHp: 0, maxNexusHp: 5000 };
 
@@ -1221,7 +1048,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 아이템 아이콘 ---
   const ItemIcon = ({ item, onClick }: { item: Item, onClick: (i: Item) => void }) => {
     const colors = { WEAPON: '#e74c3c', ARMOR: '#2ecc71', ACCESSORY: '#f1c40f', POWER: '#9b59b6' };
     const color = (colors as any)[item.type] || '#555';
@@ -1238,7 +1064,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 아이템 상세 팝업 ---
   const ItemDetailPopup = ({ item, onClose }: { item: Item, onClose: () => void }) => {
     if (!item) return null;
     const colors = { WEAPON: '#e74c3c', ARMOR: '#2ecc71', ACCESSORY: '#f1c40f', POWER: '#9b59b6' };
@@ -1287,7 +1112,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 플레이어 리스트 행 ---
   const PlayerRow = ({ p, isBlue }: { p: LivePlayer, isBlue: boolean }) => {
     const isSelected = selectedHeroId === p.heroId;
     const hpPercent = (p.currentHp / p.maxHp) * 100;
@@ -1306,9 +1130,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
         }}
       >
         <div style={{ position: 'relative' }}>
-          {/* GameIcon 적용 */}
           <GameIcon id={p.heroId} size={36} shape="rounded" border={`1px solid ${isBlue ? '#58a6ff44' : '#e8405744'}`} fallback={<span style={{fontSize:'18px'}}>🧙‍♂️</span>} />
-
           <div style={{ position: 'absolute', bottom: -4, right: -4, background: '#000', color: '#fff', fontSize: '9px', padding: '1px 4px', borderRadius: '3px', border:'1px solid #555', fontWeight:'bold' }}>{p.level}</div>
           <div style={{ position:'absolute', bottom:-4, left:0, width:'100%', height:'3px', background:'#333', borderRadius:'2px', overflow:'hidden' }}>
             <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : '#2ecc71' }}/>
@@ -1328,7 +1150,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 개인 분석 패널 ---
   const InspectorPanel = ({ p }: { p: LivePlayer }) => {
     const heroName = getHeroName(p.heroId);
     const hpPercent = (p.currentHp / p.maxHp) * 100;
@@ -1397,7 +1218,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     <>
       <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
 
-        {/* HEADER */}
         <div style={{ height: '50px', background: '#161b22', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex:1, justifyContent:'center' }}>
             <div style={{ color: '#58a6ff', fontWeight: 'bold', fontSize: '18px' }}>{match.score.blue}</div>
@@ -1409,30 +1229,22 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           <button onClick={onClose} style={{ position:'absolute', right:'15px', background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}><X size={24}/></button>
         </div>
 
-        {/* BAN PICK BAR */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems:'center', padding: '8px 15px', background: '#0d1117', borderBottom: '1px solid #30363d' }}>
-
-          {/* Blue Bans */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <span style={{ fontSize: '10px', color: '#58a6ff', fontWeight: 'bold', display:'flex', gap:'4px' }}>
               <Ban size={12}/> BAN
             </span>
             {match.bans.blue.map(id => <BanCard key={id} heroId={id} />)}
           </div>
-
-          {/* Red Bans */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {match.bans.red.map(id => <BanCard key={id} heroId={id} />)}
             <span style={{ fontSize: '10px', color: '#e84057', fontWeight: 'bold', display:'flex', gap:'4px' }}>
               BAN <Ban size={12}/> 
             </span>
           </div>
-
         </div>
 
-        {/* CONTENT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
           <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <div style={{ fontSize:'10px', color:'#58a6ff', fontWeight:'bold', textAlign:'center', marginBottom:'4px' }}>BLUE TEAM</div>
@@ -1444,7 +1256,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
             </div>
           </div>
 
-          {/* 전장 현황판 */}
           {!selectedPlayer && (
             <div style={{ padding: '10px 15px', background: '#121212', borderTop: '1px solid #30363d', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px' }}>
                <ObjectStatBox stats={match.stats.blue} color="#58a6ff" />
@@ -1489,14 +1300,12 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
         </div>
       </div>
 
-      {/* 아이템 팝업 */}
       {viewingItem && <ItemDetailPopup item={viewingItem} onClose={() => setViewingItem(null)} />}
-
-      {/* 밴 영웅 상세 팝업 */}
       {viewingBanHero && <BanDetailPopup hero={viewingBanHero} onClose={() => setViewingBanHero(null)} />}
     </>
   );
 };
+
 
 // === FILE: /src/components/common/DevTools.tsx ===
 
@@ -1597,67 +1406,60 @@ export const GameIcon: React.FC<Props> = ({ id, size = 40, fallback, shape = 'ro
 
 // === FILE: /src/components/common/SaveLoadModal.tsx ===
 
-// ==========================================
-// FILE PATH: /src/components/common/SaveLoadModal.tsx
-// ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { X, Save, Upload, Download } from 'lucide-react';
-import { saveToSlot, loadFromSlot, getSlotInfo, exportSaveFile, importSaveFile } from '../../engine/SaveLoadSystem';
+import { useGameStore } from '../../store/useGameStore';
+import { saveToSlot, loadFromSlot, getSlotsMeta, exportSaveFile, importSaveFile, SaveMeta } from '../../engine/SaveLoadSystem';
 
 interface Props { onClose: () => void; }
 
 export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
-  const [slots, setSlots] = useState<any>({});
+  const { heroes } = useGameStore();
+  const [slots, setSlots] = useState<Record<string, SaveMeta>>({});
   const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
-    setSlots({
-      auto: getSlotInfo('auto'),
-      slot1: getSlotInfo('slot1'),
-      slot2: getSlotInfo('slot2'),
-      slot3: getSlotInfo('slot3'),
-    });
+    setSlots(getSlotsMeta());
   }, [refreshKey]);
 
   const handleSave = (slotId: string) => {
     if (saveToSlot(slotId)) {
       alert("저장되었습니다!");
-      setSlots(prev => ({ ...prev, [slotId]: getSlotInfo(slotId) })); // 즉시 UI 갱신
+      setSlots(getSlotsMeta());
     }
   };
 
-  // [수정된 부분] 새로고침 로직 삭제
   const handleLoad = (slotId: string) => {
     if (!slots[slotId]) return;
 
     if (confirm("정말 이 데이터를 불러오시겠습니까?\n현재 진행 상황은 덮어씌워집니다.")) {
-      const success = loadFromSlot(slotId);
+      const success = loadFromSlot(slotId, heroes);
       if (success) {
         alert("로드 완료!");
-        onClose(); // [중요] 새로고침 없이 모달만 닫습니다.
+        onClose();
+        window.location.reload();
       } else {
         alert("로드 실패! 데이터가 손상되었을 수 있습니다.");
       }
     }
   };
 
-  // [수정된 부분] 파일 불러오기 핸들러도 동일하게 수정
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (confirm("파일 데이터를 불러오시겠습니까?")) {
-      const success = await importSaveFile(file);
+      const success = await importSaveFile(file, heroes);
       if (success) {
         alert("파일 로드 완료!");
-        onClose(); // [중요] 여기도 새로고침 제거
+        onClose();
+        window.location.reload();
       }
     }
-    e.target.value = ''; // 입력 초기화
+    e.target.value = ''; 
   };
 
-  const SlotItem = ({ id, name, color }: any) => {
+  const SlotItem = ({ id, name, color }: { id: string, name: string, color: string }) => {
     const info = slots[id];
     return (
       <div style={{ background: '#21262d', padding: '15px', borderRadius: '8px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${color}` }}>
@@ -1665,7 +1467,7 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
           <div style={{ fontWeight: 'bold', color: color, marginBottom: '4px' }}>{name}</div>
           {info ? (
             <div style={{ fontSize: '13px', color: '#ccc' }}>
-              <div>{info.info}</div>
+              <div>Day {info.day} • 유저 {info.totalUsers}명</div>
               <div style={{ fontSize: '11px', color: '#777' }}>{new Date(info.timestamp).toLocaleString()}</div>
             </div>
           ) : (
@@ -1721,6 +1523,7 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
     </div>
   );
 };
+
 
 // === FILE: /src/components/common/StatCard.tsx ===
 
@@ -2105,13 +1908,10 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
 
 // === FILE: /src/components/community/CommunityBoard.tsx ===
 
-// ==========================================
-// FILE PATH: /src/components/community/CommunityBoard.tsx
-// ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { Star, ThumbsUp } from 'lucide-react';
+import { Post } from '../../types';
 
 export const CommunityBoard: React.FC = () => {
   const { communityPosts, openPost } = useGameStore();
@@ -2152,7 +1952,8 @@ export const CommunityBoard: React.FC = () => {
     }
   };
 
-  const MobilePostItem = ({ post }: { post: any }) => (
+  // [수정됨] post 타입 명시
+  const MobilePostItem = ({ post }: { post: Post }) => (
     <div 
       onClick={() => openPost(post)}
       style={{ 
@@ -2263,6 +2064,7 @@ export const CommunityBoard: React.FC = () => {
   );
 };
 
+
 // === FILE: /src/components/community/PostDetailModal.tsx ===
 
 // ==========================================
@@ -2273,7 +2075,6 @@ import React, { useState, useEffect } from 'react';
 import { Post, UserProfile } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
 import { findUserProfileByName } from '../../engine/UserManager';
-// [수정] ThumbsDown 아이콘 추가
 import { X, MessageSquare, ThumbsUp, ThumbsDown, User, Clock, Eye } from 'lucide-react';
 
 interface Props {
@@ -2281,6 +2082,18 @@ interface Props {
   onClose: () => void;
   onUserClick: (user: UserProfile) => void;
 }
+
+// [신규] 티어별 색상 반환 함수
+const getTierColor = (tier: string) => {
+  if (tier.includes('천상계') || tier.includes('챌린저')) return '#00bfff'; // 하늘색
+  if (tier.includes('마스터')) return '#9b59b6'; // 보라색
+  if (tier.includes('에이스')) return '#e74c3c'; // 빨간색
+  if (tier.includes('조커')) return '#2ecc71';   // 초록색
+  if (tier.includes('골드')) return '#f1c40f';   // 금색
+  if (tier.includes('실버')) return '#95a5a6';   // 은색
+  if (tier.includes('브론즈')) return '#d35400'; // 동색
+  return '#7f8c8d'; // 아이언/기타 (회색)
+};
 
 export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick }) => {
   const { gameState } = useGameStore();
@@ -2360,7 +2173,10 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
               >
                 <User size={12} />
                 {post.author} 
-                <span style={{color:'#888', fontWeight:'normal', fontSize:'11px'}}>({post.authorTier})</span>
+                {/* 작성자 티어 색상 적용 */}
+                <span style={{color: getTierColor(post.authorTier), fontWeight:'bold', fontSize:'11px'}}>
+                  ({post.authorTier})
+                </span>
               </div>
 
               <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><Clock size={12}/> {post.displayTime}</span>
@@ -2383,10 +2199,7 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
         }}>
           {post.content}
 
-          {/* [수정] 추천 & 비추천 버튼 영역 */}
           <div style={{ marginTop:'50px', display:'flex', justifyContent:'center', gap:'15px' }}>
-
-            {/* 추천 버튼 */}
             <button style={{ 
               background:'#21262d', border:'1px solid #30363d', color:'#fff', 
               padding:'10px 20px', borderRadius:'30px', 
@@ -2397,7 +2210,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
               <span>{post.upvotes}</span>
             </button>
 
-            {/* 비추천 버튼 (신규) */}
             <button style={{ 
               background:'#21262d', border:'1px solid #30363d', color:'#8b949e', 
               padding:'10px 20px', borderRadius:'30px', 
@@ -2407,7 +2219,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
               <ThumbsDown size={18} /> 
               <span>{post.downvotes || 0}</span>
             </button>
-
           </div>
         </div>
 
@@ -2428,7 +2239,16 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
                     <span style={{ fontWeight:'bold', fontSize:'13px', color:'#ccc', display:'flex', alignItems:'center', gap:'6px' }}>
                       {comment.author} 
-                      <span style={{fontSize:'10px', color:'#666', background:'#0d1117', padding:'1px 4px', borderRadius:'3px', border:'1px solid #333'}}>
+                      {/* 댓글 작성자 티어 색상 적용 */}
+                      <span style={{
+                        fontSize:'10px', 
+                        color: getTierColor(comment.authorTier), 
+                        background:'#0d1117', 
+                        padding:'1px 4px', 
+                        borderRadius:'3px', 
+                        border:'1px solid #333',
+                        fontWeight:'bold'
+                      }}>
                         {comment.authorTier}
                       </span>
                     </span>
@@ -2454,10 +2274,14 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
 
 // === FILE: /src/components/dashboard/GameStats.tsx ===
 
+// ==========================================
+// FILE PATH: /src/components/dashboard/GameStats.tsx
+// ==========================================
+
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { StatCard } from '../common/StatCard';
-import { Users, Activity, User, Monitor } from 'lucide-react';
+import { Users, Activity, Smile, Frown, Meh, Monitor } from 'lucide-react';
 
 interface Props {
   isMobile: boolean;
@@ -2467,13 +2291,48 @@ interface Props {
 export const GameStats: React.FC<Props> = ({ isMobile, onOpenGameList }) => {
   const { gameState } = useGameStore();
 
+  // 민심 상태에 따른 UI 속성 반환
+  const getSentimentInfo = (value: number) => {
+    if (value >= 70) return { icon: Smile, color: '#2ecc71', label: '축제' }; // 높음: 초록
+    if (value >= 40) return { icon: Meh, color: '#f1c40f', label: '보통' };   // 중간: 노랑
+    return { icon: Frown, color: '#e74c3c', label: '폭동' };                  // 낮음: 빨강
+  };
+
+  const sentiment = gameState.userSentiment || 60;
+  const sentInfo = getSentimentInfo(sentiment);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: isMobile ? '6px' : '15px', marginBottom: '20px' }}>
-      <StatCard title="가입자" value={(gameState.totalUsers ?? 0).toLocaleString()} icon={Users} color="#238636" />
-      <StatCard title="CCU" value={(gameState.ccu ?? 0).toLocaleString()} icon={Activity} color="#da3633" />
-      <StatCard title="민심" value={(gameState.userSentiment ?? 60) + '%'} icon={User} color="#d29922" />
+
+      <StatCard 
+        title="가입자" 
+        value={(gameState.totalUsers ?? 0).toLocaleString()} 
+        icon={Users} 
+        color="#fff" 
+      />
+
+      <StatCard 
+        title="CCU" 
+        value={(gameState.ccu ?? 0).toLocaleString()} 
+        icon={Activity} 
+        color="#58a6ff" 
+      />
+
+      {/* 동적 민심 카드 */}
+      <StatCard 
+        title={`민심 (${sentInfo.label})`} 
+        value={sentiment.toFixed(1)} 
+        icon={sentInfo.icon} 
+        color={sentInfo.color} 
+      />
+
       <div onClick={onOpenGameList} style={{ cursor: 'pointer' }}>
-        <StatCard title="진행중" value={gameState.liveMatches?.length ?? 0} icon={Monitor} color="#58a6ff" />
+        <StatCard 
+          title="진행중" 
+          value={gameState.liveMatches?.length ?? 0} 
+          icon={Monitor} 
+          color="#9b59b6" 
+        />
       </div>
     </div>
   );
@@ -2487,7 +2346,8 @@ export const GameStats: React.FC<Props> = ({ isMobile, onOpenGameList }) => {
 
 import React from 'react';
 import { Hero } from '../../types';
-import { Target, Swords, Coins } from 'lucide-react';
+// 👇 [수정] Skull을 아예 뺐습니다. (에러 원천 차단)
+import { Target, Swords, Coins } from 'lucide-react'; 
 import { GameIcon } from '../common/GameIcon';
 
 interface Props {
@@ -2506,6 +2366,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
             background: '#161b22', border: '1px solid #30363d', borderRadius: '12px', padding: '12px 15px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
           }}>
+            {/* 왼쪽: 순위, 아이콘, 이름 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
               <div style={{ fontSize: '16px', fontWeight: '900', fontStyle: 'italic', color: hero.rank <= 3 ? '#e74c3c' : '#666', width: '20px', textAlign: 'center' }}>{hero.rank}</div>
 
@@ -2517,18 +2378,20 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
                   <span className={`tier-badge tier-${hero.tier}`} style={{ fontSize: '9px', padding: '2px 5px', height: 'fit-content' }}>{hero.tier}티어</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#8b949e' }}>
-                  <span style={{ color: hero.recentWinRate >= 50 ? '#ff4d4d' : '#8b949e', fontWeight: 'bold' }}>승률 {hero.recentWinRate.toFixed(1)}%</span>
+                  <span style={{ color: hero.recentWinRate >= 50 ? '#ff6b6b' : '#8b949e', fontWeight: 'bold' }}>승률 {hero.recentWinRate.toFixed(1)}%</span>
                   <span style={{ margin: '0 4px', opacity: 0.3 }}>•</span>
                   <span>픽률 {hero.pickRate.toFixed(1)}%</span>
                 </div>
               </div>
             </div>
+
+            {/* 오른쪽: 스탯 정보 (Skull 아이콘 제거됨) */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '80px' }}>
               <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#fff' }}>{hero.avgKda}</div>
               <div style={{ fontSize: '10px', color: '#e89d40', fontWeight:'bold' }}>{hero.avgGold} G</div>
               <div style={{ fontSize: '9px', color: '#888', display:'flex', gap:'6px', marginTop:'2px' }}>
-                <span>CS {hero.avgCs}</span>
-                <span style={{ color: '#da3633' }}>{hero.avgDpm}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:'2px' }}><Target size={10}/> {hero.avgCs}</span>
+                <span style={{ color: '#ff6b6b' }}>{hero.avgDpm}</span>
               </div>
             </div>
           </div>
@@ -2564,7 +2427,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
               </div>
             </div>
 
-            <div style={{ fontWeight: 'bold', color: hero.recentWinRate >= 50 ? '#ff4d4d' : '#4d94ff' }}>{hero.recentWinRate.toFixed(1)}%</div>
+            <div style={{ fontWeight: 'bold', color: hero.recentWinRate >= 50 ? '#ff6b6b' : '#4d94ff' }}>{hero.recentWinRate.toFixed(1)}%</div>
             <div style={{ fontSize: '11px', color: '#888' }}>
               <span style={{ color: '#fff' }}>{hero.pickRate.toFixed(1)}%</span> <span style={{ color: '#444' }}>|</span> <span style={{ color: '#da3633' }}>{hero.banRate.toFixed(1)}%</span>
             </div>
@@ -2581,6 +2444,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
     </div>
   );
 };
+
 
 // === FILE: /src/components/hero/HeroManagement.tsx ===
 
@@ -3147,11 +3011,11 @@ export const HeroTable: React.FC<Props> = ({ onHeroClick }) => {
 // FILE PATH: /src/components/hero/LaneStatsView.tsx
 // ==========================================
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { Hero, Role } from '../../types';
 import { ROLE_DATA } from '../../data/roles';
 import { useGameStore } from '../../store/useGameStore';
-import { Wrench, Camera, Image as ImageIcon, Target, Swords, Coins } from 'lucide-react';
+import { Wrench, Camera, Image as ImageIcon, Target, Swords, Coins, Activity, TrendingUp, Skull } from 'lucide-react';
 import { RolePatchModal } from './RolePatchModal'; 
 import { GameIcon } from '../common/GameIcon';
 
@@ -3162,7 +3026,6 @@ interface Props {
   isMobile?: boolean;
 }
 
-// 역할군 ID 헬퍼
 const getRoleId = (role: Role) => {
   switch(role) {
     case '집행관': return 'role_executor';
@@ -3182,11 +3045,9 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
   const roleInfo = ROLE_DATA[selectedRole];
   const roleId = getRoleId(selectedRole);
 
-  // 배경 이미지 ID 및 데이터 가져오기
   const roleBgId = `${roleId}_bg`; 
   const customBg = gameState.customImages?.[roleBgId];
 
-  // 파일 인풋 Refs
   const iconInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
@@ -3213,7 +3074,37 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     .filter(h => h.role === selectedRole)
     .sort((a, b) => b.recentWinRate - a.recentWinRate);
 
-  // 아이콘 업로드
+  const roleStats = useMemo(() => {
+    if (laneHeroes.length === 0) return null;
+
+    let totalWins = 0, totalMatches = 0;
+    let totalK = 0, totalD = 0, totalA = 0;
+    let totalGold = 0, totalCs = 0, totalDpm = 0;
+
+    laneHeroes.forEach(h => {
+        totalWins += h.record.totalWins;
+        totalMatches += h.record.totalMatches;
+        totalK += h.record.totalKills;
+        totalD += h.record.totalDeaths;
+        totalA += h.record.totalAssists;
+
+        totalGold += parseInt(h.avgGold.replace(/,/g, '')) || 0;
+        totalCs += parseFloat(h.avgCs) || 0;
+        totalDpm += parseInt(h.avgDpm.replace(/,/g, '')) || 0;
+    });
+
+    const count = laneHeroes.length;
+    const safeDiv = (a: number, b: number) => b === 0 ? 0 : a / b;
+
+    return {
+        avgWinRate: totalMatches > 0 ? (totalWins / totalMatches) * 100 : 0,
+        avgKda: safeDiv(totalK + totalA, totalD).toFixed(2),
+        avgGold: Math.round(totalGold / count).toLocaleString(),
+        avgCs: (totalCs / count).toFixed(1),
+        avgDpm: Math.round(totalDpm / count).toLocaleString(),
+    };
+  }, [laneHeroes]);
+
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if(file) {
@@ -3223,7 +3114,6 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     }
   };
 
-  // 배경 업로드
   const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if(file) {
@@ -3233,7 +3123,6 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     }
   };
 
-  // 공통 버튼 스타일
   const actionButtonStyle = {
     background: 'rgba(33, 38, 45, 0.8)', 
     border: '1px solid rgba(255,255,255,0.2)', 
@@ -3241,45 +3130,81 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     padding: '8px 12px', 
     borderRadius: '6px', 
     cursor: 'pointer', 
-    fontWeight: 'bold' as const, // 'bold'로 강제 지정
+    fontWeight: 'bold' as const, 
     display: 'flex', 
     alignItems: 'center', 
     gap: '8px', 
     fontSize: '12px', 
-    whiteSpace: 'nowrap' as const, // 'nowrap'으로 강제 지정
+    whiteSpace: 'nowrap' as const, 
     backdropFilter: 'blur(4px)',
     width: '100%',
     justifyContent: 'center'
   };
 
   return (
-    <div style={{ 
-      display: 'flex', flexDirection: 'column', height: '100%', 
-      background: customBg 
-        ? `linear-gradient(to bottom, rgba(13,17,23,0.7), rgba(13,17,23,0.95)), url(${customBg})` 
-        : '#0d1117',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      transition: 'background 0.5s ease'
-    }}>
+    <div 
+      // [핵심 수정] key 속성을 추가하여 역할군이 바뀔 때마다 컴포넌트를 새로 그려서 스타일 꼬임 방지
+      key={selectedRole}
+      style={{ 
+        display: 'flex', flexDirection: 'column', height: '100%', 
+        // [핵심 수정] background 단축 속성 대신 개별 속성 사용으로 안정성 확보
+        backgroundColor: '#0d1117',
+        backgroundImage: customBg 
+          ? `linear-gradient(to bottom, rgba(13,17,23,0.5), rgba(13,17,23,0.95)), url(${customBg})` 
+          : 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top', // 모바일에서 인물 얼굴이 잘리지 않도록 상단 기준 정렬
+        backgroundRepeat: 'no-repeat',
+        position: 'relative'
+      }}
+    >
 
-      {/* 1. 상단: 상세 설명 및 컨트롤 패널 */}
+      {/* 0. 상단 탭 네비게이션 */}
+      <div style={{ 
+        padding: '10px 15px', borderBottom: '1px solid rgba(255,255,255,0.1)', 
+        background: 'rgba(22, 27, 34, 0.8)', backdropFilter: 'blur(10px)',
+        display: 'flex', gap: '10px', overflowX: 'auto', whiteSpace: 'nowrap',
+        flexShrink: 0, zIndex: 10
+      }}>
+        {Object.entries(ROLE_DATA).map(([key, info]) => {
+          const role = key as Role;
+          const isSelected = selectedRole === role;
+
+          return (
+            <button 
+              key={role} 
+              onClick={() => onSelectRole(role)}
+              style={{ 
+                flex: 1, minWidth: isMobile ? '70px' : '100px',
+                background: isSelected ? info.color : 'rgba(255,255,255,0.05)', 
+                color: isSelected ? '#000' : '#ccc',
+                border: '1px solid',
+                borderColor: isSelected ? info.color : 'transparent',
+                borderRadius: '6px', padding: '10px 0', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent:'center', gap: '6px',
+                transition: '0.2s', fontWeight: '800', fontSize:'12px'
+              }}
+            >
+              {React.createElement(info.icon, { size: 14 })} {role}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 1. 역할군 설명 헤더 */}
       <div style={{ 
         padding: isMobile ? '15px' : '30px', 
-        borderBottom: '1px solid rgba(255,255,255,0.1)', 
         display: 'flex', 
         flexDirection: isMobile ? 'column' : 'row', 
         gap: isMobile ? '15px' : '30px', 
         alignItems: 'flex-start', 
-        background: customBg ? 'transparent' : `linear-gradient(180deg, ${roleInfo.color}11 0%, #0d1117 100%)`,
+        background: `linear-gradient(180deg, ${roleInfo.color}11 0%, transparent 100%)`,
         flexShrink: 0,
         position: 'relative'
       }}>
 
         {/* 아이콘 및 타이틀 */}
         <div style={{ display:'flex', gap:'20px', width: isMobile ? '100%' : 'auto', alignItems:'center' }}>
-
-          {/* 아이콘 영역 (클릭해도 업로드 가능) */}
           <div 
             style={{ position: 'relative' }}
             onMouseEnter={() => setIsHovered(true)}
@@ -3293,7 +3218,6 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
                 border={`2px solid ${roleInfo.color}`}
                 shape="rounded"
               />
-              {/* 호버 효과 */}
               <div style={{
                 position: 'absolute', inset: 0, borderRadius: '12px',
                 background: 'rgba(0,0,0,0.5)', display: isHovered ? 'flex' : 'none',
@@ -3306,7 +3230,7 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
 
           {isMobile && (
              <div style={{ flex: 1 }}>
-                <h2 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>{selectedRole}</h2>
+                <h2 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{selectedRole}</h2>
                 <span style={{ fontSize: '12px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>
                   {roleInfo.name}
                 </span>
@@ -3316,12 +3240,10 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
 
         <div style={{ flex: 1, width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-
-            {/* 설명 텍스트 */}
             <div style={{ flex: 1, marginRight: '20px' }}>
               {!isMobile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                  <h2 style={{ margin: 0, color: '#fff', fontSize: '32px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>{selectedRole}</h2>
+                  <h2 style={{ margin: 0, color: '#fff', fontSize: '32px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{selectedRole}</h2>
                   <span style={{ fontSize: '16px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>
                     {roleInfo.name}
                   </span>
@@ -3330,12 +3252,11 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
               <div style={{ fontSize: isMobile ? '13px' : '16px', color: '#fff', fontWeight: 'bold', marginBottom: '8px', fontStyle: 'italic', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                 "{roleInfo.concept}"
               </div>
-              <div style={{ fontSize: '13px', color: '#ccc', marginBottom: '15px', lineHeight: '1.5', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+              <div style={{ fontSize: '13px', color: '#eee', marginBottom: '15px', lineHeight: '1.5', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
                 {roleInfo.desc}
               </div>
             </div>
 
-            {/* [PC] 우측 상단 버튼 그룹 */}
             {!isMobile && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '140px' }}>
                 <button onClick={() => setShowPatchModal(true)} style={actionButtonStyle}>
@@ -3370,7 +3291,6 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
             </div>
           </div>
 
-          {/* [Mobile] 하단 버튼 그룹 */}
           {isMobile && (
             <div style={{ marginTop: '15px', display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowPatchModal(true)} style={{...actionButtonStyle, flex:1 }}>
@@ -3387,19 +3307,39 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
         </div>
       </div>
 
-      {/* 숨겨진 파일 인풋들 */}
       <input type="file" ref={iconInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleIconUpload} />
       <input type="file" ref={bgInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleBgUpload} />
 
-      {/* 2. 중단: 챔피언 리스트 (배경 투명도 적용) */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px', background: 'transparent' }}>
+      {/* 2. 역할군 통합 통계 섹션 */}
+      {roleStats && (
+        <div style={{ 
+          background: 'rgba(18, 20, 24, 0.85)', borderBottom: '1px solid #30363d', borderTop: '1px solid rgba(255,255,255,0.1)', 
+          padding: '15px 20px', backdropFilter: 'blur(5px)',
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent:'space-between', gap:'15px'
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#fff', fontWeight:'bold', fontSize:'14px' }}>
+            <Activity size={16} color={roleInfo.color}/> 
+            <span style={{ color: roleInfo.color }}>{selectedRole}</span> 통계
+          </div>
+
+          <div style={{ display:'flex', gap: isMobile ? '10px' : '25px', flexWrap:'wrap', justifyContent: isMobile ? 'space-between' : 'flex-end', width:'100%' }}>
+            <RoleStatItem label="평균 승률" value={`${roleStats.avgWinRate.toFixed(1)}%`} color={roleStats.avgWinRate >= 50 ? '#ff4d4d' : '#8b949e'} icon={<TrendingUp size={12}/>} />
+            <RoleStatItem label="평균 KDA" value={`${roleStats.avgKda}:1`} color="#fff" icon={<Skull size={12}/>} />
+            <RoleStatItem label="분당 골드" value={roleStats.avgGold} color="#e89d40" icon={<Coins size={12}/>} />
+            <RoleStatItem label="분당 데미지" value={roleStats.avgDpm} color="#da3633" icon={<Swords size={12}/>} />
+            <RoleStatItem label="평균 CS" value={roleStats.avgCs} color="#ccc" icon={<Target size={12}/>} />
+          </div>
+        </div>
+      )}
+
+      {/* 3. 챔피언 리스트 */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px', background: 'rgba(13, 17, 23, 0.6)', backdropFilter: 'blur(3px)' }}>
         {isMobile ? (
-          /* [모바일] 카드 리스트 뷰 */
           <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {laneHeroes.map((hero, idx) => (
               <div key={hero.id} style={{ 
-                background: 'rgba(28, 28, 31, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px 15px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', backdropFilter: 'blur(2px)'
+                background: 'rgba(22, 27, 34, 0.85)', border: '1px solid rgba(48, 54, 61, 0.8)', borderRadius: '12px', padding: '12px 15px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
                   <div style={{ fontSize: '16px', fontWeight: '900', fontStyle: 'italic', color: idx < 3 ? '#e74c3c' : '#666', width: '20px', textAlign: 'center' }}>{idx + 1}</div>
@@ -3428,12 +3368,11 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
                 </div>
               </div>
             ))}
-            {laneHeroes.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#ccc', textShadow:'0 1px 2px #000' }}>데이터가 없습니다.</div>}
+            {laneHeroes.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#ccc' }}>데이터가 없습니다.</div>}
           </div>
         ) : (
-          /* [PC] 테이블 뷰 */
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', background: 'rgba(33, 38, 45, 0.9)', fontSize: '11px', color: '#8b949e', fontWeight: 'bold', textAlign: 'center', borderBottom: '1px solid #30363d', position:'sticky', top:0, backdropFilter:'blur(5px)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', background: 'rgba(28, 28, 31, 0.95)', fontSize: '11px', color: '#8b949e', fontWeight: 'bold', textAlign: 'center', borderBottom: '1px solid #30363d', position:'sticky', top:0 }}>
               <div>#</div>
               <div style={{ textAlign: 'left', paddingLeft: '10px' }}>챔피언</div>
               <div>승률</div>
@@ -3445,7 +3384,7 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
             </div>
             <div>
               {laneHeroes.map((hero, idx) => (
-                <div key={hero.id} className="hero-row" style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', fontSize: '12px', color: '#ccc', textAlign: 'center', background: 'rgba(0,0,0,0.6)' }}>
+                <div key={hero.id} className="hero-row" style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', fontSize: '12px', color: '#ccc', textAlign: 'center', background: 'rgba(22, 27, 34, 0.6)' }}>
                   <div style={{ fontWeight: 'bold', color: '#aaa' }}>{idx + 1}</div>
                   <div style={{ textAlign: 'left', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <GameIcon id={hero.id} size={32} fallback={<span style={{fontSize:'16px'}}>🧙‍♂️</span>} />
@@ -3472,38 +3411,6 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
         )}
       </div>
 
-      {/* 3. 하단: 라인 선택 네비게이션 */}
-      <div style={{ 
-        padding: '10px', borderTop: '1px solid rgba(255,255,255,0.1)', background: customBg ? 'rgba(0,0,0,0.8)' : '#161b22', 
-        display: 'flex', gap: '10px', overflowX: 'auto', whiteSpace: 'nowrap',
-        flexShrink: 0, backdropFilter:'blur(5px)'
-      }}>
-        {Object.entries(ROLE_DATA).map(([key, info]) => {
-          const role = key as Role;
-          const isSelected = selectedRole === role;
-
-          return (
-            <div 
-              key={role} 
-              onClick={() => onSelectRole(role)}
-              style={{ 
-                minWidth: isMobile ? '80px' : '140px', flex: 1,
-                background: isSelected ? `${info.color}33` : 'rgba(255,255,255,0.05)', 
-                border: isSelected ? `2px solid ${info.color}` : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '12px', padding: isMobile ? '10px 5px' : '15px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-                transition: '0.2s', justifyContent: 'center'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{ color: info.color }}>{React.createElement(info.icon, { size: isMobile ? 14 : 16 })}</div>
-                <div style={{ fontWeight: 'bold', color: isSelected ? '#fff' : '#888', fontSize: isMobile ? '11px' : '12px' }}>{role}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       {showPatchModal && (
         <RolePatchModal 
           role={selectedRole} 
@@ -3514,6 +3421,17 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     </div>
   );
 };
+
+const RoleStatItem = ({ label, value, color, icon }: any) => (
+  <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+    <span style={{ fontSize:'10px', color:'#ccc', marginBottom:'2px', display:'flex', alignItems:'center', gap:'4px' }}>
+      {icon} {label}
+    </span>
+    <span style={{ fontSize:'14px', fontWeight:'bold', color: color, fontFamily:'monospace' }}>
+      {value}
+    </span>
+  </div>
+);
 
 // === FILE: /src/components/hero/PatchModal.tsx ===
 
@@ -3911,16 +3829,21 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
 
 // === FILE: /src/components/hero/patch/StatEditor.tsx ===
 
+// ==========================================
+// FILE PATH: /src/components/hero/patch/StatEditor.tsx
+// ==========================================
+
 import React from 'react';
 
 const STAT_CONFIG: any = {
-  baseAtk: { min: 40, max: 150, step: 1, color: '#f1c40f', label: '기본 공격력' },
-  ad: { min: 0, max: 400, step: 5, color: '#e67e22', label: '추가 AD' },
-  ap: { min: 0, max: 600, step: 10, color: '#9b59b6', label: '주문력(AP)' },
+  // [수정] 최소값 0, 최대값 상향 조정
+  baseAtk: { min: 0, max: 500, step: 1, color: '#f1c40f', label: '기본 공격력' },
+  ad: { min: 0, max: 1000, step: 5, color: '#e67e22', label: '추가 AD' },
+  ap: { min: 0, max: 1000, step: 10, color: '#9b59b6', label: '주문력(AP)' },
   crit: { min: 0, max: 100, step: 1, color: '#e74c3c', label: '치명타율(%)' },
-  hp: { min: 500, max: 5000, step: 50, color: '#2ecc71', label: '체력(HP)' },
-  armor: { min: 0, max: 200, step: 2, color: '#3498db', label: '방어력' },
-  speed: { min: 300, max: 450, step: 5, color: '#95a5a6', label: '이동 속도' }
+  hp: { min: 100, max: 10000, step: 50, color: '#2ecc71', label: '체력(HP)' },
+  armor: { min: 0, max: 500, step: 2, color: '#3498db', label: '방어력' },
+  speed: { min: 100, max: 1000, step: 5, color: '#95a5a6', label: '이동 속도' }
 };
 
 interface Props {
@@ -3931,21 +3854,42 @@ interface Props {
 
 export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
       {fields.map(f => {
         const conf = STAT_CONFIG[f];
         if (!conf) return null;
         return (
-          <div key={f} style={{ background: '#161b22', padding: '15px', borderRadius: '16px', border: '1px solid #30363d' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '12px', fontWeight: 'bold' }}>
-              <label style={{ color: '#8b949e' }}>{conf.label}</label>
-              <span style={{ color: conf.color }}>{stats[f]}</span>
+          <div key={f} style={{ background: '#161b22', padding: '20px', borderRadius: '12px', border: '1px solid #30363d' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px', fontWeight: 'bold' }}>
+              <label style={{ color: '#ccc' }}>{conf.label}</label>
+              <span style={{ color: conf.color, fontSize:'16px' }}>{stats[f]}</span>
             </div>
+
+            {/* 슬라이더 스타일 개선 */}
             <input 
               type="range" min={conf.min} max={conf.max} step={conf.step}
               value={stats[f]} onChange={e => onChange(f, Number(e.target.value))}
-              style={{ width: '100%', accentColor: conf.color, cursor: 'pointer' }}
+              style={{ 
+                width: '100%', 
+                accentColor: conf.color, 
+                cursor: 'pointer',
+                height: '6px',
+                background: '#0d1117',
+                borderRadius: '3px'
+              }}
             />
+
+            {/* 미세 조정 버튼 추가 (+/-) */}
+            <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'10px' }}>
+              <button 
+                onClick={() => onChange(f, Math.max(conf.min, stats[f] - conf.step))}
+                style={{ background:'#30363d', border:'none', color:'#fff', borderRadius:'4px', width:'30px', height:'30px', cursor:'pointer' }}
+              >-</button>
+              <button 
+                onClick={() => onChange(f, Math.min(conf.max, stats[f] + conf.step))}
+                style={{ background:'#30363d', border:'none', color:'#fff', borderRadius:'4px', width:'30px', height:'30px', cursor:'pointer' }}
+              >+</button>
+            </div>
           </div>
         );
       })}
@@ -5024,56 +4968,147 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
 
 // === FILE: /src/components/user/TierSettingsModal.tsx ===
 
+// ==========================================
+// FILE PATH: /src/components/user/TierSettingsModal.tsx
+// ==========================================
+
 import React, { useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { X, Save, Settings } from 'lucide-react';
+import { X, Save, Settings, Trophy, Swords } from 'lucide-react';
+import { TierConfig } from '../../types';
 
 export const TierSettingsModal = ({ onClose }: { onClose: () => void }) => {
   const { gameState, updateTierConfig } = useGameStore();
-  const [config, setConfig] = useState(gameState.tierConfig);
+
+  // [수정] 기존 세이브 파일 호환성 처리 (promos가 없으면 기본값 주입)
+  const [config, setConfig] = useState<TierConfig>(() => {
+    const current = gameState.tierConfig;
+    // 만약 promos 객체가 없다면(구버전 데이터라면) 기본값으로 초기화
+    if (!current.promos) {
+      return {
+        ...current,
+        promos: {
+          master: 5,
+          ace: 5,
+          joker: 5,
+          gold: 3,
+          silver: 3,
+          bronze: 3
+        }
+      };
+    }
+    return current;
+  });
 
   const handleSave = () => {
     updateTierConfig(config);
-    alert('티어 커트라인이 변경되었습니다.');
+    alert('티어 시스템 설정이 변경되었습니다.\n다음 승급전부터 적용됩니다.');
     onClose();
   };
 
-  const InputRow = ({ label, keyName, color }: any) => (
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-        <div style={{ width:'12px', height:'12px', borderRadius:'50%', background:color }}></div>
-        <span style={{ color:'#fff', fontWeight:'bold' }}>{label}</span>
+  const handlePromoChange = (tier: keyof TierConfig['promos'], value: number) => {
+    setConfig(prev => ({
+      ...prev,
+      promos: { ...prev.promos, [tier]: value }
+    }));
+  };
+
+  // 티어별 설정 행 컴포넌트
+  const TierRow = ({ label, keyName, color, promoKey }: { label: string, keyName: keyof TierConfig, color: string, promoKey: keyof TierConfig['promos'] }) => (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px', background:'#252528', padding:'10px', borderRadius:'8px', border:'1px solid #333' }}>
+
+      {/* 왼쪽: 티어 이름 및 커트라인 */}
+      <div style={{ display:'flex', alignItems:'center', gap:'15px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', width:'100px' }}>
+          <div style={{ width:'12px', height:'12px', borderRadius:'50%', background:color }}></div>
+          <span style={{ color: color, fontWeight:'bold', fontSize:'14px' }}>{label}</span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          <input 
+            type="number" 
+            value={config[keyName] as number} 
+            onChange={(e) => setConfig({ ...config, [keyName]: parseInt(e.target.value) })}
+            style={{ background:'#0d1117', border:'1px solid #444', color:'#fff', padding:'6px', borderRadius:'4px', width:'70px', textAlign:'right', fontWeight:'bold' }}
+          />
+          <span style={{ fontSize:'12px', color:'#888' }}>LP</span>
+        </div>
       </div>
-      <input 
-        type="number" 
-        value={config[keyName]} 
-        onChange={(e) => setConfig({ ...config, [keyName]: parseInt(e.target.value) })}
-        style={{ background:'#0d1117', border:'1px solid #333', color:'#fff', padding:'5px', borderRadius:'4px', width:'100px', textAlign:'right' }}
-      />
+
+      {/* 오른쪽: 승급전 판수 선택 */}
+      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+        <Swords size={14} color="#666" />
+        <select 
+          value={config.promos ? config.promos[promoKey] : 3} // 안전하게 접근
+          onChange={(e) => handlePromoChange(promoKey, parseInt(e.target.value))}
+          style={{ background:'#0d1117', border:'1px solid #444', color:'#ccc', padding:'4px 8px', borderRadius:'4px', fontSize:'12px', cursor:'pointer' }}
+        >
+          <option value={3}>3전 2선승</option>
+          <option value={5}>5전 3선승</option>
+          <option value={7}>7전 4선승</option>
+          <option value={9}>9전 5선승</option>
+        </select>
+      </div>
     </div>
   );
 
   return (
-    <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000 }}>
-      <div className="panel" style={{ width:'400px', background:'#161b22', border:'1px solid #30363d' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', borderBottom:'1px solid #333', paddingBottom:'15px', marginBottom:'20px' }}>
-          <h3 style={{ margin:0, display:'flex', alignItems:'center', gap:'10px' }}><Settings /> 티어 커트라인 설정</h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X /></button>
+    <div style={{ position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.85)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000, backdropFilter:'blur(5px)' }}>
+      <div className="panel" style={{ width:'500px', background:'#161b22', border:'1px solid #30363d', borderRadius:'12px', padding:0, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.5)' }}>
+
+        {/* 헤더 */}
+        <div style={{ padding:'20px', background:'#21262d', borderBottom:'1px solid #333', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 style={{ margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#fff', fontSize:'16px' }}>
+            <Settings size={18} /> 랭크 시스템 설정
+          </h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer' }}><X size={20}/></button>
         </div>
 
-        <div style={{ marginBottom:'20px' }}>
-          <InputRow label="챌린저" keyName="challenger" color="#00bfff" />
-          <InputRow label="마스터" keyName="master" color="#9b59b6" />
-          <InputRow label="에이스" keyName="ace" color="#e74c3c" />
-          <InputRow label="조커" keyName="joker" color="#2ecc71" />
-          <InputRow label="골드" keyName="gold" color="#f1c40f" />
-          <InputRow label="실버" keyName="silver" color="#95a5a6" />
-          <InputRow label="브론즈" keyName="bronze" color="#d35400" />
+        <div style={{ padding:'20px' }}>
+
+          {/* 1. 챌린저 설정 */}
+          <div style={{ marginBottom:'20px', paddingBottom:'15px', borderBottom:'1px dashed #333' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <Trophy size={16} color="#00bfff" />
+                <span style={{ color:'#00bfff', fontWeight:'bold' }}>챌린저 정원 (Ranking)</span>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                <span style={{ fontSize:'12px', color:'#888' }}>상위</span>
+                <input 
+                  type="number" 
+                  value={config.challengerRank} 
+                  onChange={(e) => setConfig({ ...config, challengerRank: parseInt(e.target.value) })}
+                  style={{ background:'#00bfff22', border:'1px solid #00bfff', color:'#fff', padding:'6px', borderRadius:'4px', width:'60px', textAlign:'center', fontWeight:'bold' }}
+                />
+                <span style={{ fontSize:'12px', color:'#888' }}>위</span>
+              </div>
+            </div>
+            <div style={{ fontSize:'11px', color:'#666', marginTop:'8px', marginLeft:'26px' }}>
+              * 마스터 티어 점수를 넘긴 유저 중, 설정된 등수 안에 들어야 챌린저가 됩니다.
+            </div>
+          </div>
+
+          {/* 2. 티어별 커트라인 및 승급전 설정 */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'5px', maxHeight:'400px', overflowY:'auto' }}>
+            {config.promos && (
+              <>
+                <TierRow label="마스터" keyName="master" color="#9b59b6" promoKey="master" />
+                <TierRow label="에이스" keyName="ace" color="#e74c3c" promoKey="ace" />
+                <TierRow label="조커" keyName="joker" color="#2ecc71" promoKey="joker" />
+                <TierRow label="골드" keyName="gold" color="#f1c40f" promoKey="gold" />
+                <TierRow label="실버" keyName="silver" color="#95a5a6" promoKey="silver" />
+                <TierRow label="브론즈" keyName="bronze" color="#d35400" promoKey="bronze" />
+              </>
+            )}
+          </div>
+
         </div>
 
-        <button className="btn btn-primary" style={{ width:'100%', display:'flex', justifyContent:'center', gap:'5px' }} onClick={handleSave}>
-          <Save size={16} /> 설정 저장
-        </button>
+        <div style={{ padding:'20px', borderTop:'1px solid #333', background:'#21262d' }}>
+          <button className="btn" style={{ width:'100%', background:'#238636', color:'#fff', display:'flex', justifyContent:'center', gap:'8px', padding:'12px', fontSize:'14px', borderRadius:'8px', border:'none', cursor:'pointer', fontWeight:'bold' }} onClick={handleSave}>
+            <Save size={18} /> 설정 저장하기
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6743,11 +6778,11 @@ export interface TierConfig {
 // ==========================================
 
 import { Hero, TierConfig, Post, Comment, AIConfig, BattleSettings, BattlefieldSettings } from '../types';
-import { generateUserName } from '../utils/nameGenerator';
 import { fetchAIPost, fetchAIComment } from '../utils/AIService';
 
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
+// 티어별 가중치 (잠재력 계산용)
 const getTierWeight = (tier: string) => {
   if (tier.includes('천상계') || tier.includes('챌린저')) return 50;
   if (tier.includes('마스터') || tier.includes('에이스')) return 30;
@@ -6778,18 +6813,14 @@ const getRandomTopicContext = (heroes: Hero[], battleSettings: BattleSettings) =
     const stat = object === '거신병' ? battleSettings.izman.towerAtk : battleSettings.izman.servantGold;
     return `주제: 게임 내 ${object} 밸런스 토론. (관련 수치: ${stat})`;
   }
-  else if (rand < 0.9) {
-    const top3 = [...heroes].sort((a,b) => b.recentWinRate - a.recentWinRate).slice(0, 3);
-    const names = top3.map(h => h.name).join(', ');
-    return `주제: 현재 1티어 3대장(${names}) 꿀 빨아야 된다는 이야기.`;
-  }
   else {
-    const situations = ["승급전 막판에 우리팀 탈주함", "적팀 핵 의심됨", "서폿이 미드와서 던짐", "한타 대박나서 역전함"];
-    return `주제: 방금 겪은 랭크 게임 썰 (${pick(situations)})`;
+    return `주제: 방금 겪은 랭크 게임 썰`;
   }
 };
 
-// 1. 비동기 글 생성
+// ------------------------------------------------------------------
+// 1. 게시글 생성 (오직 외부 AI & 실제 유저만 사용)
+// ------------------------------------------------------------------
 export async function generatePostAsync(
   uniqueId: number, 
   heroes: Hero[], 
@@ -6801,12 +6832,16 @@ export async function generatePostAsync(
   fieldSettings: BattlefieldSettings
 ): Promise<Post | null> {
 
+  // [핵심] AI가 꺼져있거나 유저가 없으면 생성 안함
+  if (!aiConfig.apiKey || !aiConfig.enabled) return null;
   if (!userPool || userPool.length === 0) return null;
 
+  // 실제 유저 풀에서 작성자 선정
   let author: any;
   let selectedCategory = "잡담";
 
   if (Math.random() < 0.2) { 
+    // 랭커가 글 쓸 확률
     const rankers = [...userPool].sort((a,b) => b.score - a.score).slice(0, 50);
     author = pick(rankers);
     const rand = Math.random();
@@ -6814,6 +6849,7 @@ export async function generatePostAsync(
     else if (rand < 0.7) selectedCategory = '분석';
     else selectedCategory = '자랑';
   } else {
+    // 일반 유저
     author = pick(userPool);
     const rand = Math.random();
     if (rand < 0.3) selectedCategory = '징징';
@@ -6822,27 +6858,29 @@ export async function generatePostAsync(
     else selectedCategory = '잡담'; 
   }
 
-  let basePotential = 10; 
-  const tierWeight = getTierWeight(author.getTierName(tierConfig));
-
-  if (selectedCategory === '공략' || selectedCategory === '분석') basePotential += tierWeight * 1.5;
-  if (selectedCategory === '유머') basePotential += Math.floor(Math.random() * 80);
-  if (selectedCategory === '징징') basePotential += Math.random() < 0.1 ? 50 : -20;
-  if (selectedCategory === '자랑') basePotential += tierWeight;
-  if (selectedCategory === '잡담') basePotential += Math.floor(Math.random() * 20);
-
-  const dynamicTopic = getRandomTopicContext(heroes, battleSettings);
+  // AI에게 보낼 컨텍스트 생성
   const mostChamp = heroes.find(h => h.id === author.mainHeroId)?.name || '알수없음';
-  const userContext = `[작성자] ${author.name} (티어: ${author.getTierName(tierConfig)}). 주챔: ${mostChamp}`;
+  const currentTierName = author.getTierName(tierConfig);
+  const dynamicTopic = getRandomTopicContext(heroes, battleSettings);
+
+  const userContext = `[작성자 정보] 닉네임: ${author.name}, 티어: ${currentTierName}, 주챔피언: ${mostChamp}`;
   const fullContext = `${userContext}\n${dynamicTopic}\n카테고리: ${selectedCategory}\n(JSON만 출력)`;
 
+  // 외부 AI 호출
   const aiResult = await fetchAIPost(aiConfig, fullContext, selectedCategory);
+
   if (!aiResult) return null;
+
+  let basePotential = 10;
+  const tierWeight = getTierWeight(currentTierName);
+
+  if (selectedCategory === '공략') basePotential += tierWeight * 1.5;
+  if (selectedCategory === '질문') basePotential += 30; // 질문글은 댓글 유도용
 
   return {
     id: uniqueId,
     author: author.name, 
-    authorTier: author.getTierName(tierConfig),
+    authorTier: currentTierName, // [중요] 실제 유저의 현재 티어 사용
     title: aiResult.title,
     content: aiResult.content,
     category: selectedCategory as any,
@@ -6855,28 +6893,42 @@ export async function generatePostAsync(
   };
 }
 
-// 2. 동기식 백업 생성
-export function generatePostSync(uniqueId: number, heroes: Hero[], tierConfig: TierConfig, currentTick: number): Post {
-    return {
-        id: uniqueId, author: '시스템', authorTier: '관리자', 
-        title: 'AI 설정을 확인해주세요', content: 'API 키가 없거나 AI가 비활성화되었습니다.', category: '공지', 
-        views: 0, upvotes: 0, downvotes: 0, comments: 0, commentList: [], createdAt: currentTick, potential: 0, isBest: false, displayTime: '방금 전'
-    };
-}
+// ------------------------------------------------------------------
+// 2. 댓글 생성 (오직 외부 AI & 실제 유저만 사용)
+// ------------------------------------------------------------------
+export async function generateCommentAsync(
+  post: Post, 
+  aiConfig: AIConfig, 
+  userPool: any[], 
+  tierConfig: TierConfig
+): Promise<Comment | null> {
 
-// 3. 댓글 생성 (AI)
-export async function generateCommentAsync(post: Post, aiConfig: AIConfig): Promise<Comment | null> {
+  // [핵심] AI 미설정시 생성 거부
+  if (!aiConfig.apiKey || !aiConfig.enabled) return null;
+  if (!userPool || userPool.length === 0) return null;
+
+  // [핵심] 댓글 작성자도 '실제 유저' 중에서 뽑음 (가짜 유저 생성 X)
+  const commenter = pick(userPool);
+
+  // [중요] 해당 유저 객체의 메소드를 통해 실시간 티어를 가져옴
+  const commenterTier = commenter.getTierName(tierConfig);
+
   const commentText = await fetchAIComment(aiConfig, post.title, post.content);
+
   if (!commentText) return null;
 
-  const tiers = ['챌린저', '마스터', '다이아', '플래티넘', '골드', '실버', '브론즈', '아이언'];
   return {
-    id: Date.now() + Math.random(), author: generateUserName(Math.random()), authorTier: pick(tiers),
-    content: commentText, timestamp: "방금 전"
+    id: Date.now() + Math.random(), 
+    author: commenter.name, 
+    authorTier: commenterTier, // 실제 유저의 티어
+    content: commentText, 
+    timestamp: "방금 전"
   };
 }
 
-// 4. 인터랙션 및 시간 업데이트
+// ------------------------------------------------------------------
+// 3. 인터랙션 업데이트
+// ------------------------------------------------------------------
 export function updatePostInteractions(posts: Post[], currentTick: number): Post[] {
   return posts.map(post => {
     const age = currentTick - post.createdAt;
@@ -6888,66 +6940,43 @@ export function updatePostInteractions(posts: Post[], currentTick: number): Post
     else if (age < 60) updatedPost.displayTime = `${Math.floor(age)}분 전`;
     else updatedPost.displayTime = `${Math.floor(age / 60)}시간 전`;
 
-    let exposure = (post.potential / (age * 2 + 20)); 
-    if (post.isBest) exposure *= 2.5; 
+    let exposure = (post.potential / (age * 1.5 + 20)); 
+    if (post.isBest) exposure *= 3.0; 
 
     let newViews = 0;
     if (Math.random() < exposure) {
-        newViews = Math.floor(Math.random() * 5) + 1;
+        newViews = Math.floor(Math.random() * 8) + 1;
         updatedPost.views += newViews;
     }
 
     if (newViews > 0) {
-        let conversionRate = post.potential / 2000;
-        if (post.upvotes > 5) conversionRate *= 1.5;
+        let conversionRate = post.potential / 1500; 
+        if (post.upvotes > 5) conversionRate *= 1.2;
 
         let dislikeRate = 0.001; 
-        if (post.category === '징징') dislikeRate = 0.05; 
-        if (post.category === '자랑') dislikeRate = 0.03; 
-        if (post.potential < 30) dislikeRate += 0.02;
+        if (post.category === '징징') dislikeRate = 0.08; 
 
         for (let i = 0; i < newViews; i++) {
             if (Math.random() < conversionRate) updatedPost.upvotes += 1;
             if (Math.random() < dislikeRate) updatedPost.downvotes += 1;
         }
+
+        // [중요] 댓글 자동 생성 부분 삭제됨. 
+        // 댓글은 오직 gameSlice의 비동기 AI 호출을 통해서만 생성됩니다.
     }
 
-    if (updatedPost.downvotes > updatedPost.upvotes * 2) {
-        updatedPost.potential = Math.max(0, updatedPost.potential - 5); 
+    if (updatedPost.downvotes > updatedPost.upvotes * 3) {
+        updatedPost.potential = Math.max(0, updatedPost.potential - 10); 
     }
 
     if (!updatedPost.isBest && updatedPost.upvotes >= 10) {
       updatedPost.isBest = true;
-      updatedPost.potential += 50; 
+      updatedPost.potential += 60; 
       updatedPost.title = `[념글] ${updatedPost.title}`;
     }
 
     return updatedPost;
   });
-}
-
-// [신규 추가] 5. 동기식 댓글 생성 (AI 없을 때)
-export function generateCommentSync(post: Post): Comment {
-  const tiers = ['챌린저', '마스터', '다이아', '플래티넘', '골드', '실버', '브론즈', '아이언'];
-
-  const reactions = [
-    "ㄹㅇㅋㅋ", "개추", "이거 맞다", "ㄴㄴ 아님", "???", "ㅋㅋㅋ", "그래서 님 티어가?",
-    "와 진짜냐", "밸런스 꼬라지 봐라", "운영진 일 안하냐", "꿀팁 ㄱㅅ", "부럽다",
-    "이게 게임이냐", "갓겜 수준", "ㅇㅈ", "비추", "알빠노", "누칼협?"
-  ];
-
-  // 글 카테고리에 따른 반응 가중치
-  if (post.category === '자랑') reactions.push("비틱 차단좀", "축하한다", "주작아님?");
-  if (post.category === '징징') reactions.push("니가 못해서 그럼", "꼬우면 접어", "징징대지마");
-  if (post.category === '공략') reactions.push("와드", "좋은 정보 감사", "이거보고 챌린저 감");
-
-  return {
-    id: Date.now() + Math.random(),
-    author: generateUserName(Math.random()),
-    authorTier: pick(tiers),
-    content: pick(reactions),
-    timestamp: "방금 전"
-  };
 }
 
 // === FILE: /src/engine/MatchEngine.ts ===
@@ -7290,6 +7319,150 @@ export const initializeGame = (heroes: Hero[]) => {
   }
 };
 
+// === FILE: /src/engine/SentimentEngine.ts ===
+
+// ==========================================
+// FILE PATH: /src/engine/SentimentEngine.ts
+// ==========================================
+
+import { GameState, Hero, Post } from '../types';
+
+/**
+ * 목표 민심(Target Sentiment)을 계산합니다. (v2.0 Science Logic)
+ * - 아무것도 안 해도 기본적으로 60~70점(보통~좋음)을 유지합니다.
+ * - 특정 조건(경제 호황, 황금 밸런스, 꿀잼 전투)을 달성하면 90점 이상으로 치솟습니다.
+ * - 명백한 관리 소홀(서버 터짐, 승률 60% 방치)일 때만 떨어집니다.
+ */
+export function calculateTargetSentiment(
+  gameState: GameState,
+  heroes: Hero[],
+  posts: Post[]
+): number {
+  // [기본 점수]: 65점 (시작부터 '약간 좋음' 상태)
+  let target = 65; 
+
+  // --------------------------------------------------------
+  // 1. ⚖️ 밸런스 (Balance) - "억까 방지"
+  // --------------------------------------------------------
+  let brokenCount = 0; // 생태계 교란종 수
+  let goldenCount = 0; // 황금 밸런스 수
+
+  heroes.forEach(h => {
+    const wr = h.recentWinRate;
+
+    // 황금 밸런스 (48~52%): 아주 이상적인 구간
+    if (wr >= 48 && wr <= 52) goldenCount++;
+
+    // 허용 범위 (45~55%): 이 구간은 "정상"으로 간주 (감점 없음)
+
+    // 심각한 불균형 (58% 초과 or 42% 미만): 이때만 유저들이 화냄
+    if (wr > 58 || wr < 42) {
+      brokenCount++;
+      target -= (Math.abs(wr - 50) - 8) * 2; // 격차만큼 감점
+    }
+  });
+
+  // [평화 보너스] 문제아가 하나도 없으면 관리 능력을 칭찬함 (+10)
+  if (brokenCount === 0) target += 10;
+
+  // [황금기 보너스] 절반 이상의 영웅이 황금 밸런스면 극찬 (+10)
+  if (goldenCount >= (heroes.length / 2)) target += 10;
+
+
+  // --------------------------------------------------------
+  // 2. ⚔️ 도파민 지수 (Excitement) - "킬이 많이 나야 재밌다"
+  // --------------------------------------------------------
+  const izmanKills = parseFloat(gameState.godStats.izmanAvgKills);
+  const danteKills = parseFloat(gameState.godStats.danteAvgKills);
+  const totalAvgKills = izmanKills + danteKills;
+
+  // 평균 30킬 이상이면 "화끈한 메타" (+5)
+  if (totalAvgKills >= 30) target += 5;
+  // 평균 50킬 이상이면 "대유잼 시대" (+10)
+  if (totalAvgKills >= 50) target += 5;
+
+  // 반대로 15킬 미만이면 "수면제 메타" (-5)
+  if (totalAvgKills < 15) target -= 5;
+
+
+  // --------------------------------------------------------
+  // 3. 💰 경제 지수 (Economy) - "돈이 잘 벌려야 재밌다"
+  // --------------------------------------------------------
+  // 모든 영웅의 평균 골드 획득량 계산
+  let totalGold = 0;
+  let heroCount = 0;
+  heroes.forEach(h => {
+    const goldVal = parseInt(h.avgGold.replace(/,/g, '')) || 0;
+    if(goldVal > 0) {
+        totalGold += goldVal;
+        heroCount++;
+    }
+  });
+  const globalAvgGold = heroCount > 0 ? totalGold / heroCount : 0;
+
+  // 평균 1.2만 골드 이상 벌리면 "성장이 시원시원하다" (+5)
+  if (globalAvgGold >= 12000) target += 5;
+  // 평균 1.5만 골드 이상이면 "혜자 게임" (+5)
+  if (globalAvgGold >= 15000) target += 5;
+
+
+  // --------------------------------------------------------
+  // 4. ⏳ 쾌적함 지수 (Quality of Service)
+  // --------------------------------------------------------
+  const waitTime = gameState.userStatus.avgWaitTime;
+
+  // 매칭 20초 이내: "갓서버" (+5)
+  if (waitTime <= 20) target += 5;
+  // 매칭 60초 초과: "망겜소리 나옴" (-10)
+  else if (waitTime > 60) target -= 10;
+
+
+  // --------------------------------------------------------
+  // 5. 🗣️ 커뮤니티 여론 (Public Opinion)
+  // --------------------------------------------------------
+  const recentPosts = posts.slice(0, 30);
+  let communityScore = 0;
+
+  recentPosts.forEach(p => {
+    // 징징글이 념글(Best) 갔을 때만 타격 (일반 징징글은 무시)
+    if (p.category === '징징' && p.isBest) communityScore -= 2;
+
+    // 분석/공략글은 유저들의 학구열을 의미함 (상승)
+    if (p.category === '공략' || p.category === '분석') communityScore += 0.5;
+
+    // 칭찬/자랑글이 많으면 분위기 좋음
+    if (p.category === '자랑' && p.upvotes > 5) communityScore += 0.2;
+  });
+
+  // 커뮤니티 영향력 제한 (-20 ~ +15)
+  target += Math.max(-20, Math.min(15, communityScore));
+
+
+  // 최종 범위 제한 (0 ~ 100)
+  return Math.max(0, Math.min(100, target));
+}
+
+/**
+ * 민심 변동 관성 로직
+ * - 급격하게 변하지 않고 서서히 변합니다.
+ * - 떨어질 때는 천천히 떨어지지만, 회복은 조금 더 빠릅니다.
+ */
+export function smoothSentiment(current: number, target: number): number {
+  const diff = target - current;
+
+  // 이미 목표치 근처면 고정
+  if (Math.abs(diff) < 0.1) return target;
+
+  let speed = 0.05; // 기본 변화 속도
+
+  // 민심이 오를 때는 약간 더 빠르게 반영 (유저들이 좋은 패치엔 반응이 빠름)
+  if (diff > 0) speed = 0.08;
+  // 민심이 떨어질 때는 조금 천천히 (방어 기제)
+  else speed = 0.03;
+
+  return current + diff * speed;
+}
+
 // === FILE: /src/engine/SpectateAI.ts ===
 
 // src/engine/SpectateAI.ts
@@ -7503,6 +7676,13 @@ import { generateUserName } from '../utils/nameGenerator';
 
 const registeredNames = new Set<string>();
 
+const HOURLY_ACTIVITY_RATES = [
+  0.15, 0.10, 0.05, 0.03, 0.02, 0.05, 
+  0.10, 0.15, 0.20, 0.25, 0.25, 0.30, 
+  0.35, 0.35, 0.40, 0.40, 0.45, 0.50, 
+  0.55, 0.60, 0.65, 0.60, 0.50, 0.40 
+];
+
 export class UserAgent {
   id: number; name: string; score: number; hiddenMmr: number;
   preferredLane: 'TOP' | 'JUNGLE' | 'MID' | 'BOT'; 
@@ -7513,6 +7693,12 @@ export class UserAgent {
   restTimer: number;
   heroStats: Record<string, UserHeroStat>; 
   mainHeroId: string; 
+  activityBias: number; 
+
+  // [신규 필드 추가]
+  promoStatus: { targetTier: string; wins: number; losses: number; targetWins: number; } | null = null;
+  rank: number = 0;
+  isChallenger: boolean = false;
 
   constructor(id: number, heroes: Hero[]) {
     this.id = id;
@@ -7522,6 +7708,8 @@ export class UserAgent {
     this.status = 'OFFLINE';
     this.restTimer = 0;
     this.heroStats = {};
+
+    this.activityBias = (Math.random() * 0.2) - 0.1;
 
     let tempName = generateUserName(id);
     let attempts = 0;
@@ -7561,8 +7749,20 @@ export class UserAgent {
   }
 
   getTierName(config?: TierConfig) {
-    const defaults = { challenger: 9999, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300 };
-    return getTierNameHelper(this.score, config || defaults);
+    const defaults = { challengerRank: 50, challenger: 9999, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promoMatches: 3 };
+    const cfg = config || defaults;
+
+    // [수정] 챌린저 판별 로직: 플래그 확인
+    if (this.isChallenger) return '천상계';
+
+    // 나머지는 점수 기반
+    if (this.score >= cfg.master) return '마스터';
+    if (this.score >= cfg.ace) return '에이스';
+    if (this.score >= cfg.joker) return '조커';
+    if (this.score >= cfg.gold) return '골드';
+    if (this.score >= cfg.silver) return '실버';
+    if (this.score >= cfg.bronze) return '브론즈';
+    return '아이언';
   }
 
   pickHero(heroes: Hero[]): string {
@@ -7573,14 +7773,16 @@ export class UserAgent {
   }
 
   shouldBeOnline(hour: number): boolean {
-    return Math.random() < 0.3; 
+    const baseRate = HOURLY_ACTIVITY_RATES[hour] || 0.3;
+    const finalRate = Math.min(0.95, Math.max(0.01, baseRate + this.activityBias));
+    return Math.random() < finalRate;
   }
 }
 
 export const userPool: UserAgent[] = [];
 
 export function getTierNameHelper(score: number, config: TierConfig) {
-  if (score >= config.challenger) return '천상계';
+  if (score >= 9999) return '천상계'; // 임시 (UserAgent 내부 로직이 정확함)
   if (score >= config.master) return '마스터';
   if (score >= config.ace) return '에이스';
   if (score >= config.joker) return '조커';
@@ -7592,28 +7794,39 @@ export function getTierNameHelper(score: number, config: TierConfig) {
 
 export function initUserPool(heroes: Hero[], count: number = 3000) {
   const startId = userPool.length;
-  const newUsersCount = count - userPool.length;
-  const newUsers = Array.from({ length: newUsersCount }, (_, i) => new UserAgent(startId + i, heroes));
-  userPool.push(...newUsers);
+  if (count > userPool.length) {
+    const newUsersCount = count - userPool.length;
+    const newUsers = Array.from({ length: newUsersCount }, (_, i) => new UserAgent(startId + i, heroes));
+    userPool.push(...newUsers);
+  }
 }
 
 export function updateUserActivity(hour: number, heroes: Hero[]) {
   userPool.forEach(u => {
-    if (u.status === 'INGAME') return;
+    if (u.status === 'INGAME') return; 
+
     if (u.status === 'RESTING') {
       u.restTimer -= 1;
       if (u.restTimer <= 0) u.status = 'IDLE';
       return;
     }
+
     const wantsToPlay = u.shouldBeOnline(hour);
-    if (u.status === 'OFFLINE' && wantsToPlay) u.status = 'IDLE';
-    else if (u.status !== 'OFFLINE' && !wantsToPlay && Math.random() < 0.1) u.status = 'OFFLINE';
+
+    if (u.status === 'OFFLINE' && wantsToPlay) {
+        u.status = 'IDLE';
+    } 
+    else if ((u.status === 'IDLE' || u.status === 'QUEUE') && !wantsToPlay) {
+        if (Math.random() < 0.2) { 
+            u.status = 'OFFLINE';
+        }
+    }
   });
 }
 
 export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[] {
   const sorted = [...userPool].sort((a, b) => b.score - a.score || a.id - b.id);
-  
+
   return sorted.slice(0, 50).map(u => {
     let mostPlayedId = u.mainHeroId;
     let maxGames = -1;
@@ -7635,7 +7848,10 @@ export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[]
       totalGames: u.wins + u.losses, 
       history: u.history || [],
       heroStats: u.heroStats, 
-      preferredLane: u.preferredLane
+      preferredLane: u.preferredLane,
+      laneStats: [],
+      mostChamps: [],
+      promoStatus: u.promoStatus // [추가]
     };
   });
 }
@@ -7649,14 +7865,16 @@ export function getUsersInTier(tierName: string, config: TierConfig): UserProfil
       tier: tierName, winRate: (u.wins/(u.wins+u.losses))*100 || 0,
       totalGames: u.wins+u.losses, history: u.history || [],
       heroStats: u.heroStats,
-      preferredLane: u.preferredLane
+      preferredLane: u.preferredLane,
+      laneStats: [],
+      mostChamps: [],
+      promoStatus: u.promoStatus // [추가]
     }));
 }
 
-// [신규 추가] 이름으로 유저 프로필 찾기
 export function findUserProfileByName(name: string, config: TierConfig): UserProfile | null {
   const user = userPool.find(u => u.name === name);
-  
+
   if (!user) return null;
 
   return {
@@ -7669,7 +7887,10 @@ export function findUserProfileByName(name: string, config: TierConfig): UserPro
     totalGames: user.wins + user.losses,
     history: user.history || [],
     heroStats: user.heroStats,
-    preferredLane: user.preferredLane
+    preferredLane: user.preferredLane,
+    laneStats: [],
+    mostChamps: [],
+    promoStatus: user.promoStatus // [추가]
   };
 }
 
@@ -7956,10 +8177,7 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       return {
         name: pData.name, heroId: pData.heroId, 
         kills: 0, deaths: 0, assists: 0, gold: 500, cs: 0,
-
-        // [신규] 피해량 초기화
         totalDamageDealt: 0,
-
         currentHp: 1000, maxHp: 1000, level: 1, items: [], 
         x: 50, y: 50, 
         lane: (['TOP', 'JUNGLE', 'MID', 'BOT', 'BOT'][index] as any),
@@ -7995,7 +8213,11 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       },
       timeline: [],
       avgTier: getTierNameHelper(batch[0].score, config),
-      logs: [{ time: 0, message: "--- 소환사의 협곡에 오신 것을 환영합니다 ---", type: 'START' }]
+      logs: [{ time: 0, message: "--- 소환사의 협곡에 오신 것을 환영합니다 ---", type: 'START' }],
+
+      // [신규] 스폰 타이머 초기화 (거신병: 5분, 주시자: 20분)
+      nextColossusSpawnTime: 300,
+      nextWatcherSpawnTime: 1200
     });
   }
   return newMatches;
@@ -8007,10 +8229,29 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
 // FILE PATH: /src/engine/match/MatchSettlement.ts
 // ==========================================
 
-import { Hero, LiveMatch, LivePlayer } from '../../types';
+import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
 import { userPool } from '../UserManager';
 
-export function finishMatch(match: LiveMatch, heroes: Hero[], day: number, hour: number, battleSettings: any) {
+// 다음 티어 정보 반환 (이름, 컷, 승급전 설정 키)
+const getNextTierInfo = (currentScore: number, config: TierConfig) => {
+  if (currentScore < config.bronze) return { name: '브론즈', cut: config.bronze, key: 'bronze' };
+  if (currentScore < config.silver) return { name: '실버', cut: config.silver, key: 'silver' };
+  if (currentScore < config.gold) return { name: '골드', cut: config.gold, key: 'gold' };
+  if (currentScore < config.joker) return { name: '조커', cut: config.joker, key: 'joker' };
+  if (currentScore < config.ace) return { name: '에이스', cut: config.ace, key: 'ace' };
+  if (currentScore < config.master) return { name: '마스터', cut: config.master, key: 'master' };
+  return null; 
+};
+
+export function finishMatch(
+  match: LiveMatch, 
+  heroes: Hero[], 
+  day: number, 
+  hour: number, 
+  battleSettings: any,
+  tierConfig: TierConfig // [중요] 함수 인자로 설정을 받음
+) {
+
   let isBlueWin = match.score.blue > match.score.red;
   if (match.stats.red.nexusHp <= 0) isBlueWin = true;       
   else if (match.stats.blue.nexusHp <= 0) isBlueWin = false; 
@@ -8019,6 +8260,8 @@ export function finishMatch(match: LiveMatch, heroes: Hero[], day: number, hour:
   const redKills = match.redTeam.reduce((sum, p) => sum + p.kills, 0);
 
   const participantNames = new Set([...match.blueTeam, ...match.redTeam].map(p => p.name));
+
+  // 참여 유저 휴식 처리
   userPool.forEach(u => {
     if (participantNames.has(u.name)) {
       u.status = 'RESTING';
@@ -8029,12 +8272,10 @@ export function finishMatch(match: LiveMatch, heroes: Hero[], day: number, hour:
   const processTeam = (team: LivePlayer[], win: boolean) => {
     team.forEach(player => {
       const hero = heroes.find(h => h.id === player.heroId);
-      const user = userPool.find(u => u.name === player.name);
+      // UserProfile에 promoStatus 타입이 정의되어 있다고 가정 (types/index.ts 업데이트 필수)
+      const user = userPool.find(u => u.name === player.name) as any;
 
-      // [수정] 총 획득 골드 계산 (보유 골드 + 아이템 가치)
-      const itemsValue = player.items.reduce((sum, item) => sum + item.cost, 0);
-      const totalEarnedGold = player.gold + itemsValue;
-
+      // 1. 영웅 통계 갱신
       if (hero) {
         hero.record.totalMatches++; hero.record.totalPicks++; 
         if (win) hero.record.totalWins++;
@@ -8042,27 +8283,91 @@ export function finishMatch(match: LiveMatch, heroes: Hero[], day: number, hour:
         hero.record.totalDeaths += player.deaths; 
         hero.record.totalAssists += player.assists; 
 
-        // [수정] 계산된 총 골드를 누적
-        hero.record.totalGold += totalEarnedGold;
-
+        const itemsValue = player.items.reduce((sum, item) => sum + item.cost, 0);
+        hero.record.totalGold += (player.gold + itemsValue);
         hero.record.totalDamage += player.totalDamageDealt; 
         hero.record.totalCs += player.cs;
-
         hero.record.recentResults.push(win); 
         if (hero.record.recentResults.length > 50) hero.record.recentResults.shift();
       }
 
+      // 2. 유저 점수 및 승급전 처리
       if (user) {
-        const lp = win ? 25 : -20;
-        user.score = Math.max(0, user.score + lp);
-        user.wins += win ? 1 : 0; user.losses += win ? 0 : 1;
+        user.wins += win ? 1 : 0; 
+        user.losses += win ? 0 : 1;
+
+        let lpChange = win ? 25 : -20;
+        let kdaStr = `${player.kills}/${player.deaths}/${player.assists}`;
+        let historyMsg = win ? 'WIN' : 'LOSE';
+
+        // --- [A] 승급전 진행 중일 때 ---
+        if (user.promoStatus) {
+            lpChange = 0; // 점수 변동 없음
+
+            if (win) {
+                user.promoStatus.wins++;
+                historyMsg = 'PROMO WIN';
+                // 승급 성공 조건 (목표 승수 달성)
+                if (user.promoStatus.wins >= user.promoStatus.targetWins) {
+                    const nextTier = getNextTierInfo(user.score, tierConfig);
+                    if (nextTier) {
+                        user.score = nextTier.cut + 50; // 승급 보너스 점수
+                        historyMsg = `🎉 승급! (${nextTier.name})`;
+                    }
+                    user.promoStatus = null; // 승급전 종료
+                }
+            } else {
+                user.promoStatus.losses++;
+                historyMsg = 'PROMO LOSS';
+
+                // 탈락 조건: (총 판수 - 목표 승수 + 1)번 패배 시 탈락
+                // 예: 5전 3선승제(총 5, 목표 3) -> 3패 시 탈락
+                const totalGames = user.promoStatus.targetWins * 2 - 1;
+                const maxLosses = totalGames - user.promoStatus.targetWins + 1;
+
+                if (user.promoStatus.losses >= maxLosses) {
+                    user.score -= 40; // 승급 실패 패널티
+                    historyMsg = '❌ 승급 실패';
+                    user.promoStatus = null;
+                }
+            }
+        } 
+        // --- [B] 일반 매치일 때 ---
+        else {
+            const oldScore = user.score;
+            user.score = Math.max(0, user.score + lpChange);
+
+            // 다음 티어 커트라인 달성 시 승급전 발동
+            const nextTier = getNextTierInfo(oldScore, tierConfig);
+            if (nextTier && user.score >= nextTier.cut) {
+                user.score = nextTier.cut - 1; // 점수 잠금
+
+                // 티어별 설정된 승급전 판수 적용 (기본값 3)
+                // key가 없거나 매칭되지 않으면 3전 2선승
+                const promoMatches = tierConfig.promos ? (tierConfig.promos[nextTier.key as keyof typeof tierConfig.promos] || 3) : 3;
+                const targetWins = Math.ceil(promoMatches / 2);
+
+                user.promoStatus = {
+                    targetTier: nextTier.name,
+                    wins: 0,
+                    losses: 0,
+                    targetWins: targetWins
+                };
+                historyMsg = `🔥 ${nextTier.name} 승급전! (${promoMatches}전)`;
+            }
+        }
+
         user.history.unshift({ 
-          season: 1, result: win ? 'WIN' : 'LOSE', 
-          heroName: hero?.name || '?', kda: `${player.kills}/${player.deaths}/${player.assists}`, 
-          lpChange: lp, date: `Day ${day} ${hour}:00` 
+          season: 1, 
+          result: historyMsg as any, 
+          heroName: hero?.name || '?', 
+          kda: kdaStr, 
+          lpChange: lpChange, 
+          date: `Day ${day} ${hour}:00` 
         });
         if (user.history.length > 20) user.history.pop();
 
+        // 모스트 챔피언 통계 갱신
         if (!user.heroStats[player.heroId]) user.heroStats[player.heroId] = { matches:0, wins:0, kills:0, deaths:0, assists:0 };
         const st = user.heroStats[player.heroId];
         st.matches++; if(win) st.wins++; st.kills+=player.kills; st.deaths+=player.deaths; st.assists+=player.assists;
@@ -8073,12 +8378,7 @@ export function finishMatch(match: LiveMatch, heroes: Hero[], day: number, hour:
   processTeam(match.blueTeam, isBlueWin);
   processTeam(match.redTeam, !isBlueWin);
 
-  return {
-    isBlueWin,
-    blueKills,
-    redKills,
-    duration: match.currentDuration 
-  };
+  return { isBlueWin, blueKills, redKills, duration: match.currentDuration };
 }
 
 // === FILE: /src/engine/match/MatchUpdater.ts ===
@@ -8096,20 +8396,20 @@ import { processSiegePhase } from './phases/SiegePhase';
 import { processGrowthPhase } from './phases/GrowthPhase';
 import { JUNGLE_CONFIG } from '../../data/jungle';
 
-// [수정] timeSteps 인자 추가 (몇 초 흘릴지)
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], timeSteps: number): LiveMatch[] {
   const state = useGameStore.getState();
   if (!state || !state.gameState) return matches;
 
-  const settings = state.gameState.fieldSettings || { tower: { hp: 3000, armor: 50, rewardGold: 80 }, colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50 }, watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180 }, jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS };
+  const fieldSettings = state.gameState.fieldSettings || { tower: { hp: 3000, armor: 50, rewardGold: 80 }, colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50 }, watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180 }, jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS };
   const battleSettings = state.gameState.battleSettings;
   const roleSettings = state.gameState.roleSettings;
   const shopItems = state.shopItems || []; 
 
-  const watcherBuffType = settings.watcher?.buffType || 'COMBAT';
-  const watcherBuffAmount = (settings.watcher?.buffAmount || 20) / 100;
+  const watcherBuffType = fieldSettings.watcher?.buffType || 'COMBAT';
+  const watcherBuffAmount = (fieldSettings.watcher?.buffAmount || 20) / 100;
 
   return matches.map(match => {
+    // 종료 조건 체크
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
         match.duration = match.currentDuration; 
         return match;
@@ -8121,13 +8421,14 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], timeStep
     }
 
     try {
-        // [핵심] 전달받은 시간(초)만큼 시뮬레이션 반복
         for (let i = 0; i < timeSteps; i++) {
             if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) break;
             match.currentDuration += 1;
 
+            // [거신병 공성 효과 처리]
             processSiegeUnit(match);
 
+            // [주시자 버프 만료 체크]
             ['blue', 'red'].forEach((side) => {
                 const s = (match.stats as any)[side];
                 if (s.activeBuffs.voidPower && match.currentDuration > s.activeBuffs.voidBuffEndTime) {
@@ -8137,42 +8438,62 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], timeStep
                 }
             });
 
-            // 아이템 구매 (30초마다)
+            // [아이템 구매] (30초마다)
             if (match.currentDuration % 30 === 0) {
                 [...match.blueTeam, ...match.redTeam].forEach(p => {
                     attemptBuyItem(p, shopItems, heroes);
                 });
             }
 
+            // [전투/공성/성장 페이즈]
             processCombatPhase(match, heroes, battleSettings, roleSettings, watcherBuffType, watcherBuffAmount);
-            processSiegePhase(match, heroes, settings, roleSettings);
+
+            // [수정: 하수인 스펙 반영을 위해 battleSettings 전달]
+            processSiegePhase(match, heroes, fieldSettings, roleSettings, battleSettings);
+
             processGrowthPhase(match, battleSettings, heroes);
 
-            if (match.currentDuration > 300 && Math.random() < 0.0005) { 
-              const blueJunglerAlive = match.blueTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
-              const redJunglerAlive = match.redTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
+            // [신규] 1. 거신병 스폰 로직 (타이머 기반)
+            if (match.currentDuration >= match.nextColossusSpawnTime) {
+              // 젠 시간이 되었으므로 교전 발생 확률 증가 (0.0005 -> 0.005, 약 10배)
+              // 즉, 젠 되자마자 바로 먹히진 않고 눈치 싸움하다가 가져감
+              if (Math.random() < 0.005) {
+                const blueJunglerAlive = match.blueTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
+                const redJunglerAlive = match.redTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
 
-              let blueChance = 0.5;
-              const smiteBonus = (roleSettings.tracker.smiteChance - 1.0) / 2; 
-              if (blueJunglerAlive && !redJunglerAlive) blueChance = 0.5 + smiteBonus;
-              if (!blueJunglerAlive && redJunglerAlive) blueChance = 0.5 - smiteBonus;
+                let blueChance = 0.5;
+                const smiteBonus = (roleSettings.tracker.smiteChance - 1.0) / 2; 
+                if (blueJunglerAlive && !redJunglerAlive) blueChance = 0.5 + smiteBonus;
+                if (!blueJunglerAlive && redJunglerAlive) blueChance = 0.5 - smiteBonus;
 
-              const isBlueObj = Math.random() < blueChance;
-              (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += settings.colossus.rewardGold);
-              if(isBlueObj) { match.stats.blue.colossus++; applyColossusReward(match, true); }
-              else { match.stats.red.colossus++; applyColossusReward(match, false); }
+                const isBlueObj = Math.random() < blueChance;
+                (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += fieldSettings.colossus.rewardGold);
+
+                if(isBlueObj) { match.stats.blue.colossus++; applyColossusReward(match, true); }
+                else { match.stats.red.colossus++; applyColossusReward(match, false); }
+
+                // [중요] 다음 스폰 시간 설정 (5분 후 리젠)
+                match.nextColossusSpawnTime = match.currentDuration + 300; 
+              }
             }
 
-            if (match.currentDuration > 1200 && Math.random() < 0.0003) { 
-              const isBlueObj = Math.random() < 0.5; 
-              (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += settings.watcher.rewardGold);
-              if(isBlueObj) { match.stats.blue.watcher++; match.stats.blue.fury++; applyWatcherReward(match, true); }
-              else { match.stats.red.watcher++; match.stats.red.fury++; applyWatcherReward(match, false); }
+            // [신규] 2. 주시자 스폰 로직 (타이머 기반)
+            if (match.currentDuration >= match.nextWatcherSpawnTime) {
+              if (Math.random() < 0.003) { 
+                const isBlueObj = Math.random() < 0.5; 
+                (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += fieldSettings.watcher.rewardGold);
+
+                if(isBlueObj) { match.stats.blue.watcher++; match.stats.blue.fury++; applyWatcherReward(match, true); }
+                else { match.stats.red.watcher++; match.stats.red.fury++; applyWatcherReward(match, false); }
+
+                // [중요] 다음 스폰 시간 설정 (7분 후 리젠 - 주시자는 더 늦게 뜸)
+                match.nextWatcherSpawnTime = match.currentDuration + 420;
+              }
             }
         }
     } catch (error) {
         console.warn("Sim Error:", error);
-        match.currentDuration += timeSteps; // 에러 나도 시간은 흐르게
+        match.currentDuration += timeSteps; 
     }
 
     return match;
@@ -8517,8 +8838,9 @@ export const processGrowthPhase = (
   if (allPlayers.length === 0) return;
 
   const state = useGameStore.getState();
-  // 정글 설정값 안전하게 가져오기 (기존 세이브 호환)
   const jungleRaw = state.gameState.fieldSettings?.jungle;
+
+  // 정글 설정값 로드
   const jungleSettings = {
     density: jungleRaw?.density ?? 50,
     yield: jungleRaw?.yield ?? 50,
@@ -8526,41 +8848,83 @@ export const processGrowthPhase = (
     defense: jungleRaw?.defense ?? 20
   };
 
+  // 설정에 따른 보정치 계산
   const densityMod = 0.5 + (jungleSettings.density / 100);
   const yieldMod = 0.5 + (jungleSettings.yield / 100);
   const attackMod = 0.5 + (jungleSettings.attack / 50); 
   const defenseMod = 1.0 + (jungleSettings.defense / 200);
 
   allPlayers.forEach(p => {
+    // 0. 기본 골드 수급 (초당 1골드)
     p.gold += 1;
+
     if (!p.heroId) return;
     const heroData = heroes.find(h => h.id === p.heroId);
     if (!heroData) return;
+
+    // [신규] 1. 전술적 귀환 (Recall) 로직
+    // 체력이 30% 미만이고, 현재 살아있다면 집에 감
+    if (p.currentHp > 0 && (p.currentHp / p.maxHp) < 0.3) {
+      // 성장(CS/경험치)을 포기하고 체력 회복
+      p.currentHp = p.maxHp;
+      return; // 이번 틱 종료 (파밍 불가)
+    }
 
     const enemyMinions = p.lane === 'JUNGLE' 
       ? null 
       : (match.blueTeam.includes(p) ? battleSettings.izman.minions : battleSettings.dante.minions);
 
-    // [1] 정글러 로직
+    // [2] 정글러 로직
     if (p.lane === 'JUNGLE' || !enemyMinions) {
+        // 정글몹 조우 확률
         const spawnChance = (JUNGLE_CONFIG.BASE_SPAWN_RATE * densityMod) / defenseMod;
 
         if (Math.random() < spawnChance) {
+            // 데미지 계산 (레벨 비례 방어)
+            const heroDefenseFactor = 1 + (p.level * 0.1); 
+            const damageTaken = (JUNGLE_CONFIG.BASE_DAMAGE_TAKEN * attackMod) / heroDefenseFactor;
+
+            // 체력 감소
+            p.currentHp -= damageTaken;
+
+            // [신규] 2. 정글 처형 (Execution) 로직
+            if (p.currentHp <= 0) {
+              p.currentHp = p.maxHp; // 부활 (리스폰 대기시간은 시뮬레이션 단순화를 위해 생략하되 턴 날림)
+              p.deaths += 1; // 데스 추가
+
+              // 처형 로그 기록 (너무 자주 뜨면 도배되므로 확률적으로 기록하거나, 중요 이벤트로 처리)
+              if (Math.random() < 0.3) {
+                match.logs.push({
+                  time: match.currentDuration,
+                  message: `💀 ${p.name}님이 정글 몬스터에게 처형당했습니다.`,
+                  type: 'KILL' // 킬 로그로 처리하여 눈에 띄게 함
+                });
+              }
+              return; // 죽었으므로 보상 획득 불가
+            }
+
+            // 생존 시 보상 획득
             p.cs++;
             p.gold += Math.floor(JUNGLE_CONFIG.BASE_GOLD * yieldMod);
 
-            if (p.cs % JUNGLE_CONFIG.BASE_XP_INTERVAL === 0) p.level = Math.min(18, p.level + 1);
+            // 경험치 획득 및 레벨업
+            if (p.cs % JUNGLE_CONFIG.BASE_XP_INTERVAL === 0) {
+              p.level = Math.min(18, p.level + 1);
+              // 레벨업 시 체력/스탯 상승 효과 (간략화: 체력 회복)
+              p.currentHp = Math.min(p.maxHp, p.currentHp + 100);
+            }
 
-            const heroDefenseFactor = 1 + (p.level * 0.1); 
-            const damageTaken = (JUNGLE_CONFIG.BASE_DAMAGE_TAKEN * attackMod) / heroDefenseFactor;
-            const sustain = JUNGLE_CONFIG.BASE_REGEN - damageTaken; 
-            p.currentHp = Math.min(p.maxHp, Math.max(0, p.currentHp + sustain));
+            // 정글링 중 소량의 체력 회복 (기본 유지력)
+            const sustain = JUNGLE_CONFIG.BASE_REGEN; 
+            p.currentHp = Math.min(p.maxHp, p.currentHp + sustain);
         }
         return;
     }
 
-    // [2] 라인전 CS (딜량 제외)
+    // [3] 라이너(Laner) 로직 - 라인전
     const currentStats = calculateTotalStats(heroData, p.items);
+
+    // CS 먹을 확률 계산
     const farmingPower = (currentStats.ad * (currentStats.speed / 500)) + (currentStats.ap * 0.3);
     const rand = Math.random();
     let targetMinion = enemyMinions.melee;
@@ -8570,22 +8934,37 @@ export const processGrowthPhase = (
     const minionDurability = targetMinion.hp + (targetMinion.def * 2);
     const difficultyFactor = Math.max(1, minionDurability / 50); 
     const efficiency = farmingPower / difficultyFactor;
+
     let csChance = 0.11 * efficiency; 
     csChance += (p.level * 0.002);
     csChance = Math.max(0.08, Math.min(0.16, csChance));
 
+    // CS 획득 시도
     if (Math.random() < csChance) {
         p.cs++;
         p.gold += targetMinion.gold;
         if (p.cs % 15 === 0) p.level = Math.min(18, p.level + 1);
+
+        // 미니언 처치 시 소량 회복 (흡혈 등 추상화)
         p.currentHp = Math.min(p.maxHp, p.currentHp + 8);
     }
 
-    // [3] 라인전 딜교환 (확률 4%로 너프)
+    // 라인전 딜교환 (Poking)
+    // 딜교환으로 체력이 깎이면 다음 틱에 '전술적 귀환' 로직이 발동됨
     if (Math.random() < 0.04) {
         let pokeDamage = (p.level * 20) + (currentStats.ad * 0.5) + (currentStats.ap * 0.4);
         if (heroData.stats && heroData.stats.range > 300) pokeDamage *= 1.2;
+
+        // 딜교환 데미지 누적 (상대방 HP 감소는 CombatPhase 등에서 처리하거나 여기서 간략화)
+        // 여기서는 '내가 딜을 넣었다'는 기록만 남김. 
+        // 실제 상대 HP 감소는 복잡도를 낮추기 위해 CombatPhase의 확률적 킬이나 
+        // 별도의 Poke 로직으로 분리하는 것이 좋으나, 
+        // 간단히 p.currentHp가 깎이는 것은 '상대 미니언/타워/챔피언'에게 맞은 것으로 간주하여 아래 추가
+
         p.totalDamageDealt += Math.floor(pokeDamage);
+
+        // 상대에게 맞음 (랜덤 데미지)
+        p.currentHp -= (10 + p.level * 2);
     }
   });
 };
@@ -8596,25 +8975,50 @@ export const processGrowthPhase = (
 // FILE PATH: /src/engine/match/phases/SiegePhase.ts
 // ==========================================
 
-import { LiveMatch, Hero, RoleSettings } from '../../../types';
+import { LiveMatch, Hero, RoleSettings, BattleSettings } from '../../../types';
 
 export const processSiegePhase = (
   match: LiveMatch, 
   heroes: Hero[], 
   rewards: any,
-  roleSettings: RoleSettings
+  roleSettings: RoleSettings,
+  battleSettings?: BattleSettings // [신규] 하수인 스펙 참조용
 ) => {
-  // 1. 공성 발생 확률 (시간이 지날수록 증가)
+  // [기본 확률] 시간 비례
   let pushChance = 0.001 + (match.currentDuration / 3600) * 0.01; 
+
+  // [신규] 하수인 공격력 반영 (강한 미니언일수록 라인을 잘 밈)
+  if (battleSettings) {
+    // 양 팀 미니언의 평균 공격력 계산 (원거리/근거리/공성 평균)
+    const getAvgMinionAtk = (teamSettings: any) => {
+      const m = teamSettings.minions;
+      return (m.melee.atk + m.ranged.atk + m.siege.atk) / 3;
+    };
+
+    const blueMinionPower = getAvgMinionAtk(battleSettings.dante);
+    const redMinionPower = getAvgMinionAtk(battleSettings.izman);
+    const avgPower = (blueMinionPower + redMinionPower) / 2;
+
+    // 공격력 30 기준 0.001 추가 (미미해 보이지만 매초 실행되므로 유의미함)
+    pushChance += (avgPower / 10000); 
+  }
+
+  // 거신병 버프 시 5배 가속
   if (match.stats.blue.activeBuffs.siegeUnit || match.stats.red.activeBuffs.siegeUnit) pushChance *= 5;
 
   if (Math.random() >= pushChance) return; 
 
-  // 2. [수정] 블루팀 유리함 제거 (1.2배 삭제) -> 이제 킬 스코어만으로 공평하게 기세 판단
-  const blueAdvantage = match.score.blue - match.score.red;
+  // 2. 미는 쪽 결정 (점수차 + 하수인 강함 차이)
+  const scoreDiff = match.score.blue - match.score.red;
+  let bluePushProb = 0.5 + (scoreDiff / 100);
 
-  // 기세(Advantage)에 따라 미는 쪽 결정 (기본 50% + 점수차 보정)
-  const bluePushProb = 0.5 + (blueAdvantage / 100); 
+  // 하수인이 더 센 쪽이 밀 확률 증가
+  if (battleSettings) {
+    const blueAtk = battleSettings.dante.minions.siege.atk;
+    const redAtk = battleSettings.izman.minions.siege.atk;
+    // 공성 미니언 공격력 차이 10당 1% 확률 변동
+    bluePushProb += (blueAtk - redAtk) * 0.001; 
+  }
 
   const isBluePush = Math.random() < bluePushProb;
   const attacker = isBluePush ? 'BLUE' : 'RED';
@@ -8622,17 +9026,15 @@ export const processSiegePhase = (
   const defenderStats = isBluePush ? match.stats.red : match.stats.blue;
   const defenderName = isBluePush ? '이즈마한' : '단테';
 
-  // 3. 신살자(God Slayer) 생존 여부 확인 (공성 핵심 역할)
+  // 3. 신살자(God Slayer) 생존 여부 확인
   const hasGodSlayer = attackerTeam.some(p => {
       const h = heroes.find(x => x.id === p.heroId);
       return h?.role === '신살자' && p.currentHp > 0;
   });
 
-  // 신살자가 살아있으면 공성 성공 확률 대폭 증가
   if (hasGodSlayer && Math.random() < 0.6) {
       // 공성 진행
   } else if (!hasGodSlayer && Math.random() < 0.3) { 
-      // 신살자 없으면 낮은 확률로만 진행
       return; 
   }
 
@@ -8654,11 +9056,10 @@ export const processSiegePhase = (
           team: attacker
       });
   } 
-  // 5. 넥서스(수호자) 타격 로직
+  // 5. 넥서스 타격 로직
   else {
       let damage = 500 + (match.currentDuration / 2);
 
-      // 설정된 신살자 추가 피해량 적용
       if (hasGodSlayer) {
           const bonusRatio = 1 + (roleSettings.slayer.structureDamage / 100);
           damage *= bonusRatio;
@@ -8857,25 +9258,34 @@ import { INITIAL_ITEMS } from '../../data/items';
 import { GameState } from '../../types';
 import { JUNGLE_CONFIG } from '../../data/jungle';
 import { Hero } from '../../types';
-
-// [수정 1] 이미지 데이터 파일 import 추가
 import { INITIAL_CUSTOM_IMAGES } from '../../data/initialImages';
 
 import { createLiveMatches, finishMatch, updateLiveMatches } from '../../engine/MatchEngine';
 import { initUserPool, updateUserActivity, getTopRankers, userPool } from '../../engine/UserManager';
 import { analyzeHeroMeta, calculateUserEcosystem } from '../../engine/RankingSystem';
-import { updatePostInteractions, generatePostAsync, generatePostSync, generateCommentAsync, generateCommentSync } from '../../engine/CommunityEngine';
+import { updatePostInteractions, generatePostAsync, generateCommentAsync } from '../../engine/CommunityEngine';
+import { calculateTargetSentiment, smoothSentiment } from '../../engine/SentimentEngine';
 
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
   isPlaying: false, gameSpeed: 1,
-  userSentiment: 60, ccu: 0, totalUsers: 3000,
+
+  userSentiment: 60, 
+  ccu: 0, 
+  totalUsers: 3000, 
   userStatus: { totalGames: 0, playingUsers: 0, queuingUsers: 0, avgWaitTime: 0, tierDistribution: [] },
   topRankers: [],
   godStats: { totalMatches: 0, izmanWins: 0, izmanAvgKills: '0.0', izmanAvgTime: '00:00', danteWins: 0, danteAvgKills: '0.0', danteAvgTime: '00:00', avgGameDuration: 0, guardianDeathRate: 0, godAwakenRate: 0 },
   itemStats: {},
   liveMatches: [],
-  tierConfig: { challenger: 9999, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300 },
+
+  tierConfig: { 
+    challengerRank: 200, 
+    master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300,
+    promos: {
+      master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3
+    }
+  },
 
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1, defRatio: 1, hpRatio: 10000, guardianHp: 5000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
@@ -8896,8 +9306,6 @@ const initialGameState: GameState = {
     guardian: { survivalRate: 20 }
   },
   aiConfig: { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
-
-  // [수정 2] 빈 객체 {} 대신 import한 이미지 데이터를 넣습니다.
   customImages: INITIAL_CUSTOM_IMAGES 
 };
 
@@ -8959,11 +9367,21 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     while (nh >= 24) { nh -= 24; nd++; }
 
     const isNewMinute = minute !== nm;
+    const isNewHour = hour !== nh;
     const currentTotalMinutes = (nd * 1440) + (nh * 60) + nm;
 
+    // 가입자 자연 증가
+    let nextTotalUsers = totalUsers;
+    if (isNewHour) {
+      const growth = Math.floor(Math.random() * 5) + 1 + Math.floor(totalUsers * 0.0005);
+      nextTotalUsers += growth;
+    }
+
+    // 유저 풀 및 활동 갱신
     if (isNewMinute) {
-        if (userPool.length === 0) initUserPool(heroes, 3000);
-        else if (userPool.length < totalUsers) initUserPool(heroes, totalUsers);
+        if (userPool.length < nextTotalUsers) {
+            initUserPool(heroes, nextTotalUsers);
+        }
         updateUserActivity(nh, heroes);
     }
 
@@ -8977,7 +9395,9 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     const nextItemStats = { ...gameState.itemStats }; 
 
     endedMatches.forEach(match => {
-        const result = finishMatch(match, nextHeroes, nd, nh, gameState.battleSettings);
+        // [수정] 여기서 tierConfig를 인자로 넘겨줍니다.
+        const result = finishMatch(match, nextHeroes, nd, nh, gameState.battleSettings, tierConfig);
+
         nextGodStats.totalMatches++;
         if (result.isBlueWin) nextGodStats.danteWins++; else nextGodStats.izmanWins++;
 
@@ -9019,19 +9439,34 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     let analyzedHeroes = nextHeroes;
     let userStatus = gameState.userStatus;
     let topRankers = gameState.topRankers;
+    let newSentiment = gameState.userSentiment;
 
     if (isNewMinute) {
         analyzedHeroes = analyzeHeroMeta(nextHeroes);
-        userStatus = calculateUserEcosystem(onlineUsers, totalUsers, tierConfig);
+        userStatus = calculateUserEcosystem(onlineUsers, nextTotalUsers, tierConfig);
+
+        const sortedUsers = [...userPool].sort((a, b) => b.score - a.score);
+        sortedUsers.forEach((u, idx) => {
+            u.rank = idx + 1; 
+            if (u.score >= tierConfig.master && u.rank <= tierConfig.challengerRank) {
+                u.isChallenger = true;
+            } else {
+                u.isChallenger = false;
+            }
+        });
+
         topRankers = getTopRankers(analyzedHeroes, tierConfig);
+        const targetSentiment = calculateTargetSentiment(gameState, analyzedHeroes, communityPosts);
+        newSentiment = smoothSentiment(newSentiment, targetSentiment);
     }
 
     let nextPosts = [...communityPosts];
     if (isNewMinute) {
         nextPosts = updatePostInteractions(nextPosts, currentTotalMinutes);
-        const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled && gameState.aiConfig.apiKey;
 
+        const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled && gameState.aiConfig.apiKey;
         const postChance = 0.05 + (onlineUsers / 10000); 
+
         if (Math.random() < postChance) {
             const uniqueId = Date.now(); 
             if (isAIReady) {
@@ -9043,9 +9478,6 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
                         }));
                     }
                 });
-            } else {
-                const newPost = generatePostSync(uniqueId, analyzedHeroes, tierConfig, currentTotalMinutes);
-                nextPosts = [newPost, ...nextPosts];
             }
         }
 
@@ -9055,7 +9487,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
 
             if (targetPost && Math.random() < 0.3) {
                 if (isAIReady) {
-                    generateCommentAsync(targetPost, gameState.aiConfig).then(comment => {
+                    generateCommentAsync(targetPost, gameState.aiConfig, userPool, tierConfig).then(comment => {
                         if (comment) {
                             set(prev => {
                                 const posts = [...prev.communityPosts];
@@ -9068,10 +9500,6 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
                             });
                         }
                     });
-                } else {
-                    const comment = generateCommentSync(targetPost);
-                    targetPost.commentList.push(comment);
-                    targetPost.comments++;
                 }
             }
         }
@@ -9087,11 +9515,13 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         second: ns,
         minute: nm, hour: nh, day: nd,
         ccu: onlineUsers,
+        totalUsers: nextTotalUsers, 
         userStatus,
         topRankers,
         godStats: nextGodStats, 
         itemStats: nextItemStats, 
-        liveMatches: finalMatches
+        liveMatches: finalMatches,
+        userSentiment: newSentiment
       }
     });
   },
@@ -9113,24 +9543,25 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
 import { StateCreator } from 'zustand';
 import { GameStore, HeroSlice } from '../types';
 import { INITIAL_HEROES } from '../../data/heroes';
+import { Hero } from '../../types';
 
 export const createHeroSlice: StateCreator<GameStore, [], [], HeroSlice> = (set) => ({
   heroes: INITIAL_HEROES,
 
-  addHero: (hero) => set((state) => ({ 
+  addHero: (hero: Hero) => set((state) => ({ 
     heroes: [hero, ...state.heroes] 
   })),
 
-  deleteHero: (heroId) => set((state) => ({
-    heroes: state.heroes.filter(h => h.id !== heroId)
+  deleteHero: (heroId: string) => set((state) => ({
+    heroes: state.heroes.filter((h) => h.id !== heroId)
   })),
 
-  updateHero: (id, updates) => set((state) => ({ 
-    heroes: state.heroes.map(h => h.id === id ? { ...h, ...updates } : h) 
+  updateHero: (id: string, updates: Partial<Hero>) => set((state) => ({ 
+    heroes: state.heroes.map((h) => h.id === id ? { ...h, ...updates } : h) 
   })),
 
   resetHeroStats: () => set((state) => {
-    const resetHeroes = state.heroes.map(hero => ({
+    const resetHeroes = state.heroes.map((hero) => ({
       ...hero,
       record: { 
         totalMatches: 0, totalWins: 0, totalPicks: 0, totalBans: 0, 
@@ -9147,6 +9578,7 @@ export const createHeroSlice: StateCreator<GameStore, [], [], HeroSlice> = (set)
   }),
 });
 
+
 // === FILE: /src/store/slices/itemSlice.ts ===
 
 import { StateCreator } from 'zustand';
@@ -9154,6 +9586,72 @@ import { GameStore, ItemSlice } from '../types';
 import { INITIAL_ITEMS } from '../../data/items';
 import { Item } from '../../types';
 
+export const createItemSlice: StateCreator<GameStore, [], [], ItemSlice> = (set) => ({
+  shopItems: INITIAL_ITEMS,
+
+  addItem: (item: Item) => set((state) => ({ shopItems: [...state.shopItems, item] })),
+  
+  deleteItem: (id: string) => set((state) => ({ shopItems: state.shopItems.filter((i) => i.id !== id) })),
+  
+  updateItem: (id: string, updates: Partial<Item>) => set((state) => ({
+    shopItems: state.shopItems.map((i) => i.id === id ? { ...i, ...updates } : i)
+  })),
+});
+
+
+// === FILE: /src/store/types.ts ===
+
+// ==========================================
+// FILE PATH: /src/store/types.ts
+// ==========================================
+
+import { 
+  Hero, Post, GameState, Item, 
+  BattleSettings, BattlefieldSettings, TierConfig, AIConfig, RoleSettings, 
+  ItemStatData 
+} from '../types';
+
+// 1. Hero Slice Interface
+export interface HeroSlice {
+  heroes: Hero[];
+  addHero: (hero: Hero) => void;
+  deleteHero: (heroId: string) => void;
+  updateHero: (id: string, updates: Partial<Hero>) => void;
+  resetHeroStats: () => void;
+}
+
+// 2. Community Slice Interface
+export interface CommunitySlice {
+  communityPosts: Post[];
+  selectedPost: Post | null;
+  openPost: (post: Post) => void;
+  closePost: () => void;
+  setCommunityPosts: (posts: Post[]) => void;
+}
+
+// 3. Game Slice Interface
+export interface GameSlice {
+  gameState: GameState;
+  
+  setSpeed: (speed: number) => void;
+  togglePlay: () => void;
+  setGameState: (updates: Partial<GameState>) => void;
+
+  updateBattleSettings: (settings: Partial<BattleSettings['izman'] | BattleSettings['dante']>) => void;
+  updateFieldSettings: (settings: Partial<BattlefieldSettings>) => void;
+  updateTierConfig: (config: TierConfig) => void;
+  updateAIConfig: (config: Partial<AIConfig>) => void;
+  updateRoleSettings: (settings: Partial<RoleSettings>) => void;
+
+  setCustomImage: (id: string, imageData: string) => void;
+  removeCustomImage: (id: string) => void;
+  loadModData: (modData: any) => void;
+  
+  tick: (deltaSeconds: number) => void;
+  hardReset: () => void;
+}
+
+// 4. Item Slice Interface
 export interface ItemSlice {
   shopItems: Item[];
   addItem: (item: Item) => void;
@@ -9161,206 +9659,9 @@ export interface ItemSlice {
   updateItem: (id: string, updates: Partial<Item>) => void;
 }
 
-export const createItemSlice: StateCreator<GameStore, [], [], ItemSlice> = (set) => ({
-  shopItems: INITIAL_ITEMS,
+// 5. Combined Store Interface (이 부분이 없어서 에러가 발생했습니다)
+export type GameStore = HeroSlice & CommunitySlice & GameSlice & ItemSlice;
 
-  addItem: (item) => set((state) => ({ shopItems: [...state.shopItems, item] })),
-  deleteItem: (id) => set((state) => ({ shopItems: state.shopItems.filter(i => i.id !== id) })),
-  updateItem: (id, updates) => set((state) => ({
-    shopItems: state.shopItems.map(i => i.id === id ? { ...i, ...updates } : i)
-  })),
-});
-
-// === FILE: /src/store/types.ts ===
-
-// ==========================================
-// FILE PATH: /src/types/index.ts
-// ==========================================
-
-// 1. 기본 상수 및 스킬
-export type Role = '집행관' | '선지자' | '수호기사' | '추적자' | '신살자';
-export type Tier = 'OP' | '1' | '2' | '3' | '4' | '5';
-export type SkillMechanic = 
-  | 'DAMAGE' | 'HEAL' | 'SHIELD' | 'HOOK' | 'DASH' 
-  | 'STUN' | 'STEALTH' | 'EXECUTE' | 'GLOBAL' | 'NONE';
-
-export interface HeroStats {
-  ad: number; ap: number; hp: number; armor: number; crit: number;
-  range: number; speed: number; regen: number; pen: number; baseAtk: number;
-}
-
-export interface SkillDetail {
-  name: string; mechanic: SkillMechanic; val: number;
-  adRatio: number; apRatio: number; cd: number; 
-  range?: number; duration?: number; isPassive?: boolean;
-}
-
-export interface HeroSkillSet {
-  passive: SkillDetail; q: SkillDetail; w: SkillDetail; e: SkillDetail; r: SkillDetail;
-}
-
-export interface HeroRecord {
-  totalMatches: number; totalWins: number; totalPicks: number; totalBans: number;
-  totalKills: number; totalDeaths: number; totalAssists: number;
-  totalDamage: number; totalDamageTaken: number; totalCs: number; totalGold: number;
-  recentResults: boolean[]; 
-}
-
-export interface Hero {
-  id: string; name: string; role: Role; stats: HeroStats; skills: HeroSkillSet;
-  record: HeroRecord; tier: Tier; rank: number; rankChange: number;
-  recentWinRate: number; pickRate: number; banRate: number;
-  avgKda: string; kdaRatio: string; avgDpm: string; avgDpg: string; avgCs: string; avgGold: string;
-}
-
-// 2. 아이템
-export interface Item {
-  id: string; name: string; cost: number;
-  ad: number; ap: number; hp: number; armor: number; crit: number; speed: number;
-  type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER'; description?: string;
-}
-
-export interface ItemStatData {
-  itemId: string; totalPicks: number; totalWins: number;
-  totalKills: number; totalDeaths: number; totalAssists: number;
-}
-
-// 3. 게임 설정 (Gods, Battle, Jungle)
-export interface ObjectStats { hp: number; armor: number; rewardGold: number; }
-export interface ColossusSettings extends ObjectStats { attack: number; }
-export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; }
-
-// [신규] 정글(혼돈의 균열) 설정
-export interface JungleSettings {
-  density: number; // 밀도
-  yield: number;   // 풍요도 (보상)
-  attack: number;  // 크리처 공격력
-  defense: number; // 크리처 방어력
-  threat?: number; // (하위 호환용)
-}
-
-export interface BattlefieldSettings {
-  tower: ObjectStats; 
-  colossus: ColossusSettings; 
-  watcher: WatcherSettings;
-  jungle: JungleSettings; // [추가됨]
-}
-
-// 하수인 스탯 구조
-export interface MinionStats {
-  label: string; hp: number; def: number; atk: number; gold: number; xp: number;
-}
-
-export interface GodSettings {
-  name: string; atkRatio: number; defRatio: number; hpRatio: number;
-  guardianHp: number; towerAtk: number; trait: string;
-  minions: {
-    melee: MinionStats;
-    ranged: MinionStats;
-    siege: MinionStats;
-  };
-  servantGold: number; servantXp: number; // (하위 호환용)
-}
-
-export interface EconomySettings { minionGold: number; minionXp: number; }
-
-export interface BattleSettings {
-  izman: GodSettings; dante: GodSettings; economy: EconomySettings;
-}
-
-// 역할군 밸런스 설정
-export interface RoleSettings {
-  executor: { damage: number; defense: number }; 
-  tracker: { gold: number; smiteChance: number }; 
-  prophet: { cdrPerLevel: number }; 
-  slayer: { structureDamage: number }; 
-  guardian: { survivalRate: number }; 
-}
-
-export interface TierConfig { challenger: number; master: number; ace: number; joker: number; gold: number; silver: number; bronze: number; }
-export interface AIConfig { provider: 'GEMINI' | 'OPENAI'; apiKey: string; model: string; enabled: boolean; }
-
-// 4. 유저 및 통계
-export interface MatchHistory { season: number; result: 'WIN' | 'LOSE'; heroName: string; kda: string; lpChange: number; date: string; }
-export interface UserHeroStat { matches: number; wins: number; kills: number; deaths: number; assists: number; }
-
-export interface UserProfile { 
-  id: number; name: string; mainHeroId: string; score: number; tier: string; winRate: number; totalGames: number; 
-  history: MatchHistory[]; heroStats: Record<string, UserHeroStat>; preferredLane: string;
-  mostChamps: any[]; laneStats: any[];
-}
-
-export interface TierStat { name: string; minScore: number; count: number; percent: number; color: string; }
-export interface UserStatus { totalGames: number; playingUsers: number; queuingUsers: number; avgWaitTime: number; tierDistribution: TierStat[]; }
-
-export interface GodStats { 
-  totalMatches: number; izmanWins: number; izmanAvgKills: string; izmanAvgTime: string; 
-  danteWins: number; danteAvgKills: string; danteAvgTime: string; 
-  avgGameDuration: number; guardianDeathRate: number; godAwakenRate: number; 
-}
-
-// 5. 인게임 및 로그
-export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START';
-export interface GameLog { time: number; message: string; type: EventType; team?: 'BLUE' | 'RED'; }
-export interface TimelineEvent { time: number; type: EventType; killerId: string; victimId: string; message: string; }
-
-export interface LivePlayer { 
-  name: string; heroId: string; kills: number; deaths: number; assists: number; 
-  gold: number; cs: number; 
-  totalDamageDealt: number; // 누적 피해량
-  currentHp: number; maxHp: number; level: number; 
-  items: Item[]; x: number; y: number; lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE'; buffs: string[]; 
-  mmr: number; 
-}
-
-export interface TowerStatus { top: number; mid: number; bot: number; }
-export interface TeamStats { 
-  towers: TowerStatus; colossus: number; watcher: number; fury: number; 
-  nexusHp: number; maxNexusHp: number;
-  activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
-}
-
-export interface LiveMatch { 
-  id: string; blueTeam: LivePlayer[]; redTeam: LivePlayer[]; bans: { blue: string[]; red: string[]; }; 
-  startTime: number; duration: number; currentDuration: number; avgTier: string; 
-  score: { blue: number, red: number }; stats: { blue: TeamStats; red: TeamStats; };
-  timeline: TimelineEvent[]; logs: GameLog[]; 
-}
-
-// 6. 커뮤니티
-export interface Comment { id: number; author: string; authorTier: string; content: string; timestamp: string; }
-export interface Post { 
-  id: number; author: string; authorTier: string; title: string; content: string; 
-  category: '공략' | '유머' | '징징' | '분석' | '잡담' | '질문' | '자랑' | '공지'; 
-  views: number; upvotes: number; downvotes: number; 
-  comments: number; commentList: Comment[]; createdAt: number; potential: number; isBest: boolean; displayTime: string; 
-}
-
-// 7. 전체 상태
-export interface GameState {
-  season: number; 
-  day: number; 
-  hour: number; 
-  minute: number; 
-  second: number; // [신규] 초 단위 추가
-
-  isPlaying: boolean; 
-  gameSpeed: number;
-  userSentiment: number; 
-  ccu: number; 
-  totalUsers: number;
-  userStatus: UserStatus; 
-  topRankers: UserProfile[];
-  godStats: GodStats; 
-  liveMatches: LiveMatch[];
-
-  tierConfig: TierConfig; 
-  battleSettings: BattleSettings; 
-  fieldSettings: BattlefieldSettings; // JungleSettings 포함
-  roleSettings: RoleSettings; 
-  aiConfig: AIConfig;
-  itemStats: Record<string, ItemStatData>;
-}
 
 // === FILE: /src/store/useGameStore.ts ===
 
@@ -9398,9 +9699,7 @@ export const useGameStore = create<GameStore>()(
 // FILE PATH: /src/types/index.ts
 // ==========================================
 
-// ------------------------------------------------------------------
 // 1. 기본 상수 및 영웅/스킬 관련
-// ------------------------------------------------------------------
 export type Role = '집행관' | '선지자' | '수호기사' | '추적자' | '신살자';
 export type Tier = 'OP' | '1' | '2' | '3' | '4' | '5';
 export type SkillMechanic = 
@@ -9408,36 +9707,18 @@ export type SkillMechanic =
   | 'STUN' | 'STEALTH' | 'EXECUTE' | 'GLOBAL' | 'NONE';
 
 export interface HeroStats {
-  ad: number;      // 공격력
-  ap: number;      // 주문력
-  hp: number;      // 체력
-  armor: number;   // 방어력
-  crit: number;    // 치명타율
-  range: number;   // 사거리
-  speed: number;   // 이동속도
-  regen: number;   // 체력 재생
-  pen: number;     // 관통력
-  baseAtk: number; // 기본 공격력 (깡뎀)
+  ad: number; ap: number; hp: number; armor: number; crit: number;
+  range: number; speed: number; regen: number; pen: number; baseAtk: number;
 }
 
 export interface SkillDetail {
-  name: string; 
-  mechanic: SkillMechanic; 
-  val: number;
-  adRatio: number; 
-  apRatio: number; 
-  cd: number; 
-  range?: number; 
-  duration?: number; 
-  isPassive?: boolean;
+  name: string; mechanic: SkillMechanic; val: number;
+  adRatio: number; apRatio: number; cd: number; 
+  range?: number; duration?: number; isPassive?: boolean;
 }
 
 export interface HeroSkillSet {
-  passive: SkillDetail; 
-  q: SkillDetail; 
-  w: SkillDetail; 
-  e: SkillDetail; 
-  r: SkillDetail;
+  passive: SkillDetail; q: SkillDetail; w: SkillDetail; e: SkillDetail; r: SkillDetail;
 }
 
 export interface HeroRecord {
@@ -9455,69 +9736,37 @@ export interface Hero {
   avgDpm: string; avgDpg: string; avgCs: string; avgGold: string;
 }
 
-// ------------------------------------------------------------------
-// 2. 아이템(Item) 및 상점 관련
-// ------------------------------------------------------------------
+// 2. 아이템
 export interface Item {
-  id: string;
-  name: string;
-  cost: number;
+  id: string; name: string; cost: number;
   ad: number; ap: number; hp: number; armor: number; crit: number; speed: number;
-  type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER'; 
-  description?: string;
+  type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER'; description?: string;
 }
 
 export interface ItemStatData {
-  itemId: string;
-  totalPicks: number;
-  totalWins: number;
-  totalKills: number;
-  totalDeaths: number;
-  totalAssists: number;
+  itemId: string; totalPicks: number; totalWins: number;
+  totalKills: number; totalDeaths: number; totalAssists: number;
 }
 
-// ------------------------------------------------------------------
-// 3. 게임 설정 (Gods, Battle, Tier, Role)
-// ------------------------------------------------------------------
+// 3. 설정 관련
 export interface ObjectStats { hp: number; armor: number; rewardGold: number; }
 export interface ColossusSettings extends ObjectStats { attack: number; }
 export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; }
-
-export interface JungleSettings {
-  density: number; // 밀도 (0~100)
-  threat: number;  // 위협도 (0~100)
-  yield: number;   // 풍요도 (0~100)
-  attack: number;  // 크리처 공격력
-  defense: number; // 크리처 방어력
-}
+export interface JungleSettings { density: number; yield: number; attack: number; defense: number; threat: number; }
 
 export interface BattlefieldSettings {
-  tower: ObjectStats; 
-  colossus: ColossusSettings; 
-  watcher: WatcherSettings;
-  jungle: JungleSettings;
+  tower: ObjectStats; colossus: ColossusSettings; watcher: WatcherSettings; jungle: JungleSettings;
 }
 
-export interface MinionStats {
-  label: string; hp: number; def: number; atk: number; gold: number; xp: number;
-}
-
+export interface MinionStats { label: string; hp: number; def: number; atk: number; gold: number; xp: number; }
 export interface GodSettings {
   name: string; atkRatio: number; defRatio: number; hpRatio: number;
   guardianHp: number; towerAtk: number; trait: string;
-  minions: {
-    melee: MinionStats;
-    ranged: MinionStats;
-    siege: MinionStats;
-  };
+  minions: { melee: MinionStats; ranged: MinionStats; siege: MinionStats; };
   servantGold: number; servantXp: number; 
 }
-
 export interface EconomySettings { minionGold: number; minionXp: number; }
-
-export interface BattleSettings {
-  izman: GodSettings; dante: GodSettings; economy: EconomySettings;
-}
+export interface BattleSettings { izman: GodSettings; dante: GodSettings; economy: EconomySettings; }
 
 export interface RoleSettings {
   executor: { damage: number; defense: number }; 
@@ -9527,105 +9776,112 @@ export interface RoleSettings {
   guardian: { survivalRate: number }; 
 }
 
-export interface TierConfig { challenger: number; master: number; ace: number; joker: number; gold: number; silver: number; bronze: number; }
+export interface TierConfig { 
+  challengerRank: number; 
+  master: number; ace: number; joker: number; gold: number; silver: number; bronze: number; 
+  promos: { master: number; ace: number; joker: number; gold: number; silver: number; bronze: number; };
+}
 export interface AIConfig { provider: 'GEMINI' | 'OPENAI'; apiKey: string; model: string; enabled: boolean; }
 
-// ------------------------------------------------------------------
-// 4. 유저(User) 및 통계
-// ------------------------------------------------------------------
-export interface MatchHistory { 
-  season: number; result: 'WIN' | 'LOSE'; heroName: string; kda: string; lpChange: number; date: string; 
-}
-
-export interface UserHeroStat {
-  matches: number; wins: number; kills: number; deaths: number; assists: number;
-}
-
+// 4. 유저 및 통계
+export interface MatchHistory { season: number; result: 'WIN' | 'LOSE' | 'PROMO WIN' | 'PROMO LOSS'; heroName: string; kda: string; lpChange: number; date: string; }
+export interface UserHeroStat { matches: number; wins: number; kills: number; deaths: number; assists: number; }
 export interface UserProfile { 
-  id: number; name: string; mainHeroId: string; score: number; 
-  tier: string; winRate: number; totalGames: number; 
+  id: number; name: string; mainHeroId: string; score: number; tier: string; winRate: number; totalGames: number; 
   history: MatchHistory[]; heroStats: Record<string, UserHeroStat>; preferredLane: string;
   mostChamps: any[]; laneStats: any[];
+  promoStatus?: { targetTier: string; wins: number; losses: number; targetWins: number; } | null;
+  rank?: number; isChallenger?: boolean;
 }
-
 export interface TierStat { name: string; minScore: number; count: number; percent: number; color: string; }
 export interface UserStatus { totalGames: number; playingUsers: number; queuingUsers: number; avgWaitTime: number; tierDistribution: TierStat[]; }
+export interface GodStats { totalMatches: number; izmanWins: number; izmanAvgKills: string; izmanAvgTime: string; danteWins: number; danteAvgKills: string; danteAvgTime: string; avgGameDuration: number; guardianDeathRate: number; godAwakenRate: number; }
 
-export interface GodStats { 
-  totalMatches: number; 
-  izmanWins: number; izmanAvgKills: string; izmanAvgTime: string; 
-  danteWins: number; danteAvgKills: string; danteAvgTime: string; 
-  avgGameDuration: number; guardianDeathRate: number; godAwakenRate: number; 
-}
-
-// ------------------------------------------------------------------
-// 5. 인게임(LiveMatch) 및 시뮬레이션 로그
-// ------------------------------------------------------------------
+// 5. 인게임
 export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START';
 export interface GameLog { time: number; message: string; type: EventType; team?: 'BLUE' | 'RED'; }
 export interface TimelineEvent { time: number; type: EventType; killerId: string; victimId: string; message: string; }
-
 export interface LivePlayer { 
   name: string; heroId: string; kills: number; deaths: number; assists: number; 
-  gold: number; cs: number; currentHp: number; maxHp: number; level: number; 
-  items: Item[]; 
-  totalDamageDealt: number; // 누적 피해량
-  x: number; y: number; lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE'; buffs: string[]; 
-  mmr: number; 
+  gold: number; cs: number; totalDamageDealt: number;
+  currentHp: number; maxHp: number; level: number; 
+  items: Item[]; x: number; y: number; lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE'; buffs: string[]; mmr: number; 
 }
-
 export interface TowerStatus { top: number; mid: number; bot: number; }
-
 export interface TeamStats { 
-  towers: TowerStatus; colossus: number; watcher: number; fury: number; 
-  nexusHp: number; maxNexusHp: number;
+  towers: TowerStatus; colossus: number; watcher: number; fury: number; nexusHp: number; maxNexusHp: number;
   activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
 }
-
 export interface LiveMatch { 
   id: string; blueTeam: LivePlayer[]; redTeam: LivePlayer[]; bans: { blue: string[]; red: string[]; }; 
   startTime: number; duration: number; currentDuration: number; avgTier: string; 
   score: { blue: number, red: number }; stats: { blue: TeamStats; red: TeamStats; };
   timeline: TimelineEvent[]; logs: GameLog[]; 
+  nextColossusSpawnTime: number; nextWatcherSpawnTime: number;
 }
 
-// ------------------------------------------------------------------
-// 6. 커뮤니티(Community)
-// ------------------------------------------------------------------
+// 6. 커뮤니티
 export interface Comment { id: number; author: string; authorTier: string; content: string; timestamp: string; }
-
 export interface Post { 
   id: number; author: string; authorTier: string; title: string; content: string; 
-  category: '공략' | '유머' | '징징' | '분석' | '잡담' | '질문' | '자랑' | '공지'; 
+  category: '공략'|'유머'|'징징'|'분석'|'잡담'|'질문'|'자랑'|'공지'; 
   views: number; upvotes: number; downvotes: number; 
   comments: number; commentList: Comment[]; createdAt: number; potential: number; isBest: boolean; displayTime: string; 
 }
 
-// ------------------------------------------------------------------
-// 7. 전체 게임 상태 (GameState)
-// ------------------------------------------------------------------
+// 7. 전체 상태
 export interface GameState {
   season: number; day: number; hour: number; minute: number; second: number;
-  isPlaying: boolean; gameSpeed: number;
-  userSentiment: number; ccu: number; totalUsers: number;
-
-  userStatus: UserStatus; 
-  topRankers: UserProfile[];
-  godStats: GodStats; 
-
-  liveMatches: LiveMatch[];
-
-  tierConfig: TierConfig;
-  battleSettings: BattleSettings;
-  fieldSettings: BattlefieldSettings; 
-  roleSettings: RoleSettings;
-
-  aiConfig: AIConfig;
-  itemStats: Record<string, ItemStatData>;
-
-  // [신규] 커스텀 이미지 저장소 (ID -> Base64 문자열)
+  isPlaying: boolean; gameSpeed: number; userSentiment: number; ccu: number; totalUsers: number;
+  userStatus: UserStatus; topRankers: UserProfile[]; godStats: GodStats; liveMatches: LiveMatch[];
+  tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; 
+  roleSettings: RoleSettings; aiConfig: AIConfig; itemStats: Record<string, ItemStatData>;
   customImages: Record<string, string>; 
 }
+
+// 8. Store Slices (타입 정의 추가)
+export interface HeroSlice {
+  heroes: Hero[];
+  addHero: (hero: Hero) => void;
+  deleteHero: (heroId: string) => void;
+  updateHero: (id: string, updates: Partial<Hero>) => void;
+  resetHeroStats: () => void;
+}
+
+export interface ItemSlice {
+  shopItems: Item[];
+  addItem: (item: Item) => void;
+  deleteItem: (id: string) => void;
+  updateItem: (id: string, updates: Partial<Item>) => void;
+}
+
+export interface CommunitySlice {
+  communityPosts: Post[];
+  selectedPost: Post | null;
+  openPost: (post: Post) => void;
+  closePost: () => void;
+  setCommunityPosts: (posts: Post[]) => void;
+}
+
+export interface GameSlice {
+  gameState: GameState;
+  setSpeed: (speed: number) => void;
+  togglePlay: () => void;
+  setGameState: (updates: Partial<GameState>) => void;
+  updateBattleSettings: (settings: Partial<BattleSettings>) => void;
+  updateFieldSettings: (settings: Partial<BattlefieldSettings>) => void;
+  updateTierConfig: (config: TierConfig) => void;
+  updateAIConfig: (config: Partial<AIConfig>) => void;
+  updateRoleSettings: (settings: Partial<RoleSettings>) => void;
+  setCustomImage: (id: string, data: string) => void;
+  removeCustomImage: (id: string) => void;
+  loadModData: (data: any) => void;
+  tick: (deltaSeconds: number) => void;
+  hardReset: () => void;
+}
+
+export type GameStore = HeroSlice & ItemSlice & CommunitySlice & GameSlice;
+
 
 // === FILE: /src/utils/AIService.ts ===
 
