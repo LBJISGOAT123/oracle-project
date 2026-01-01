@@ -91,6 +91,7 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
 };
 
 export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any) => {
+  if (!p) return null; // Safe check
   const hpPercent = (p.currentHp / p.maxHp) * 100;
   const isDead = p.currentHp <= 0;
   return (
@@ -114,8 +115,7 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
 };
 
 export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: any[], onClose: () => void }) => {
-  // [안전 장치] 데이터가 없으면 빈 배열 사용
-  const bans = match.bans || { blue: [], red: [] };
+  // [Safety] 데이터가 없으면 빈 배열 사용 (튕김 방지)
   const blueTeam = match.blueTeam || [];
   const redTeam = match.redTeam || [];
   const timer = Math.ceil(match.draft?.timer || 0);
@@ -134,8 +134,8 @@ export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: an
           <h3>BLUE TEAM</h3>
           {blueTeam.map((p: any, i: number) => (
             <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
-              <GameIcon id={p.heroId} size={50} shape="square"/>
-              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p.name}</span>
+              <GameIcon id={p?.heroId || ''} size={50} shape="square"/>
+              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p?.name || 'Unknown'}</span>
             </div>
           ))}
         </div>
@@ -144,8 +144,8 @@ export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: an
           <h3>RED TEAM</h3>
           {redTeam.map((p: any, i: number) => (
             <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center', flexDirection:'row-reverse'}}>
-              <GameIcon id={p.heroId} size={50} shape="square"/>
-              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p.name}</span>
+              <GameIcon id={p?.heroId || ''} size={50} shape="square"/>
+              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p?.name || 'Unknown'}</span>
             </div>
           ))}
         </div>
