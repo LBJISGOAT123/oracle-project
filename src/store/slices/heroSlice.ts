@@ -1,19 +1,23 @@
+// ==========================================
+// FILE PATH: /src/store/slices/heroSlice.ts
+// ==========================================
+
 import { StateCreator } from 'zustand';
-import { GameStore, HeroSlice } from '../types';
+import { GameStore, HeroSlice, Hero } from '../types';
 import { INITIAL_HEROES } from '../../data/heroes';
 
 export const createHeroSlice: StateCreator<GameStore, [], [], HeroSlice> = (set) => ({
   heroes: INITIAL_HEROES,
 
-  addHero: (hero) => set((state) => ({ 
+  addHero: (hero: Hero) => set((state) => ({ 
     heroes: [hero, ...state.heroes] 
   })),
 
-  deleteHero: (heroId) => set((state) => ({
+  deleteHero: (heroId: string) => set((state) => ({
     heroes: state.heroes.filter(h => h.id !== heroId)
   })),
 
-  updateHero: (id, updates) => set((state) => ({ 
+  updateHero: (id: string, updates: Partial<Hero>) => set((state) => ({ 
     heroes: state.heroes.map(h => h.id === id ? { ...h, ...updates } : h) 
   })),
 
