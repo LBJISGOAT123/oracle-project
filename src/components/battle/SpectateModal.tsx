@@ -1,3 +1,5 @@
+// === FILE: /src/components/battle/SpectateModal.tsx ===
+
 // ==========================================
 // FILE PATH: /src/components/battle/SpectateModal.tsx
 // ==========================================
@@ -6,6 +8,7 @@ import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
+// 분리된 모듈 임포트
 import { GlobalLogPanel } from './spectate/GlobalLogPanel';
 import { PersonalLogView } from './spectate/PersonalLogView';
 import { UserDetailView } from './spectate/UserDetailView';
