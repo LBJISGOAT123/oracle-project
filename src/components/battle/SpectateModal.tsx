@@ -2,13 +2,15 @@
 // FILE PATH: /src/components/battle/SpectateModal.tsx
 // ==========================================
 
-import React, { Component, ErrorInfo, useState, useEffect, useRef } from 'react';
-import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye, AlertTriangle, Swords, Ban, Activity } from 'lucide-react';
+import React, { Component, ErrorInfo, useState, useRef } from 'react';
+import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye, AlertTriangle, Ban, Activity } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 import { LiveMatch, Hero } from '../../types';
 
-// [1] 에러 바운더리
+// =====================================================================================
+// [1] 안전장치: 에러 바운더리
+// =====================================================================================
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, errorMsg: string }> {
   constructor(props: any) {
     super(props);
@@ -25,7 +27,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
       return (
         <div style={{ padding: '40px', color: '#ff6b6b', textAlign: 'center', background:'#111', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center' }}>
           <AlertTriangle size={40} style={{ marginBottom: '20px' }} />
-          <h3>관전 화면 로드 실패</h3>
+          <h3>화면 로드 실패</h3>
           <p style={{ fontSize: '12px', color: '#888', marginBottom:'20px', maxWidth:'80%' }}>{this.state.errorMsg}</p>
           <button onClick={() => window.location.reload()} style={{ padding:'10px 20px', background:'#333', color:'#fff', border:'1px solid #555', borderRadius:'4px', cursor:'pointer' }}>
             새로고침
@@ -37,9 +39,9 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
-// ----------------------------------------------------------------------
-// [2] 하위 컴포넌트들
-// ----------------------------------------------------------------------
+// =====================================================================================
+// [2] 공용 UI 컴포넌트 (의존성 없음)
+// =====================================================================================
 
 const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
   <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px' }}>
@@ -215,108 +217,91 @@ const GlobalLogPanel = ({ logs, formatTime }: any) => {
   );
 };
 
-// ----------------------------------------------------------------------
-// [3] 메인 컨텐츠
-// ----------------------------------------------------------------------
+// =====================================================================================
+// [3] 핵심: 화면 분리 (DraftView / GameView)
+// =====================================================================================
 
-const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
-  // [중요 수정] 모든 Hook을 최상단에서 먼저 호출합니다.
-  const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
+// [A] 드래프트 화면 컴포넌트 (상태 없음, 순수 렌더링)
+const DraftView: React.FC<{ match: LiveMatch, onClose: () => void }> = ({ match, onClose }) => {
+  const { blueTeam, redTeam, draft } = match;
+  const timer = Math.ceil(draft?.timer || 0);
+  const turn = draft?.turnIndex || 0;
+  const phaseLabel = turn < 10 ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...';
+
+  return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
+      <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
+      
+      <div style={{ marginBottom:'40px', textAlign:'center' }}>
+        <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
+        <div style={{ color:'#e84057', fontSize:'14px', marginBottom:'5px' }}>{phaseLabel}</div>
+        <div style={{ fontSize:'32px', fontWeight:'900', color:'#fff' }}>{timer}</div>
+      </div>
+
+      <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px' }}>
+        <div style={{ width:'45%' }}>
+          <h3 style={{ color:'#58a6ff', borderBottom:'2px solid #58a6ff', paddingBottom:'5px', fontSize:'16px' }}>BLUE TEAM</h3>
+          {blueTeam.map((p:any, i:number) => (
+            <div key={i} style={{ marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
+              <GameIcon id={p.heroId} size={40} shape="square" />
+              <div style={{ color: p.heroId ? '#fff' : '#555' }}>
+                <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
+                <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ width:'45%' }}>
+          <h3 style={{ color:'#e84057', borderBottom:'2px solid #e84057', paddingBottom:'5px', textAlign:'right', fontSize:'16px' }}>RED TEAM</h3>
+          {redTeam.map((p:any, i:number) => (
+            <div key={i} style={{ marginBottom:'8px', display:'flex', flexDirection:'row-reverse', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
+              <GameIcon id={p.heroId} size={40} shape="square" />
+              <div style={{ textAlign:'right', color: p.heroId ? '#fff' : '#555' }}>
+                <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
+                <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// [B] 게임 화면 컴포넌트 (Hook 사용 안전 구역)
+const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[], gameState: any, setSpeed: any, togglePlay: any }> = ({ match, onClose, heroes, gameState, setSpeed, togglePlay }) => {
+  // 여기서 useState를 사용해도, DraftView와 분리되어 있어서 오류가 안 납니다.
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
-  // 실시간 매치 데이터
-  const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
-  const match = liveMatch || initialMatch;
+  // 게임 종료 체크
+  const isGameEnded = match.currentDuration > match.duration || (match.stats?.blue?.nexusHp <= 0 || match.stats?.red?.nexusHp <= 0);
 
-  // 게임 종료 시
-  if (!match) {
-    return <div style={{padding:'20px', color:'#fff'}}>게임이 종료되었습니다. <button onClick={onClose}>닫기</button></div>;
-  }
-
-  // 상태값 계산
-  const isDrafting = match.status === 'DRAFTING';
-  const isGameEnded = !liveMatch;
-  const blueTeam = match.blueTeam || [];
-  const redTeam = match.redTeam || [];
-  const blueBans = match.bans?.blue || [];
-  const redBans = match.bans?.red || [];
-
-  // 유틸 함수
-  const getHeroName = (id: string) => {
-    if (!id) return '-';
-    return heroes.find((h:Hero) => h.id === id)?.name || id;
-  };
-  
   const formatTime = (seconds: number) => {
     const m = Math.floor((seconds || 0) / 60); 
     const s = Math.floor((seconds || 0) % 60);
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // 선택된 플레이어
+  const getHeroName = (id: string) => {
+    if (!id) return '-';
+    return heroes.find((h:Hero) => h.id === id)?.name || id;
+  };
+
+  const blueTeam = match.blueTeam || [];
+  const redTeam = match.redTeam || [];
+  const blueBans = match.bans?.blue || [];
+  const redBans = match.bans?.red || [];
+
   let selectedPlayer = null;
   if (selectedHeroId) {
     selectedPlayer = [...blueTeam, ...redTeam].find(p => p.heroId === selectedHeroId);
   }
 
-  // ----------------------------------------------------------------
-  // A. 드래프트(밴픽) 화면
-  // ----------------------------------------------------------------
-  if (isDrafting) {
-    const draft = match.draft || { timer: 0, turnIndex: 0 };
-    const timer = Math.ceil(draft.timer);
-    const turn = draft.turnIndex;
-    const phaseLabel = turn < 10 ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...';
-
-    return (
-      <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
-        <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
-        
-        <div style={{ marginBottom:'40px', textAlign:'center' }}>
-          <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
-          <div style={{ color:'#e84057', fontSize:'14px', marginBottom:'5px' }}>{phaseLabel}</div>
-          <div style={{ fontSize:'32px', fontWeight:'900', color:'#fff' }}>{timer}</div>
-        </div>
-
-        <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px' }}>
-          <div style={{ width:'45%' }}>
-            <h3 style={{ color:'#58a6ff', borderBottom:'2px solid #58a6ff', paddingBottom:'5px', fontSize:'16px' }}>BLUE TEAM</h3>
-            {blueTeam.map((p:any, i:number) => (
-              <div key={i} style={{ marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
-                <GameIcon id={p.heroId} size={40} shape="square" />
-                <div style={{ color: p.heroId ? '#fff' : '#555' }}>
-                  <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
-                  <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ width:'45%' }}>
-            <h3 style={{ color:'#e84057', borderBottom:'2px solid #e84057', paddingBottom:'5px', textAlign:'right', fontSize:'16px' }}>RED TEAM</h3>
-            {redTeam.map((p:any, i:number) => (
-              <div key={i} style={{ marginBottom:'8px', display:'flex', flexDirection:'row-reverse', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
-                <GameIcon id={p.heroId} size={40} shape="square" />
-                <div style={{ textAlign:'right', color: p.heroId ? '#fff' : '#555' }}>
-                  <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
-                  <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ----------------------------------------------------------------
-  // B. 인게임 화면
-  // ----------------------------------------------------------------
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050505' }}>
-      
       {/* 1. 상단 바 */}
       <div style={{ flexShrink: 0, background: '#121214', borderBottom: '1px solid #222', padding: '8px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'6px' }}>
@@ -355,12 +340,12 @@ const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
       <div style={{ flexShrink: 0, display:'grid', gridTemplateColumns: '1fr 1fr', gap:'8px', padding:'8px', background:'#0a0a0c' }}>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
             {blueTeam.map((p: any, i: number) => (
-              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
+              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => setSelectedHeroId(p.heroId)} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
             ))}
          </div>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
             {redTeam.map((p: any, i: number) => (
-              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#e84057" />
+              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => setSelectedHeroId(p.heroId)} heroName={getHeroName(p.heroId)} teamColor="#e84057" />
             ))}
          </div>
       </div>
@@ -410,18 +395,3 @@ const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
               <div style={{ marginTop:'10px', fontWeight:'bold', color:'#da3633' }}>BANNED: {viewingBanHero.name}</div>
            </div>
         </div>
-      )}
-    </div>
-  );
-};
-
-// [4] 최종 내보내기 (ErrorBoundary 적용)
-export const SpectateModal: React.FC<any> = (props) => {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000 }}>
-      <ErrorBoundary>
-        <SpectateContent {...props} />
-      </ErrorBoundary>
-    </div>
-  );
-};
