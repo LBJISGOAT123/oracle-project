@@ -1,3 +1,5 @@
+// === FILE: /src/engine/match/BanPickEngine.ts ===
+
 // ==========================================
 // FILE PATH: /src/engine/match/BanPickEngine.ts
 // ==========================================
@@ -6,6 +8,8 @@ import { Hero, LiveMatch } from '../../types';
 
 // 영웅 분석 헬퍼
 const analyzeHeroTags = (h: Hero) => {
+  if (!h || !h.skills) return { hasCC: false, hasDash: false, hasShield: false, hasExecute: false, isTank: false, isSquishy: false, isBurst: false };
+  
   const skills = [h.skills.q, h.skills.w, h.skills.e, h.skills.r];
   return {
     hasCC: skills.some(s => s.mechanic === 'STUN' || s.mechanic === 'HOOK'),
@@ -26,13 +30,19 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
   if (!match.draft) return;
   const { turnIndex } = match.draft;
 
+  // [안전장치] 영웅 데이터가 없으면 중단
+  if (!heroes || heroes.length === 0) return;
+
   const unavailableIds = new Set<string>();
   [...match.bans.blue, ...match.bans.red].forEach(id => unavailableIds.add(id));
+  // heroId가 있는 경우(이미 픽된 경우)만 제외
   [...match.blueTeam, ...match.redTeam].forEach(p => { if(p.heroId) unavailableIds.add(p.heroId); });
 
   // A. 밴 페이즈 (0~9턴)
   if (turnIndex < 10) {
     const candidates = heroes.filter(h => !unavailableIds.has(h.id));
+    if (candidates.length === 0) return; // 밴 할 영웅이 없으면 패스
+
     // 승률 상위 20% 중에서 랜덤 밴
     candidates.sort((a, b) => b.recentWinRate - a.recentWinRate);
     const targetPool = candidates.slice(0, Math.max(5, candidates.length / 5));
@@ -54,8 +64,11 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
 
   const targetTeam = isBluePick ? match.blueTeam : match.redTeam;
   const enemyTeam = isBluePick ? match.redTeam : match.blueTeam;
+  
+  // [안전장치] 플레이어가 없으면 중단
+  if (!targetTeam || !targetTeam[teamIndex]) return;
+  
   const player = targetTeam[teamIndex]; 
-
   const lane = player.lane; 
 
   // 역할군 필터
@@ -73,11 +86,23 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
   let candidates = heroes.filter(h => 
     !unavailableIds.has(h.id) && targetRoles.includes(h.role)
   );
-  if (candidates.length === 0) candidates = heroes.filter(h => !unavailableIds.has(h.id));
+  
+  // 후보가 없으면 전체 영웅에서 다시 검색
+  if (candidates.length === 0) {
+    candidates = heroes.filter(h => !unavailableIds.has(h.id));
+  }
+
+  // [안전장치] 그래도 후보가 없으면 아무나(첫번째 영웅) 강제 할당 후 종료 (무한루프/에러 방지)
+  if (candidates.length === 0) {
+     if (heroes.length > 0) player.heroId = heroes[0].id;
+     return;
+  }
 
   // ----------------------------------------------------
   // [뇌지컬 로직]
   // ----------------------------------------------------
+  let pickedHeroId: string = candidates[0].id; // 기본값
+
   if (userIq >= 70) {
     // [고지능] 전략적 계산 (카운터 + 시너지)
     const scored = candidates.map(hero => {
@@ -111,16 +136,20 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
     });
 
     scored.sort((a, b) => b.score - a.score);
-    player.heroId = scored[0].hero.id;
+    // [안전장치] 배열 접근 체크
+    if (scored.length > 0) pickedHeroId = scored[0].hero.id;
+
   } 
   else if (userIq >= 40) {
     // [일반] 승률 높은거 픽
     candidates.sort((a, b) => b.recentWinRate - a.recentWinRate);
-    player.heroId = candidates[0].id;
+    if (candidates.length > 0) pickedHeroId = candidates[0].id;
   } 
   else {
     // [즐겜] 랜덤 픽
     const randomPick = candidates[Math.floor(Math.random() * candidates.length)];
-    player.heroId = randomPick.id;
+    if (randomPick) pickedHeroId = randomPick.id;
   }
+
+  player.heroId = pickedHeroId;
 };
