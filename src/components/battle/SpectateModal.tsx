@@ -19,6 +19,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
   
   // [안전 장치 1] 실시간 매치 데이터 동기화 (없으면 초기 데이터 사용)
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
+  // match가 undefined일 경우를 대비해 빈 객체({}) 할당
   const match = liveMatch || initialMatch || {}; 
   const isGameEnded = !liveMatch;
 
@@ -26,8 +27,10 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
   const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
-  // [핵심 수정] 밴픽(DRAFTING) 상태면 DraftScreen 표시 (데이터 누락 방어)
-  if (match.status === 'DRAFTING') {
+  // [핵심 수정] 0초거나 DRAFTING 상태면 무조건 DraftScreen 표시 (데이터 누락 방어)
+  const isDrafting = match.status === 'DRAFTING' || (match.currentDuration !== undefined && match.currentDuration < 1);
+
+  if (isDrafting) {
     return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
   }
 
@@ -44,6 +47,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  // [안전 장치] 팀 배열이 없을 경우 빈 배열 처리
   const blueTeam = match.blueTeam || [];
   const redTeam = match.redTeam || [];
   const allPlayers = [...blueTeam, ...redTeam];
@@ -115,7 +119,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
         </div>
       )}
 
-      {/* 5. 상세 인터랙티브 영역 */}
+      {/* 5. 상세 인터랙티브 영역 (UserDetailView는 선택된 영웅이 있을 때만 렌더링) */}
       <div style={{ background: '#000', flex:1, minHeight:'300px' }}>
          {selectedPlayer && selectedPlayer.heroId ? (
             <div style={{ display:'flex', flexDirection:'column', background:'#0a0a0c', borderTop:'1px solid #333', paddingBottom:'40px' }}>
