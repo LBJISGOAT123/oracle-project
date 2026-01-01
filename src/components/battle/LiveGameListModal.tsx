@@ -1,3 +1,7 @@
+// ==========================================
+// FILE PATH: /src/components/battle/LiveGameListModal.tsx
+// ==========================================
+
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { X, Eye, Swords, Clock, User, ChevronDown, ChevronUp } from 'lucide-react';
@@ -9,7 +13,9 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
   const { gameState, heroes } = useGameStore();
   const matches = gameState.liveMatches;
 
+  // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  // 선택된 매치 ID
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,6 +27,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
       }
     };
     window.addEventListener('resize', handleResize);
+    // 초기 로드 시 PC라면 첫 번째 선택
     if (!isMobile && matches.length > 0 && !selectedMatchId) {
       setSelectedMatchId(matches[0].id);
     }
@@ -35,7 +42,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     return `${m}분 ${String(s).padStart(2, '0')}초`;
   };
 
-  // [수정됨] match 타입 명시
+  // 게임 목록 아이템
   const MatchListItem = ({ match, isSelected, onClick }: { match: LiveMatch, isSelected: boolean, onClick: () => void }) => (
     <div 
       onClick={onClick}
@@ -73,45 +80,60 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     </div>
   );
 
-  // [수정됨] match 타입 명시
-  const MatchDetailView = ({ match }: { match: LiveMatch }) => (
-    <div style={{ background: '#0d1117', paddingBottom: '20px', borderBottom: '1px solid #30363d' }}>
-      <div style={{ padding: '20px', textAlign: 'center', background: '#121212', borderBottom: '1px solid #333' }}>
-        <button 
-          onClick={() => onSpectate(match)}
-          style={{ 
-            padding: '10px 30px', borderRadius: '8px', 
-            background: '#238636', color: '#fff', border: 'none', 
-            fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            boxShadow: '0 4px 15px rgba(35,134,54,0.3)'
-          }}
-        >
-          <Eye size={18} /> 실시간 관전 입장
-        </button>
-      </div>
+  // [수정됨] 안전장치가 추가된 상세 정보 뷰
+  const MatchDetailView = ({ match }: { match: LiveMatch | undefined }) => {
+    // 🚨 여기서 match가 없으면 에러 화면 대신 안내 문구를 띄움 (Crash 방지)
+    if (!match) {
+        return (
+            <div style={{ padding: '50px', textAlign: 'center', color: '#666', fontSize:'13px' }}>
+                선택된 게임이 종료되었거나 정보를 불러올 수 없습니다.
+            </div>
+        );
+    }
 
-      <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
-        <div>
-          <h4 style={{ color: '#58a6ff', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #58a6ff', paddingBottom:'4px' }}>
-            BLUE TEAM (단테)
-          </h4>
-          {match.blueTeam.map((p, i) => (
-            <PlayerCard key={i} p={p} color="#58a6ff" heroName={getHeroName(p.heroId)} />
-          ))}
+    return (
+      <div style={{ background: '#0d1117', paddingBottom: '20px', borderBottom: '1px solid #30363d' }}>
+        {/* 상단: 관전 버튼 */}
+        <div style={{ padding: '20px', textAlign: 'center', background: '#121212', borderBottom: '1px solid #333' }}>
+          <button 
+            onClick={() => onSpectate(match)}
+            style={{ 
+              padding: '10px 30px', borderRadius: '8px', 
+              background: '#238636', color: '#fff', border: 'none', 
+              fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 4px 15px rgba(35,134,54,0.3)'
+            }}
+          >
+            <Eye size={18} /> 실시간 관전 입장
+          </button>
         </div>
 
-        <div style={{ marginTop: isMobile ? '10px' : '0' }}>
-          <h4 style={{ color: '#e84057', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #e84057', paddingBottom:'4px', textAlign: isMobile ? 'left' : 'right' }}>
-            RED TEAM (이즈마한)
-          </h4>
-          {match.redTeam.map((p, i) => (
-            <PlayerCard key={i} p={p} color="#e84057" heroName={getHeroName(p.heroId)} alignRight={!isMobile} />
-          ))}
+        {/* 플레이어 목록 */}
+        <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+          {/* 블루팀 */}
+          <div>
+            <h4 style={{ color: '#58a6ff', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #58a6ff', paddingBottom:'4px' }}>
+              BLUE TEAM (단테)
+            </h4>
+            {match.blueTeam && match.blueTeam.map((p, i) => (
+              <PlayerCard key={i} p={p} color="#58a6ff" heroName={getHeroName(p.heroId)} />
+            ))}
+          </div>
+
+          {/* 레드팀 */}
+          <div style={{ marginTop: isMobile ? '10px' : '0' }}>
+            <h4 style={{ color: '#e84057', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #e84057', paddingBottom:'4px', textAlign: isMobile ? 'left' : 'right' }}>
+              RED TEAM (이즈마한)
+            </h4>
+            {match.redTeam && match.redTeam.map((p, i) => (
+              <PlayerCard key={i} p={p} color="#e84057" heroName={getHeroName(p.heroId)} alignRight={!isMobile} />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{
@@ -136,6 +158,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
         overflow: 'hidden'
       }}>
 
+        {/* 헤더 */}
         <div style={{ 
           padding: '15px 20px', borderBottom: '1px solid #333', 
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
@@ -147,6 +170,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={24}/></button>
         </div>
 
+        {/* [모바일] 아코디언 방식 렌더링 */}
         {isMobile ? (
           <div style={{ flex: 1 }}>
             {matches.map(match => (
@@ -156,14 +180,18 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
                   isSelected={selectedMatchId === match.id} 
                   onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)} 
                 />
+                {/* 선택되면 바로 아래에 상세 정보 표시 */}
                 {selectedMatchId === match.id && (
                   <MatchDetailView match={match} />
                 )}
               </div>
             ))}
+            {matches.length === 0 && <div style={{padding:'20px', textAlign:'center', color:'#555'}}>진행 중인 게임이 없습니다.</div>}
           </div>
         ) : (
+          /* [PC] 좌우 분할 방식 렌더링 */
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {/* 좌측 리스트 */}
             <div style={{ width: '320px', borderRight: '1px solid #333', overflowY: 'auto', background: '#161b22' }}>
               {matches.map(match => (
                 <MatchListItem 
@@ -174,12 +202,9 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
                 />
               ))}
             </div>
+            {/* 우측 상세 */}
             <div style={{ flex: 1, overflowY: 'auto', background: '#0d1117' }}>
-              {selectedMatchId ? (
-                <MatchDetailView match={matches.find(m => m.id === selectedMatchId)!} />
-              ) : (
-                <div style={{ padding: '50px', textAlign: 'center', color: '#666' }}>게임을 선택하세요.</div>
-              )}
+              <MatchDetailView match={matches.find(m => m.id === selectedMatchId)} />
             </div>
           </div>
         )}
@@ -189,8 +214,8 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
   );
 };
 
-// [수정됨] p 타입 명시 (any 사용)
-const PlayerCard = ({ p, color, heroName, alignRight = false }: { p: any, color: string, heroName: string, alignRight?: boolean }) => (
+// 플레이어 카드 컴포넌트
+const PlayerCard = ({ p, color, heroName, alignRight = false }: any) => (
   <div style={{ 
     display: 'flex', 
     flexDirection: alignRight ? 'row-reverse' : 'row',
