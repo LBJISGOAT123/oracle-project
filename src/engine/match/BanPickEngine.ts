@@ -1,12 +1,10 @@
-// === FILE: /src/engine/match/BanPickEngine.ts ===
-
 // ==========================================
 // FILE PATH: /src/engine/match/BanPickEngine.ts
 // ==========================================
 
 import { Hero, LiveMatch } from '../../types';
 
-// 영웅 분석 헬퍼
+// 영웅 분석 헬퍼 (안전장치 포함)
 const analyzeHeroTags = (h: Hero) => {
   if (!h || !h.skills) return { hasCC: false, hasDash: false, hasShield: false, hasExecute: false, isTank: false, isSquishy: false, isBurst: false };
   
@@ -23,7 +21,7 @@ const analyzeHeroTags = (h: Hero) => {
 };
 
 /**
- * [단일 턴 처리] 현재 순서의 유저가 밴 또는 픽을 수행함
+ * [단일 턴 처리] 스네이크 방식(ㄹ자) 픽 적용
  * @param userIq : 뇌지컬 수치 (0~100)
  */
 export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: number) => {
@@ -38,7 +36,9 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
   // heroId가 있는 경우(이미 픽된 경우)만 제외
   [...match.blueTeam, ...match.redTeam].forEach(p => { if(p.heroId) unavailableIds.add(p.heroId); });
 
-  // A. 밴 페이즈 (0~9턴)
+  // ----------------------------------------------------
+  // A. 밴 페이즈 (0~9턴) - 기존 유지 (교차 밴)
+  // ----------------------------------------------------
   if (turnIndex < 10) {
     const candidates = heroes.filter(h => !unavailableIds.has(h.id));
     if (candidates.length === 0) return; // 밴 할 영웅이 없으면 패스
@@ -55,12 +55,25 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
     return;
   }
 
-  // B. 픽 페이즈 (10~19턴)
+  // ----------------------------------------------------
+  // B. 픽 페이즈 (10~19턴) - [변경] 스네이크 방식 적용
+  // ----------------------------------------------------
   const pickOrderIndex = turnIndex - 10;
 
-  // 픽 순서: 교차 픽 (단순화: B1->R1->B2->R2...)
-  const isBluePick = pickOrderIndex % 2 === 0;
-  const teamIndex = Math.floor(pickOrderIndex / 2); // 0~4
+  // [스네이크 픽 순서 정의]
+  // 0: Blue Team, 1: Red Team
+  // 순서: B -> R -> R -> B -> B -> R -> R -> B -> B -> R
+  const SNAKE_ORDER = [0, 1, 1, 0, 0, 1, 1, 0, 0, 1];
+  
+  // [팀 내 슬롯 인덱스 매핑]
+  // 각 픽이 팀의 몇 번째 선수(0~4)인지 결정
+  const TEAM_SLOT_MAP = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]; 
+
+  // 배열 범위 안전 체크
+  if (pickOrderIndex >= SNAKE_ORDER.length) return;
+
+  const isBluePick = SNAKE_ORDER[pickOrderIndex] === 0;
+  const teamIndex = TEAM_SLOT_MAP[pickOrderIndex];
 
   const targetTeam = isBluePick ? match.blueTeam : match.redTeam;
   const enemyTeam = isBluePick ? match.redTeam : match.blueTeam;
@@ -80,6 +93,7 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
     'SUP': ['수호기사', '선지자']
   };
 
+  // 5번째 픽(인덱스4)은 보통 서포터 포지션으로 간주하거나 라인에 맞춤
   const roleKey = (teamIndex === 4) ? 'SUP' : lane; 
   const targetRoles = preferredRoles[roleKey] || ['집행관'];
 
@@ -92,7 +106,7 @@ export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: numbe
     candidates = heroes.filter(h => !unavailableIds.has(h.id));
   }
 
-  // [안전장치] 그래도 후보가 없으면 아무나(첫번째 영웅) 강제 할당 후 종료 (무한루프/에러 방지)
+  // [안전장치] 그래도 후보가 없으면 아무나(첫번째 영웅) 강제 할당 후 종료
   if (candidates.length === 0) {
      if (heroes.length > 0) player.heroId = heroes[0].id;
      return;
