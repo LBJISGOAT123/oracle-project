@@ -1,0 +1,76 @@
+/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=Pretendard:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg-main: #0f1115;
+  --bg-panel: #161b22;
+  --border: #30363d;
+  --text-main: #f0f6fc;
+  --text-sub: #8b949e;
+  --primary: #58a6ff;
+  --success: #238636;
+  --danger: #da3633;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'Pretendard', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 스크롤바 커스텀 */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* 유틸리티 클래스 */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: 0.2s;
+}
+.btn-primary { background: var(--primary); color: #000; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-danger { background: var(--danger); color: #fff; }
+
+.text-mono { font-family: 'JetBrains Mono', monospace; }
+
+@media (max-width: 768px) {
+  /* 테이블 헤더 숨김 */
+  thead { display: none; }
+
+  /* 테이블 행을 블록으로, 카드처럼 스타일링 */
+  tr {
+    display: flex;
+    flex-direction: column;
+    background: #1c1c1f;
+    margin-bottom: 10px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+  }
+
+  td {
+    display: flex;
+    justify-content: space-between;
+    text-align: right;
+    padding: 5px 0;
+    border-bottom: 1px solid #222;
+  }
+
+  /* td 앞에 라벨 붙여주기 (가상 요소 활용 가능하지만, 리액트 컴포넌트 수정이 더 쉬움) */
+}

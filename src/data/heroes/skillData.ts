@@ -1,0 +1,224 @@
+// src/data/heroes/skillData.ts
+import { HeroSkillSet } from '../../types';
+
+export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
+  // === 1. 집행관 (Executor) ===
+  h_ragna: {
+    passive: { name: "피의 갈증", mechanic: "HEAL", val: 30, adRatio: 0.2, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "대검 내려찍기", mechanic: "NONE", val: 120, adRatio: 1.2, apRatio: 0, cd: 6 },
+    w: { name: "광폭화", mechanic: "NONE", val: 0, adRatio: 0.5, apRatio: 0, cd: 12 },
+    e: { name: "전진 베기", mechanic: "DASH", val: 80, adRatio: 0.8, apRatio: 0, cd: 10 },
+    r: { name: "라그나로크", mechanic: "EXECUTE", val: 400, adRatio: 2.0, apRatio: 0, cd: 100 }
+  },
+  h_kensei: {
+    passive: { name: "검의 극의", mechanic: "NONE", val: 0, adRatio: 0.5, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "발도술", mechanic: "NONE", val: 140, adRatio: 1.4, apRatio: 0, cd: 5 },
+    w: { name: "반격", mechanic: "SHIELD", val: 100, adRatio: 0.6, apRatio: 0, cd: 14 },
+    e: { name: "일섬", mechanic: "DASH", val: 70, adRatio: 0.7, apRatio: 0, cd: 8 },
+    r: { name: "오의: 무신참", mechanic: "STUN", val: 350, adRatio: 1.8, apRatio: 0, cd: 110 }
+  },
+  h_baldur: {
+    passive: { name: "빛의 갑옷", mechanic: "SHIELD", val: 50, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "심판의 망치", mechanic: "STUN", val: 100, adRatio: 1.0, apRatio: 0, cd: 10 },
+    w: { name: "불굴의 의지", mechanic: "HEAL", val: 150, adRatio: 0.5, apRatio: 0, cd: 18 },
+    e: { name: "돌격", mechanic: "DASH", val: 60, adRatio: 0.5, apRatio: 0, cd: 12 },
+    r: { name: "발두르의 분노", mechanic: "NONE", val: 300, adRatio: 1.5, apRatio: 0, cd: 120 }
+  },
+  h_freya: {
+    passive: { name: "전장의 춤", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "투창", mechanic: "NONE", val: 110, adRatio: 1.1, apRatio: 0, cd: 6 },
+    w: { name: "깃털 방패", mechanic: "SHIELD", val: 80, adRatio: 0.4, apRatio: 0, cd: 14 },
+    e: { name: "비상", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 15 },
+    r: { name: "발키리의 강림", mechanic: "GLOBAL", val: 350, adRatio: 1.6, apRatio: 0, cd: 130 }
+  },
+  h_gorgon: {
+    passive: { name: "석화의 시선", mechanic: "STUN", val: 0, adRatio: 0, apRatio: 0, cd: 30, isPassive: true },
+    q: { name: "뱀의 독", mechanic: "NONE", val: 90, adRatio: 0.9, apRatio: 0.3, cd: 8 },
+    w: { name: "위협", mechanic: "NONE", val: 60, adRatio: 0.5, apRatio: 0, cd: 10 },
+    e: { name: "꼬리치기", mechanic: "HOOK", val: 100, adRatio: 0.8, apRatio: 0, cd: 14 },
+    r: { name: "메두사의 저주", mechanic: "STUN", val: 250, adRatio: 1.2, apRatio: 0.8, cd: 110 }
+  },
+  h_arthur: {
+    passive: { name: "왕의 권위", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "엑스칼리버", mechanic: "NONE", val: 150, adRatio: 1.3, apRatio: 0, cd: 8 },
+    w: { name: "원탁의 가호", mechanic: "SHIELD", val: 120, adRatio: 0.5, apRatio: 0, cd: 16 },
+    e: { name: "왕의 진격", mechanic: "DASH", val: 80, adRatio: 0.6, apRatio: 0, cd: 12 },
+    r: { name: "약속된 승리의 검", mechanic: "EXECUTE", val: 450, adRatio: 2.2, apRatio: 0, cd: 140 }
+  },
+
+  // === 2. 선지자 (Prophet) ===
+  h_merlin: {
+    passive: { name: "마력 과부하", mechanic: "NONE", val: 0, adRatio: 0, apRatio: 0.5, cd: 0, isPassive: true },
+    q: { name: "화염구", mechanic: "NONE", val: 140, adRatio: 0, apRatio: 1.2, cd: 5 },
+    w: { name: "마법 보호막", mechanic: "SHIELD", val: 100, adRatio: 0, apRatio: 0.8, cd: 15 },
+    e: { name: "점멸", mechanic: "DASH", val: 0, adRatio: 0, apRatio: 0, cd: 12 },
+    r: { name: "메테오 스트라이크", mechanic: "GLOBAL", val: 500, adRatio: 0, apRatio: 2.5, cd: 150 }
+  },
+  h_crowley: {
+    passive: { name: "흑마술", mechanic: "HEAL", val: 20, adRatio: 0, apRatio: 0.3, cd: 0, isPassive: true },
+    q: { name: "저주받은 탄환", mechanic: "NONE", val: 120, adRatio: 0, apRatio: 1.0, cd: 4 },
+    w: { name: "영혼 수확", mechanic: "NONE", val: 100, adRatio: 0, apRatio: 0.9, cd: 10 },
+    e: { name: "공포", mechanic: "STUN", val: 60, adRatio: 0, apRatio: 0.6, cd: 18 },
+    r: { name: "지옥문 개방", mechanic: "NONE", val: 400, adRatio: 0, apRatio: 2.0, cd: 130 }
+  },
+  h_elara: {
+    passive: { name: "별의 축복", mechanic: "HEAL", val: 40, adRatio: 0, apRatio: 0.4, cd: 0, isPassive: true },
+    q: { name: "빛의 화살", mechanic: "NONE", val: 110, adRatio: 0, apRatio: 1.1, cd: 5 },
+    w: { name: "정화", mechanic: "HEAL", val: 120, adRatio: 0, apRatio: 0.7, cd: 12 },
+    e: { name: "빛의 구속", mechanic: "STUN", val: 80, adRatio: 0, apRatio: 0.8, cd: 14 },
+    r: { name: "천상의 심판", mechanic: "GLOBAL", val: 450, adRatio: 0, apRatio: 2.2, cd: 140 }
+  },
+  h_nix: {
+    passive: { name: "그림자 장막", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 20, isPassive: true },
+    q: { name: "어둠의 구체", mechanic: "NONE", val: 130, adRatio: 0, apRatio: 1.3, cd: 6 },
+    w: { name: "그림자 속박", mechanic: "HOOK", val: 80, adRatio: 0, apRatio: 0.7, cd: 16 },
+    e: { name: "어둠 도약", mechanic: "DASH", val: 50, adRatio: 0, apRatio: 0.5, cd: 12 },
+    r: { name: "영원한 밤", mechanic: "STUN", val: 400, adRatio: 0, apRatio: 2.0, cd: 150 }
+  },
+  h_sol: {
+    passive: { name: "태양열", mechanic: "NONE", val: 10, adRatio: 0, apRatio: 0.2, cd: 0, isPassive: true },
+    q: { name: "플레어", mechanic: "NONE", val: 150, adRatio: 0, apRatio: 1.4, cd: 7 },
+    w: { name: "태양의 방패", mechanic: "SHIELD", val: 90, adRatio: 0, apRatio: 0.6, cd: 14 },
+    e: { name: "열풍", mechanic: "DASH", val: 60, adRatio: 0, apRatio: 0.4, cd: 12 },
+    r: { name: "슈퍼노바", mechanic: "NONE", val: 550, adRatio: 0, apRatio: 2.8, cd: 160 }
+  },
+  h_gaia: {
+    passive: { name: "대지의 힘", mechanic: "SHIELD", val: 40, adRatio: 0, apRatio: 0.3, cd: 0, isPassive: true },
+    q: { name: "지진", mechanic: "NONE", val: 120, adRatio: 0, apRatio: 1.0, cd: 8 },
+    w: { name: "덩굴 손", mechanic: "STUN", val: 80, adRatio: 0, apRatio: 0.8, cd: 14 },
+    e: { name: "자연의 치유", mechanic: "HEAL", val: 100, adRatio: 0, apRatio: 0.6, cd: 16 },
+    r: { name: "대자연의 분노", mechanic: "GLOBAL", val: 400, adRatio: 0, apRatio: 1.8, cd: 140 }
+  },
+
+  // === 3. 추적자 (Tracker) ===
+  h_kage: {
+    passive: { name: "암습", mechanic: "NONE", val: 0, adRatio: 0.5, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "수리검", mechanic: "NONE", val: 100, adRatio: 1.1, apRatio: 0, cd: 4 },
+    w: { name: "그림자 분신", mechanic: "SHIELD", val: 60, adRatio: 0.4, apRatio: 0, cd: 14 },
+    e: { name: "은신", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 18 },
+    r: { name: "암살 비기", mechanic: "EXECUTE", val: 450, adRatio: 2.5, apRatio: 0, cd: 100 }
+  },
+  h_fenrir: {
+    passive: { name: "야수성", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "물어뜯기", mechanic: "NONE", val: 120, adRatio: 1.3, apRatio: 0, cd: 6 },
+    w: { name: "포효", mechanic: "STUN", val: 0, adRatio: 0, apRatio: 0, cd: 15 },
+    e: { name: "도약", mechanic: "DASH", val: 80, adRatio: 0.8, apRatio: 0, cd: 10 },
+    r: { name: "라그나로크의 늑대", mechanic: "NONE", val: 350, adRatio: 2.0, apRatio: 0, cd: 110 }
+  },
+  h_viper: {
+    passive: { name: "신경독", mechanic: "NONE", val: 20, adRatio: 0.2, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "독침", mechanic: "NONE", val: 90, adRatio: 1.0, apRatio: 0, cd: 5 },
+    w: { name: "연막", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 20 },
+    e: { name: "독사의 춤", mechanic: "DASH", val: 60, adRatio: 0.6, apRatio: 0, cd: 12 },
+    r: { name: "치명적인 맹독", mechanic: "EXECUTE", val: 300, adRatio: 1.8, apRatio: 0, cd: 120 }
+  },
+  h_specter: {
+    passive: { name: "유체화", mechanic: "NONE", val: 0, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "영혼 베기", mechanic: "NONE", val: 130, adRatio: 1.2, apRatio: 0, cd: 7 },
+    w: { name: "빙의", mechanic: "STUN", val: 70, adRatio: 0.5, apRatio: 0, cd: 16 },
+    e: { name: "벽 통과", mechanic: "DASH", val: 100, adRatio: 0, apRatio: 0, cd: 14 },
+    r: { name: "사신의 낫", mechanic: "EXECUTE", val: 500, adRatio: 2.2, apRatio: 0, cd: 130 }
+  },
+  h_locust: {
+    passive: { name: "군체의 의식", mechanic: "NONE", val: 0, adRatio: 0.3, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "갈퀴손", mechanic: "NONE", val: 110, adRatio: 1.1, apRatio: 0, cd: 5 },
+    w: { name: "갑각 강화", mechanic: "SHIELD", val: 80, adRatio: 0.3, apRatio: 0, cd: 12 },
+    e: { name: "도약 공격", mechanic: "DASH", val: 120, adRatio: 0.9, apRatio: 0, cd: 8 },
+    r: { name: "포식", mechanic: "HEAL", val: 200, adRatio: 1.5, apRatio: 0, cd: 100 }
+  },
+  h_scarlet: {
+    passive: { name: "피의 계약", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "혈격", mechanic: "NONE", val: 140, adRatio: 1.4, apRatio: 0, cd: 6 },
+    w: { name: "붉은 안개", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 18 },
+    e: { name: "회전 베기", mechanic: "NONE", val: 100, adRatio: 1.0, apRatio: 0, cd: 9 },
+    r: { name: "블러드 문", mechanic: "EXECUTE", val: 450, adRatio: 2.3, apRatio: 0, cd: 110 }
+  },
+
+  // === 4. 수호기사 (Guardian) ===
+  h_aigis: {
+    passive: { name: "절대 방어", mechanic: "SHIELD", val: 50, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "방패 밀치기", mechanic: "STUN", val: 80, adRatio: 0.6, apRatio: 0, cd: 10 },
+    w: { name: "수호 태세", mechanic: "SHIELD", val: 200, adRatio: 0.2, apRatio: 0, cd: 15 },
+    e: { name: "가로막기", mechanic: "DASH", val: 50, adRatio: 0, apRatio: 0, cd: 12 },
+    r: { name: "철옹성", mechanic: "GLOBAL", val: 0, adRatio: 0, apRatio: 0, cd: 160 }
+  },
+  h_golem: {
+    passive: { name: "바위 피부", mechanic: "NONE", val: 0, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "지면 강타", mechanic: "NONE", val: 100, adRatio: 0.8, apRatio: 0, cd: 8 },
+    w: { name: "단단해지기", mechanic: "SHIELD", val: 150, adRatio: 0.3, apRatio: 0, cd: 14 },
+    e: { name: "바위 던지기", mechanic: "STUN", val: 90, adRatio: 0.7, apRatio: 0, cd: 12 },
+    r: { name: "대지진", mechanic: "STUN", val: 250, adRatio: 1.0, apRatio: 0, cd: 140 }
+  },
+  h_paladin: {
+    passive: { name: "신성한 오라", mechanic: "HEAL", val: 10, adRatio: 0, apRatio: 0.1, cd: 0, isPassive: true },
+    q: { name: "성스러운 일격", mechanic: "NONE", val: 90, adRatio: 0.9, apRatio: 0, cd: 7 },
+    w: { name: "축복", mechanic: "HEAL", val: 120, adRatio: 0, apRatio: 0.5, cd: 12 },
+    e: { name: "심판", mechanic: "STUN", val: 80, adRatio: 0.6, apRatio: 0, cd: 15 },
+    r: { name: "신의 가호", mechanic: "GLOBAL", val: 0, adRatio: 0, apRatio: 0, cd: 180 }
+  },
+  h_treant: {
+    passive: { name: "광합성", mechanic: "HEAL", val: 20, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "뿌리 묶기", mechanic: "STUN", val: 70, adRatio: 0, apRatio: 0.4, cd: 10 },
+    w: { name: "나무 껍질", mechanic: "SHIELD", val: 130, adRatio: 0, apRatio: 0.3, cd: 16 },
+    e: { name: "자연의 손길", mechanic: "HEAL", val: 100, adRatio: 0, apRatio: 0.4, cd: 14 },
+    r: { name: "숲의 분노", mechanic: "NONE", val: 300, adRatio: 0, apRatio: 1.0, cd: 130 }
+  },
+  h_magnus: {
+    passive: { name: "거인의 힘", mechanic: "NONE", val: 0, adRatio: 0.3, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "충격파", mechanic: "NONE", val: 110, adRatio: 0.9, apRatio: 0, cd: 8 },
+    w: { name: "들이받기", mechanic: "DASH", val: 100, adRatio: 0.8, apRatio: 0, cd: 12 },
+    e: { name: "위압", mechanic: "STUN", val: 60, adRatio: 0.5, apRatio: 0, cd: 15 },
+    r: { name: "뒤집기", mechanic: "HOOK", val: 200, adRatio: 1.2, apRatio: 0, cd: 100 }
+  },
+  h_yeti: {
+    passive: { name: "설인", mechanic: "NONE", val: 0, adRatio: 0, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "얼음 뭉치", mechanic: "STUN", val: 80, adRatio: 0.7, apRatio: 0, cd: 9 },
+    w: { name: "포식", mechanic: "HEAL", val: 150, adRatio: 0.5, apRatio: 0, cd: 18 },
+    e: { name: "눈사태", mechanic: "NONE", val: 100, adRatio: 0.8, apRatio: 0, cd: 10 },
+    r: { name: "절대 영도", mechanic: "STUN", val: 300, adRatio: 1.0, apRatio: 0, cd: 140 }
+  },
+
+  // === 5. 신살자 (God Slayer) ===
+  h_hawk: {
+    passive: { name: "매의 눈", mechanic: "NONE", val: 0, adRatio: 0.5, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "정밀 사격", mechanic: "NONE", val: 130, adRatio: 1.4, apRatio: 0, cd: 6 },
+    w: { name: "속사", mechanic: "NONE", val: 100, adRatio: 1.0, apRatio: 0, cd: 10 },
+    e: { name: "회피 기동", mechanic: "DASH", val: 50, adRatio: 0.3, apRatio: 0, cd: 14 },
+    r: { name: "관통상", mechanic: "EXECUTE", val: 400, adRatio: 2.0, apRatio: 0, cd: 110 }
+  },
+  h_trigger: {
+    passive: { name: "더블 탭", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "난사", mechanic: "NONE", val: 120, adRatio: 1.2, apRatio: 0, cd: 5 },
+    w: { name: "수류탄", mechanic: "NONE", val: 100, adRatio: 0.8, apRatio: 0, cd: 12 },
+    e: { name: "슬라이딩", mechanic: "DASH", val: 60, adRatio: 0.4, apRatio: 0, cd: 10 },
+    r: { name: "불꽃놀이", mechanic: "GLOBAL", val: 450, adRatio: 1.8, apRatio: 0, cd: 130 }
+  },
+  h_nova: {
+    passive: { name: "에너지 충전", mechanic: "NONE", val: 0, adRatio: 0.3, apRatio: 0.2, cd: 0, isPassive: true },
+    q: { name: "플라즈마 탄", mechanic: "NONE", val: 140, adRatio: 1.3, apRatio: 0, cd: 7 },
+    w: { name: "중력탄", mechanic: "STUN", val: 70, adRatio: 0.5, apRatio: 0, cd: 15 },
+    e: { name: "추진기", mechanic: "DASH", val: 80, adRatio: 0.5, apRatio: 0, cd: 18 },
+    r: { name: "궤도 폭격", mechanic: "GLOBAL", val: 500, adRatio: 2.2, apRatio: 0, cd: 150 }
+  },
+  h_flint: {
+    passive: { name: "화약 냄새", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "산탄 사격", mechanic: "NONE", val: 150, adRatio: 1.5, apRatio: 0, cd: 8 },
+    w: { name: "연막탄", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 20 },
+    e: { name: "와이어 이동", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 16 },
+    r: { name: "데스페라도", mechanic: "NONE", val: 400, adRatio: 2.5, apRatio: 0, cd: 120 }
+  },
+  h_sylvia: {
+    passive: { name: "바람의 속삭임", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "바람 화살", mechanic: "NONE", val: 120, adRatio: 1.3, apRatio: 0, cd: 6 },
+    w: { name: "밀쳐내기", mechanic: "NONE", val: 80, adRatio: 0.6, apRatio: 0, cd: 12 },
+    e: { name: "바람타기", mechanic: "DASH", val: 70, adRatio: 0.4, apRatio: 0, cd: 14 },
+    r: { name: "폭풍우", mechanic: "NONE", val: 350, adRatio: 1.8, apRatio: 0, cd: 110 }
+  },
+  h_gambit: {
+    passive: { name: "도박사의 행운", mechanic: "NONE", val: 0, adRatio: 0.5, apRatio: 0, cd: 0, isPassive: true },
+    q: { name: "카드 투척", mechanic: "NONE", val: 130, adRatio: 1.2, apRatio: 0, cd: 5 },
+    w: { name: "속임수", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 18 },
+    e: { name: "판돈 올리기", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 10 },
+    r: { name: "로열 스트레이트", mechanic: "EXECUTE", val: 500, adRatio: 2.4, apRatio: 0, cd: 130 }
+  }
+};
