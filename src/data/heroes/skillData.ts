@@ -74,6 +74,7 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
   const [activeField, setActiveField] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
 
+  // 스킬 데이터가 없을 경우를 대비한 안전장치
   if (!skills) return <div>스킬 데이터를 불러올 수 없습니다.</div>;
 
   const currentSkill = skills[selectedKey];
@@ -104,7 +105,13 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
       <div style={{ marginBottom: '15px', padding: '12px', background: '#161b22', borderRadius: '12px', border: '1px solid #30363d' }}>
         {isEditingName ? (
           <div style={{ display: 'flex', gap: '8px' }}>
-            <input value={currentSkill.name} onChange={e => onChange(selectedKey, 'name', e.target.value)} onBlur={() => setIsEditingName(false)} autoFocus style={{ background: '#000', border: '1px solid #58a6ff', color: '#fff', padding: '5px', flex: 1, outline: 'none', borderRadius:'4px' }} />
+            <input 
+              value={currentSkill.name} 
+              onChange={e => onChange(selectedKey, 'name', e.target.value)} 
+              onBlur={() => setIsEditingName(false)} 
+              autoFocus 
+              style={{ background: '#000', border: '1px solid #58a6ff', color: '#fff', padding: '5px', flex: 1, outline: 'none', borderRadius:'4px' }} 
+            />
             <Check size={16} color="#2ecc71" onClick={() => setIsEditingName(false)} style={{ cursor: 'pointer' }} />
           </div>
         ) : (
@@ -116,7 +123,11 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         )}
       </div>
 
-      <select value={currentSkill.mechanic} onChange={e => onChange(selectedKey, 'mechanic', e.target.value)} style={{ width: '100%', padding: '10px', background: '#161b22', border: '1px solid #30363d', color: '#fff', borderRadius: '10px', marginBottom: '15px', outline:'none', cursor:'pointer' }}>
+      <select 
+        value={currentSkill.mechanic} 
+        onChange={e => onChange(selectedKey, 'mechanic', e.target.value)} 
+        style={{ width: '100%', padding: '10px', background: '#161b22', border: '1px solid #30363d', color: '#fff', borderRadius: '10px', marginBottom: '15px', outline:'none', cursor:'pointer' }}
+      >
         <option value="DAMAGE">⚔️ 피해 (DAMAGE)</option>
         <option value="HEAL">💚 회복 (HEAL)</option>
         <option value="SHIELD">🛡️ 보호막 (SHIELD)</option>
@@ -158,11 +169,12 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
             <span style={{ color: '#aaa', fontSize: '12px', fontWeight:'bold' }}>
               {uiConfig.find((c: any) => c.key === activeField)?.label} 조절
             </span>
-            {/* [수정 완료] 괄호 및 태그 닫힘 확인됨 */}
             <strong style={{ color: '#58a6ff', fontSize:'14px' }}>
               {(currentSkill as any)[activeField]}
             </strong>
           </div>
           <input 
             type="range" 
-            min={0}
+            min={0} 
+            max={(uiConfig.find((c: any) => c.key === activeField)?.max || 1000)}
+            step={(uiConfig.find((c: any) => c.
