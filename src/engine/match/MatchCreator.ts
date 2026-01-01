@@ -21,26 +21,22 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
   for (let i = 0; i < matchesToMake; i++) {
     const batch = candidates.slice(i * 10, (i + 1) * 10);
 
-    // 플레이어 껍데기 생성 (영웅 ID는 비워둠)
     const createPlayer = (user: any, idx: number, teamSide: 'BLUE'|'RED'): LivePlayer => {
-      // 0~4번 인덱스에 따라 라인 배정
       const lanes = ['TOP', 'JUNGLE', 'MID', 'BOT', 'BOT']; 
       const lane = lanes[idx] as any;
 
       return {
         name: user.name, 
-        heroId: '', // [중요] 드래프트 전이므로 비워둠
+        heroId: '', 
         kills: 0, deaths: 0, assists: 0, gold: 500, cs: 0,
         totalDamageDealt: 0,
-        currentHp: 1000, maxHp: 1000, // 임시 체력
+        currentHp: 1000, maxHp: 1000, 
         level: 1, 
         items: [], 
         x: 50, y: 50, 
         lane: lane, 
         buffs: [], 
         mmr: user.hiddenMmr,
-
-        // [NEW] 유저 스탯 주입
         stats: {
             brain: user.brain,
             mechanics: user.mechanics
@@ -53,24 +49,23 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
 
     batch.forEach(u => u.status = 'INGAME');
 
-    // 오브젝트 초기값 안전 설정
     const colossusHp = field?.colossus?.hp || 8000;
     const watcherHp = field?.watcher?.hp || 12000;
     const colossusRespawn = field?.colossus?.respawnTime || 300;
 
     newMatches.push({
       id: `m_${currentTime}_${Math.random().toString(36).substr(2, 5)}`,
-      // [NEW] 상태: 드래프트 중
       status: 'DRAFTING', 
       draft: {
         isBlueTurn: true,
-        turnIndex: 0, // 0부터 시작 (밴픽)
-        timer: 5, // 첫 턴 5초
+        turnIndex: 0,
+        // [수정] 첫 턴 타이머: 5초 ~ 30초 사이 랜덤
+        timer: 5 + Math.floor(Math.random() * 25), 
         phase: 'BAN'
       },
       blueTeam: blueUsers.map((u, i) => createPlayer(u, i, 'BLUE')),
       redTeam: redUsers.map((u, i) => createPlayer(u, i, 'RED')),
-      bans: { blue: [], red: [] }, // 빈 배열로 시작
+      bans: { blue: [], red: [] },
       startTime: currentTime, 
       duration: 3600, 
       currentDuration: 0, 
@@ -81,7 +76,7 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       },
       timeline: [], 
       avgTier: getTierNameHelper(batch[0].score, config),
-      logs: [], // 드래프트 중에는 로그 없음
+      logs: [], 
       nextColossusSpawnTime: colossusRespawn, 
       nextWatcherSpawnTime: 900,
       objectives: {
