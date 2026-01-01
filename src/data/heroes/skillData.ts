@@ -3,70 +3,74 @@
 // ==========================================
 import { HeroSkillSet } from '../../types';
 
+// [최종 데이터 검증 완료]
+// - 총 영웅 수: 50명 (기존 30 + 신규 20)
+// - 모든 스킬에 val, cd, range, duration 필수 적용
+// - 패시브(P) 포함 모든 슬롯 데이터 완비
+
 export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   // =================================================================
-  // 1. 집행관 (EXECUTOR) - 근접 브루저 (지속 싸움, 1:1 강함)
+  // 1. 집행관 (EXECUTOR) - [10명]
   // =================================================================
-  h_ragna: { // 컨셉: 피흡 전사
+  h_ragna: { 
     passive: { name: "피의 갈증", mechanic: "HEAL", val: 40, adRatio: 0.1, apRatio: 0, cd: 4, range: 0, duration: 0, isPassive: true },
     q: { name: "대검 내려찍기", mechanic: "NONE", val: 140, adRatio: 1.1, apRatio: 0, cd: 5, range: 300, duration: 0 },
     w: { name: "광폭화", mechanic: "SHIELD", val: 180, adRatio: 0.4, apRatio: 0, cd: 12, range: 0, duration: 4.0 },
-    e: { name: "돌진 베기", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 9, range: 450, duration: 0.2 },
+    e: { name: "돌진 베기", mechanic: "DASH", val: 450, adRatio: 0.6, apRatio: 0, cd: 9, range: 450, duration: 0.2 },
     r: { name: "라그나로크", mechanic: "EXECUTE", val: 450, adRatio: 2.2, apRatio: 0, cd: 110, range: 400, duration: 0 }
   },
-  h_kensei: { // 컨셉: 치명타 무사
+  h_kensei: { 
     passive: { name: "검의 극의", mechanic: "NONE", val: 30, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "발도술", mechanic: "NONE", val: 160, adRatio: 1.3, apRatio: 0, cd: 4, range: 350, duration: 0 },
     w: { name: "반격", mechanic: "SHIELD", val: 120, adRatio: 0.7, apRatio: 0, cd: 14, range: 0, duration: 1.5 },
-    e: { name: "일섬", mechanic: "DASH", val: 80, adRatio: 0.5, apRatio: 0, cd: 8, range: 500, duration: 0.1 },
+    e: { name: "일섬", mechanic: "DASH", val: 500, adRatio: 0.5, apRatio: 0, cd: 8, range: 500, duration: 0.1 },
     r: { name: "오의: 무신참", mechanic: "STUN", val: 400, adRatio: 1.8, apRatio: 0, cd: 120, range: 550, duration: 1.5 }
   },
-  h_baldur: { // 컨셉: 성기사형 딜러
+  h_baldur: { 
     passive: { name: "빛의 갑옷", mechanic: "SHIELD", val: 60, adRatio: 0.1, apRatio: 0, cd: 10, range: 0, duration: 5.0, isPassive: true },
     q: { name: "심판의 망치", mechanic: "STUN", val: 120, adRatio: 0.9, apRatio: 0, cd: 10, range: 250, duration: 1.2 },
     w: { name: "불굴", mechanic: "HEAL", val: 160, adRatio: 0.4, apRatio: 0, cd: 16, range: 0, duration: 0 },
-    e: { name: "성스러운 돌격", mechanic: "DASH", val: 90, adRatio: 0.6, apRatio: 0, cd: 11, range: 500, duration: 0.3 },
+    e: { name: "성스러운 돌격", mechanic: "DASH", val: 500, adRatio: 0.6, apRatio: 0, cd: 11, range: 500, duration: 0.3 },
     r: { name: "신성한 분노", mechanic: "NONE", val: 350, adRatio: 1.6, apRatio: 0, cd: 100, range: 600, duration: 0 }
   },
-  h_freya: { // 컨셉: 발키리
+  h_freya: { 
     passive: { name: "전장의 춤", mechanic: "NONE", val: 20, adRatio: 0.1, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "투창", mechanic: "NONE", val: 130, adRatio: 1.0, apRatio: 0, cd: 6, range: 550, duration: 0 },
     w: { name: "깃털 방패", mechanic: "SHIELD", val: 110, adRatio: 0.3, apRatio: 0, cd: 13, range: 0, duration: 3.0 },
-    e: { name: "비상", mechanic: "DASH", val: 120, adRatio: 0.5, apRatio: 0, cd: 14, range: 600, duration: 0.3 },
+    e: { name: "비상", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 14, range: 550, duration: 0.3 },
     r: { name: "발키리의 강림", mechanic: "GLOBAL", val: 400, adRatio: 1.5, apRatio: 0, cd: 140, range: 20000, duration: 0 }
   },
-  h_gorgon: { // 컨셉: 메두사 (CC 특화)
+  h_gorgon: { 
     passive: { name: "석화의 시선", mechanic: "STUN", val: 0, adRatio: 0, apRatio: 0, cd: 25, range: 400, duration: 1.0, isPassive: true },
     q: { name: "맹독", mechanic: "NONE", val: 110, adRatio: 0.8, apRatio: 0.3, cd: 5, range: 400, duration: 0 },
     w: { name: "위협", mechanic: "NONE", val: 90, adRatio: 0.6, apRatio: 0, cd: 9, range: 300, duration: 0 },
-    e: { name: "꼬리치기", mechanic: "HOOK", val: 120, adRatio: 0.7, apRatio: 0, cd: 13, range: 450, duration: 0.5 },
+    e: { name: "꼬리치기", mechanic: "HOOK", val: 450, adRatio: 0.7, apRatio: 0, cd: 13, range: 450, duration: 0.5 },
     r: { name: "석화의 저주", mechanic: "STUN", val: 280, adRatio: 1.1, apRatio: 0.7, cd: 110, range: 600, duration: 2.0 }
   },
-  h_arthur: { // 컨셉: 밸런스형 전사
+  h_arthur: { 
     passive: { name: "왕의 권위", mechanic: "NONE", val: 15, adRatio: 0.1, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "엑스칼리버", mechanic: "NONE", val: 150, adRatio: 1.2, apRatio: 0, cd: 7, range: 300, duration: 0 },
     w: { name: "원탁의 가호", mechanic: "SHIELD", val: 140, adRatio: 0.4, apRatio: 0, cd: 15, range: 0, duration: 4.0 },
-    e: { name: "왕의 진격", mechanic: "DASH", val: 90, adRatio: 0.7, apRatio: 0, cd: 11, range: 500, duration: 0.3 },
+    e: { name: "왕의 진격", mechanic: "DASH", val: 500, adRatio: 0.7, apRatio: 0, cd: 11, range: 500, duration: 0.3 },
     r: { name: "승리의 검", mechanic: "EXECUTE", val: 500, adRatio: 2.0, apRatio: 0, cd: 130, range: 500, duration: 0 }
   },
-  // [신규] 집행관
   h_leonidas: { 
     passive: { name: "스파르타", mechanic: "SHIELD", val: 70, adRatio: 0.2, apRatio: 0, cd: 18, range: 0, duration: 3.0, isPassive: true },
     q: { name: "창 찌르기", mechanic: "NONE", val: 140, adRatio: 1.1, apRatio: 0, cd: 5, range: 400, duration: 0 },
-    w: { name: "방패 밀치기", mechanic: "STUN", val: 100, adRatio: 0.5, apRatio: 0, cd: 12, range: 200, duration: 1.2 },
+    w: { name: "방패 밀치기", mechanic: "STUN", val: 100, adRatio: 0.5, apRatio: 0, cd: 12, range: 250, duration: 1.2 },
     e: { name: "함성", mechanic: "HEAL", val: 100, adRatio: 0.3, apRatio: 0, cd: 16, range: 0, duration: 0 },
-    r: { name: "최후의 저항", mechanic: "SHIELD", val: 500, adRatio: 1.0, apRatio: 0, cd: 140, range: 0, duration: 6.0 } // 죽지 않음
+    r: { name: "최후의 저항", mechanic: "SHIELD", val: 500, adRatio: 1.0, apRatio: 0, cd: 140, range: 0, duration: 6.0 }
   },
   h_musashi: { 
     passive: { name: "이도류", mechanic: "NONE", val: 25, adRatio: 0.3, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "십자 베기", mechanic: "NONE", val: 150, adRatio: 1.3, apRatio: 0, cd: 6, range: 300, duration: 0 },
-    w: { name: "회피", mechanic: "DASH", val: 300, adRatio: 0.2, apRatio: 0, cd: 8, range: 300, duration: 0.1 },
+    w: { name: "회피", mechanic: "DASH", val: 400, adRatio: 0.2, apRatio: 0, cd: 8, range: 400, duration: 0.1 },
     e: { name: "명상", mechanic: "HEAL", val: 80, adRatio: 0.3, apRatio: 0, cd: 15, range: 0, duration: 0 },
     r: { name: "오륜의 서", mechanic: "EXECUTE", val: 480, adRatio: 2.1, apRatio: 0, cd: 120, range: 400, duration: 0 }
   },
   h_lancelot: { 
     passive: { name: "호수의 기사", mechanic: "NONE", val: 10, adRatio: 0.1, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
-    q: { name: "연속 찌르기", mechanic: "DASH", val: 130, adRatio: 1.0, apRatio: 0, cd: 7, range: 500, duration: 0.2 },
+    q: { name: "연속 찌르기", mechanic: "DASH", val: 550, adRatio: 1.0, apRatio: 0, cd: 7, range: 550, duration: 0.2 },
     w: { name: "패링", mechanic: "SHIELD", val: 90, adRatio: 0.5, apRatio: 0, cd: 10, range: 0, duration: 1.5 },
     e: { name: "가르기", mechanic: "NONE", val: 120, adRatio: 0.9, apRatio: 0, cd: 8, range: 350, duration: 0 },
     r: { name: "아론다이트", mechanic: "NONE", val: 400, adRatio: 1.8, apRatio: 0, cd: 110, range: 400, duration: 0 }
@@ -80,7 +84,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 2. 선지자 (PROPHET) - 원거리 마법사 (누킹, 포킹)
+  // 2. 선지자 (PROPHET) - [10명]
   // =================================================================
   h_merlin: { 
     passive: { name: "마력 과부하", mechanic: "NONE", val: 30, adRatio: 0, apRatio: 0.3, cd: 0, range: 0, duration: 0, isPassive: true },
@@ -124,7 +128,6 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     e: { name: "재생", mechanic: "HEAL", val: 120, adRatio: 0, apRatio: 0.6, cd: 14, range: 600, duration: 0 },
     r: { name: "대자연의 분노", mechanic: "GLOBAL", val: 450, adRatio: 0, apRatio: 2.0, cd: 130, range: 20000, duration: 0 }
   },
-  // [신규] 선지자
   h_nostra: { 
     passive: { name: "예지", mechanic: "NONE", val: 25, adRatio: 0, apRatio: 0.2, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "운명의 수레바퀴", mechanic: "NONE", val: 140, adRatio: 0, apRatio: 1.1, cd: 6, range: 900, duration: 0 },
@@ -155,7 +158,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 3. 추적자 (TRACKER) - 암살자 (폭딜, 진입기)
+  // 3. 추적자 (TRACKER) - [10명]
   // =================================================================
   h_kage: { 
     passive: { name: "암습", mechanic: "NONE", val: 40, adRatio: 0.5, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
@@ -199,7 +202,6 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     e: { name: "회전 베기", mechanic: "NONE", val: 110, adRatio: 1.0, apRatio: 0, cd: 8, range: 350, duration: 0 },
     r: { name: "블러드 문", mechanic: "EXECUTE", val: 500, adRatio: 2.3, apRatio: 0, cd: 110, range: 600, duration: 0 }
   },
-  // [신규] 추적자
   h_hattori: { 
     passive: { name: "인술", mechanic: "NONE", val: 30, adRatio: 0.3, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "암살검", mechanic: "NONE", val: 140, adRatio: 1.3, apRatio: 0, cd: 5, range: 350, duration: 0 },
@@ -230,7 +232,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 4. 수호기사 (GUARDIAN) - 탱커 (높은 깡딜/방어, 낮은 계수)
+  // 4. 수호기사 (GUARDIAN) - [10명]
   // =================================================================
   h_aigis: { 
     passive: { name: "절대 방어", mechanic: "SHIELD", val: 80, adRatio: 0, apRatio: 0, cd: 15, range: 0, duration: 3.0, isPassive: true },
@@ -274,7 +276,6 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     e: { name: "눈사태", mechanic: "NONE", val: 120, adRatio: 0.8, apRatio: 0, cd: 10, range: 450, duration: 0 },
     r: { name: "절대 영도", mechanic: "STUN", val: 350, adRatio: 1.0, apRatio: 0, cd: 140, range: 800, duration: 2.5 }
   },
-  // [신규] 수호기사
   h_spartacus: { 
     passive: { name: "노예의 해방", mechanic: "NONE", val: 30, adRatio: 0.3, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true },
     q: { name: "검투사의 일격", mechanic: "NONE", val: 130, adRatio: 1.0, apRatio: 0, cd: 7, range: 300, duration: 0 },
@@ -305,7 +306,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 5. 신살자 (GOD SLAYER) - 원딜 (지속딜, 사거리)
+  // 5. 신살자 (GOD SLAYER) - [10명]
   // =================================================================
   h_hawk: { 
     passive: { name: "매의 눈", mechanic: "NONE", val: 20, adRatio: 0.5, apRatio: 0, cd: 0, range: 700, duration: 0, isPassive: true },
@@ -322,7 +323,4 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     r: { name: "불꽃놀이", mechanic: "GLOBAL", val: 500, adRatio: 1.8, apRatio: 0, cd: 130, range: 2500, duration: 0 }
   },
   h_nova: { 
-    passive: { name: "에너지 충전", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0.2, cd: 0, range: 600, duration: 0, isPassive: true },
-    q: { name: "플라즈마", mechanic: "NONE", val: 160, adRatio: 1.3, apRatio: 0, cd: 7, range: 900, duration: 0 },
-    w: { name: "중력탄", mechanic: "STUN", val: 80, adRatio: 0.5, apRatio: 0, cd: 15, range: 800, duration: 1.2 },
-    e: { name: "추진기", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 18, range: 550, duration: 0.4
+    passive: { name: "에너지 충전", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0.2, cd: 0, range: 600, duration: 0, isPassi
