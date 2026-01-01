@@ -42,25 +42,33 @@ const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
   <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px' }}>{label}</button>
 );
 
-// [수정된 BanCard: 빗금 + 빨간 이름]
-const BanCard = ({ heroId, heroes, onClick }: any) => {
+// [수정된 BanCard: 빗금 + 빨간 이름 + 활성 강조]
+const BanCard = ({ heroId, heroes, isActive }: any) => {
   const hero = heroes.find((h:Hero) => h.id === heroId);
   const name = hero ? hero.name : "금지";
 
   return (
-    <div onClick={() => heroId && onClick(heroId)} style={{ display:'flex', flexDirection:'column', alignItems:'center', width:'45px', cursor:'pointer' }}>
-      <div style={{ position: 'relative', width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden', background:'#111', border:'1px solid #444' }}>
+    <div style={{ 
+      display:'flex', flexDirection:'column', alignItems:'center', width:'40px', margin:'2px',
+      opacity: (isActive || heroId) ? 1 : 0.3, // 활성화 안된 슬롯은 흐리게
+      transform: isActive ? 'scale(1.1)' : 'scale(1)',
+      transition: 'all 0.3s'
+    }}>
+      <div style={{ 
+        position: 'relative', width: '36px', height: '36px', borderRadius: '4px', overflow: 'hidden', 
+        background:'#111', 
+        border: isActive ? '2px solid #ff4d4d' : '1px solid #444',
+        boxShadow: isActive ? '0 0 10px rgba(255, 77, 77, 0.5)' : 'none'
+      }}>
         {heroId ? (
           <>
-            <div style={{ filter: 'grayscale(100%) brightness(0.4)' }}><GameIcon id={heroId} size={40} shape="square" /></div>
-            {/* 빗금 효과 */}
+            <div style={{ filter: 'grayscale(100%) brightness(0.4)' }}><GameIcon id={heroId} size={36} shape="square" /></div>
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: '2px solid #da3633', boxSizing:'border-box', opacity:0.8 }}></div>
             <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '4px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)', boxShadow:'0 0 5px #000' }} />
           </>
-        ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={20} color="#333"/></div>}
+        ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={18} color={isActive ? "#ff4d4d" : "#333"}/></div>}
       </div>
-      {/* 빨간 이름 표시 */}
-      {heroId && <span style={{ color:'#da3633', fontSize:'9px', fontWeight:'bold', marginTop:'2px', letterSpacing:'-0.5px' }}>{name}</span>}
+      {heroId && <span style={{ color:'#da3633', fontSize:'8px', fontWeight:'bold', marginTop:'2px', whiteSpace:'nowrap', letterSpacing:'-0.5px' }}>{name}</span>}
     </div>
   );
 };
@@ -123,110 +131,50 @@ const NeutralObjBar = ({ obj, label, color, icon }: any) => {
   );
 };
 
-const UserDetailView = ({ player, heroName, viewingItem, setViewingItem }: any) => {
-  const hpPercent = (player.currentHp / player.maxHp) * 100;
-  const items = Array.isArray(player.items) ? player.items : [];
-  return (
-    <div style={{ padding:'20px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:'15px', width:'100%', maxWidth:'450px', marginBottom:'20px' }}>
-        <GameIcon id={player.heroId} size={54} />
-        <div style={{ flex:1 }}>
-          <div style={{ fontWeight:'bold', fontSize:'18px', color:'#fff' }}>{heroName}</div>
-          <div style={{ color:'#8b949e', fontSize:'12px' }}>{player.name} (Lv.{player.level})</div>
-        </div>
-        <div style={{ textAlign:'right', minWidth:'120px' }}>
-          <div style={{ fontSize:'10px', color:'#2ecc71', fontWeight:'900', marginBottom:'4px' }}>HEALTH</div>
-          <div style={{ width:'100%', height:'6px', background:'#1a1a1c', borderRadius:'3px', overflow:'hidden', border:'1px solid #333' }}>
-            <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : '#2ecc71' }} />
-          </div>
-          <div style={{ color:'#f1c40f', fontWeight:'bold', fontSize:'12px', marginTop:'6px' }}>💰 {Math.floor(player.gold).toLocaleString()} G</div>
-        </div>
-      </div>
-      {viewingItem && (
-        <div style={{ width:'100%', maxWidth:'450px', background:'#161b22', border:'1px solid #30363d', borderRadius:'8px', padding:'12px', marginBottom:'15px', position:'relative' }}>
-          <button onClick={() => setViewingItem(null)} style={{ position:'absolute', right:'8px', top:'8px', background:'none', border:'none', color:'#666', cursor:'pointer' }}><X size={14}/></button>
-          <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'10px' }}>
-            <GameIcon id={viewingItem.id} size={36} shape="square" />
-            <div>
-              <div style={{ fontWeight:'bold', color:'#fff', fontSize:'14px' }}>{viewingItem.name}</div>
-              <div style={{ color:'#f1c40f', fontSize:'11px', fontWeight:'bold' }}>{viewingItem.cost} Gold</div>
-            </div>
-          </div>
-          <div style={{ fontSize:'11px', color:'#ccc' }}>{viewingItem.description || "설명이 없습니다."}</div>
-        </div>
-      )}
-      <div style={{ display:'flex', gap:'6px', justifyContent:'center', marginBottom:'20px' }}>
-        {([0,1,2,3,4,5]).map(i => (
-          <div key={i} onClick={() => items[i] && setViewingItem(items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            {items[i] ? <GameIcon id={items[i].id} size={40} shape="square" /> : null}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const PersonalLogView = ({ logs, heroName, summonerName }: any) => {
-  const safeLogs = Array.isArray(logs) ? logs : [];
-  const filteredLogs = safeLogs.filter((log: any) => 
-    (log.message && (log.message.includes(heroName) || log.message.includes(summonerName)))
-  ).reverse().slice(0, 30);
-  return (
-    <div style={{ width: '100%', maxWidth: '450px', background: '#08080a', borderRadius: '8px', border: '1px solid #222', marginTop: '15px', overflow: 'hidden' }}>
-      <div style={{ padding: '8px 12px', background: '#121214', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <Activity size={12} color="#58a6ff" />
-        <span style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>{heroName} 활동 내역</span>
-      </div>
-      <div style={{ height: '150px', overflowY: 'auto', padding: '8px' }}>
-        {filteredLogs.length > 0 ? filteredLogs.map((log: any, i: number) => (
-          <div key={i} style={{ fontSize: '11px', padding: '4px 0', borderBottom: '1px solid #1a1a1c', display: 'flex', gap: '8px' }}>
-            <span style={{ color: log.type === 'KILL' ? '#ff4d4d' : '#ccc', lineHeight: '1.4' }}>{log.message}</span>
-          </div>
-        )) : <div style={{ padding: '40px 0', textAlign: 'center', color: '#444', fontSize: '11px' }}>기록이 없습니다.</div>}
-      </div>
-    </div>
-  );
-};
-
-const GlobalLogPanel = ({ logs, formatTime }: any) => {
-  const visibleLogs = Array.isArray(logs) ? logs.slice().reverse().slice(0, 50) : [];
-  return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px', background: '#050505', display:'flex', flexDirection:'column', gap:'6px' }}>
-      {visibleLogs.map((log: any, i: number) => {
-        let badgeColor = '#888'; let badgeText = 'INFO';
-        if (log.type === 'KILL') { badgeColor = '#ff4d4d'; badgeText = 'KILL'; }
-        else if (log.type === 'TOWER' || log.type === 'COLOSSUS' || log.type === 'WATCHER') { badgeColor = '#e89d40'; badgeText = 'OBJ'; }
-        else if (log.type === 'START') { badgeColor = '#f1c40f'; badgeText = 'SYS'; }
-        return (
-          <div key={i} style={{ display: 'flex', gap: '8px', padding: '2px 0', borderBottom: '1px solid #1a1a1c', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '10px', color: '#555', fontFamily: 'monospace', minWidth: '35px' }}>{formatTime(log.time)}</span>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '8px', fontWeight: '900', color: badgeColor, background: `${badgeColor}15`, padding: '0px 4px', borderRadius: '2px', border: `1px solid ${badgeColor}33`, minWidth:'28px', textAlign:'center' }}>{badgeText}</span>
-              <span style={{ fontSize: '11px', color: '#ccc', lineHeight: '1.4' }}>{log.message}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 // ----------------------------------------------------------------------
 // [3] 화면 컴포넌트
 // ----------------------------------------------------------------------
 
-// [A] 드래프트 화면
+// [A] 드래프트 화면 (수정됨: 밴 카드 줄바꿈, 픽 이름 표시, 활성 턴 강조)
 const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[] }> = ({ match, onClose, heroes }) => {
   const { blueTeam, redTeam, draft, bans } = match;
   const timer = Math.ceil(draft?.timer || 0);
   const turn = draft?.turnIndex || 0;
-  const phaseLabel = turn < 10 ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...';
+  
+  // 현재 밴픽 단계 계산
+  const isBanPhase = turn < 10;
+  const phaseLabel = isBanPhase ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...';
 
   // 밴 목록 5개씩 채우기
   const blueBans = [...(bans?.blue || [])];
   const redBans = [...(bans?.red || [])];
   while(blueBans.length < 5) blueBans.push('');
   while(redBans.length < 5) redBans.push('');
+
+  // 픽 순서 매핑 (스네이크 방식 대응)
+  // turn 10~19에 대해 누가 픽할 차례인지 계산
+  // 0:Blue, 1:Red / Slot: 0~4
+  const PICK_ORDER = [
+    {team: 0, slot: 0}, {team: 1, slot: 0}, {team: 1, slot: 1}, {team: 0, slot: 1}, 
+    {team: 0, slot: 2}, {team: 1, slot: 2}, {team: 1, slot: 3}, {team: 0, slot: 3}, 
+    {team: 0, slot: 4}, {team: 1, slot: 4}
+  ];
+
+  let activeTeam = -1; // 0:Blue, 1:Red
+  let activeSlot = -1; // 0~4
+
+  if (!isBanPhase && (turn - 10) < PICK_ORDER.length) {
+    const order = PICK_ORDER[turn - 10];
+    activeTeam = order.team;
+    activeSlot = order.slot;
+  }
+
+  // 밴 턴 계산 (0~9) - 짝수는 블루, 홀수는 레드
+  // 현재 채워야 할 밴 슬롯 인덱스 = floor(turn / 2)
+  const activeBanSlot = isBanPhase ? Math.floor(turn / 2) : -1;
+  const activeBanTeam = isBanPhase ? (turn % 2) : -1; // 0: Blue, 1: Red
+
+  const getHeroName = (id: string) => heroes.find(h => h.id === id)?.name || '';
 
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', background:'#0d1117', overflowY:'auto' }}>
@@ -237,57 +185,89 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
       <div style={{ textAlign:'center', marginBottom:'20px' }}>
         <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
         <div style={{ color:'#e84057', fontSize:'14px', marginBottom:'5px' }}>{phaseLabel}</div>
-        <div style={{ fontSize:'36px', fontWeight:'900', color:'#fff' }}>{timer}</div>
+        <div style={{ fontSize:'36px', fontWeight:'900', color: timer <= 10 ? '#e74c3c' : '#fff' }}>{timer}</div>
       </div>
 
-      {/* 밴 현황 (가로 배치) */}
-      <div style={{ display:'flex', justifyContent:'center', gap:'40px', marginBottom:'20px', width:'100%' }}>
-        <div style={{ display:'flex', gap:'5px' }}>
-          {blueBans.map((id, i) => <BanCard key={i} heroId={id} heroes={heroes} onClick={()=>{}} />)}
+      {/* 밴 현황 (모바일 대응: flex-wrap 사용) */}
+      <div style={{ display:'flex', justifyContent:'space-between', width:'90%', maxWidth:'600px', marginBottom:'30px' }}>
+        {/* 블루팀 밴 */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-start' }}>
+          {blueBans.map((id, i) => (
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} />
+          ))}
         </div>
-        <div style={{ display:'flex', gap:'5px' }}>
-          {redBans.map((id, i) => <BanCard key={i} heroId={id} heroes={heroes} onClick={()=>{}} />)}
+        {/* 레드팀 밴 */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-end' }}>
+          {redBans.map((id, i) => (
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} />
+          ))}
         </div>
       </div>
 
-      {/* 픽 현황 */}
+      {/* 픽 현황 (이름 표시 & 활성 강조) */}
       <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px', paddingBottom:'40px' }}>
+        
+        {/* 블루팀 픽 */}
         <div style={{ width:'48%' }}>
           <h3 style={{ color:'#58a6ff', borderBottom:'2px solid #58a6ff', paddingBottom:'5px', fontSize:'16px' }}>BLUE TEAM</h3>
-          {blueTeam.map((p:any, i:number) => (
-            <div key={i} style={{ marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
-              <GameIcon id={p.heroId} size={40} shape="square" />
-              <div style={{ color: p.heroId ? '#fff' : '#555' }}>
-                <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
-                <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+          {blueTeam.map((p:any, i:number) => {
+            const isActive = (!isBanPhase && activeTeam === 0 && activeSlot === i);
+            return (
+              <div key={i} style={{ 
+                marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px', 
+                background: isActive ? 'linear-gradient(90deg, rgba(88, 166, 255, 0.2), transparent)' : '#161b22', 
+                border: isActive ? '1px solid #58a6ff' : '1px solid transparent',
+                padding:'8px', borderRadius:'6px',
+                transition: 'all 0.3s'
+              }}>
+                <GameIcon id={p.heroId} size={40} shape="square" />
+                <div style={{ color: p.heroId ? '#fff' : '#555' }}>
+                  <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
+                  <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+                  {/* [추가] 픽한 영웅 이름 */}
+                  {p.heroId && <div style={{ fontSize:'11px', color:'#58a6ff', fontWeight:'bold', marginTop:'2px' }}>{getHeroName(p.heroId)}</div>}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
+        {/* 레드팀 픽 */}
         <div style={{ width:'48%' }}>
           <h3 style={{ color:'#e84057', borderBottom:'2px solid #e84057', paddingBottom:'5px', textAlign:'right', fontSize:'16px' }}>RED TEAM</h3>
-          {redTeam.map((p:any, i:number) => (
-            <div key={i} style={{ marginBottom:'8px', display:'flex', flexDirection:'row-reverse', alignItems:'center', gap:'10px', background:'#161b22', padding:'8px', borderRadius:'6px' }}>
-              <GameIcon id={p.heroId} size={40} shape="square" />
-              <div style={{ textAlign:'right', color: p.heroId ? '#fff' : '#555' }}>
-                <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
-                <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+          {redTeam.map((p:any, i:number) => {
+            const isActive = (!isBanPhase && activeTeam === 1 && activeSlot === i);
+            return (
+              <div key={i} style={{ 
+                marginBottom:'8px', display:'flex', flexDirection:'row-reverse', alignItems:'center', gap:'10px', 
+                background: isActive ? 'linear-gradient(90deg, transparent, rgba(232, 64, 87, 0.2))' : '#161b22', 
+                border: isActive ? '1px solid #e84057' : '1px solid transparent',
+                padding:'8px', borderRadius:'6px',
+                transition: 'all 0.3s'
+              }}>
+                <GameIcon id={p.heroId} size={40} shape="square" />
+                <div style={{ textAlign:'right', color: p.heroId ? '#fff' : '#555' }}>
+                  <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
+                  <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
+                  {/* [추가] 픽한 영웅 이름 */}
+                  {p.heroId && <div style={{ fontSize:'11px', color:'#e84057', fontWeight:'bold', marginTop:'2px' }}>{getHeroName(p.heroId)}</div>}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
   );
 };
 
-// [B] 게임 화면
+// [B] 게임 화면 (기존 유지, 필요한 부분만 복구)
 const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[], gameState: any, setSpeed: any, togglePlay: any }> = ({ match, onClose, heroes, gameState, setSpeed, togglePlay }) => {
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
+  // 나머지 게임 화면 로직 (이전 코드와 동일, 생략 없이 전체 포함)
   const isGameEnded = match.currentDuration > match.duration || (match.stats?.blue?.nexusHp <= 0 || match.stats?.red?.nexusHp <= 0);
   const formatTime = (seconds: number) => {
     const m = Math.floor((seconds || 0) / 60); const s = Math.floor((seconds || 0) % 60);
@@ -382,7 +362,6 @@ const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[]
   );
 };
 
-// [4] 메인 모달
 export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
@@ -397,7 +376,6 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
     );
   }
 
-  // [핵심] 밴픽 화면과 게임 화면을 완전히 분리
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000 }}>
       <ErrorBoundary>
