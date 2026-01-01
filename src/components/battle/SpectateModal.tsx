@@ -2,7 +2,7 @@
 // FILE PATH: /src/components/battle/SpectateModal.tsx
 // ==========================================
 import React, { useState } from 'react';
-import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react'; // Circle 대신 Eye 사용
+import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
@@ -15,37 +15,39 @@ import { SpeedButton, BanCard, PlayerCard, ObjectStatBox, NeutralObjBar, DraftSc
 export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore(); 
   
-  // 1. 실시간 매치 데이터 찾기 (없으면 초기 데이터 사용)
+  // [안전 장치 1] 실시간 매치 데이터 동기화 (없으면 초기 데이터 사용)
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
-  const match = liveMatch || initialMatch;
+  
+  // [안전 장치 2] match 객체가 깨지지 않도록 방어
+  const match = liveMatch || initialMatch || {}; 
   const isGameEnded = !liveMatch;
 
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
-  // =================================================================================
-  // [핵심 수정] 밴픽(DRAFTING) 상태면, 아래의 복잡한 게임 로직을 아예 실행하지 않고 
-  // 즉시 DraftScreen을 리턴하여 튕김을 방지합니다.
-  // =================================================================================
+  // [핵심 수정] 밴픽(DRAFTING) 상태면 DraftScreen 표시 (데이터 누락 방어)
   if (match.status === 'DRAFTING') {
     return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
   }
 
-  // --- 여기부터는 게임 시작(PLAYING) 이후에만 실행됨 ---
+  // --- 인게임(PLAYING) 로직 ---
 
   const getHeroName = (id: string) => {
-    if (!id) return "선택 중..."; // ID가 없을 때 안전 처리
+    if (!id) return "선택 중..."; 
     return heroes.find(h => h.id === id)?.name || id;
   };
   
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60); 
-    const s = Math.floor(seconds % 60);
+    const m = Math.floor((seconds || 0) / 60); 
+    const s = Math.floor((seconds || 0) % 60);
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const selectedPlayer = [...match.blueTeam, ...match.redTeam].find(p => p.heroId === selectedHeroId);
+  const blueTeam = match.blueTeam || [];
+  const redTeam = match.redTeam || [];
+  const allPlayers = [...blueTeam, ...redTeam];
+  const selectedPlayer = allPlayers.find(p => p.heroId === selectedHeroId);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000, overflowY: 'auto' }}>
@@ -56,7 +58,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
           <div style={{ display:'flex', gap:'15px', alignItems:'center', flex:1, justifyContent:'center' }}>
              <span style={{ color: '#58a6ff', fontWeight: '900', fontSize:'22px' }}>{match.score?.blue || 0}</span>
              <div style={{ background:'#000', padding:'4px 12px', borderRadius:'6px', border:'1px solid #333', color:'#fff', fontSize:'14px', fontFamily:'monospace', fontWeight:'bold' }}>
-               {isGameEnded ? '종료됨' : formatTime(match.currentDuration || 0)}
+               {isGameEnded ? '종료됨' : formatTime(match.currentDuration)}
              </div>
              <span style={{ color: '#e84057', fontWeight: '900', fontSize:'22px' }}>{match.score?.red || 0}</span>
           </div>
@@ -87,22 +89,25 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       {/* 3. 팀 리스트 */}
       <div style={{ display:'grid', gridTemplateColumns: '1fr 1fr', gap:'8px', padding:'8px', background:'#0a0a0c' }}>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-            {match.blueTeam.map((p: any, i: number) => (
+            {blueTeam.map((p: any, i: number) => (
               <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
             ))}
          </div>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-            {match.redTeam.map((p: any, i: number) => (
+            {redTeam.map((p: any, i: number) => (
               <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#e84057" />
             ))}
          </div>
       </div>
 
       {/* 4. 전장 정보 */}
-      <div style={{ display:'flex', gap:'6px', padding:'8px', background:'#0a0a0c', borderTop:'1px solid #222' }}>
-         <ObjectStatBox stats={match.stats.blue} color="#58a6ff" side="BLUE" />
-         <ObjectStatBox stats={match.stats.red} color="#e84057" side="RED" />
-      </div>
+      {match.stats && (
+        <div style={{ display:'flex', gap:'6px', padding:'8px', background:'#0a0a0c', borderTop:'1px solid #222' }}>
+           <ObjectStatBox stats={match.stats.blue} color="#58a6ff" side="BLUE" />
+           <ObjectStatBox stats={match.stats.red} color="#e84057" side="RED" />
+        </div>
+      )}
+      
       {match.objectives && (
         <div style={{ display:'flex', gap:'6px', padding:'6px 8px', background:'#08080a', borderBottom:'1px solid #222' }}>
             <NeutralObjBar obj={match.objectives.colossus} label="거신병" color="#7ee787" icon={<Skull size={10}/>} />
