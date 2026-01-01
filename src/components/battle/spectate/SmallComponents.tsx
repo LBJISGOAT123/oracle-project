@@ -22,16 +22,34 @@ export const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
   </button>
 );
 
-export const BanCard = ({ heroId, heroes, onClick }: any) => (
-  <div onClick={() => heroId && onClick(heroId)} style={{ position: 'relative', width: '22px', height: '22px', borderRadius: '3px', overflow: 'hidden', background:'#111', border:'1px solid #333', cursor:'pointer' }}>
-    {heroId ? (
-      <>
-        <div style={{ filter: 'grayscale(100%) brightness(0.5)' }}><GameIcon id={heroId} size={22} shape="square" /></div>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '2px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)' }} />
-      </>
-    ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={10} color="#333"/></div>}
-  </div>
-);
+export const BanCard = ({ heroId, heroes, onClick }: any) => {
+  // [Safety] heroId가 유효한지 확인 (빈 문자열이나 null이면 렌더링 안 함)
+  const isValid = heroId && typeof heroId === 'string' && heroId.length > 0;
+
+  return (
+    <div 
+      onClick={() => isValid && onClick && onClick(heroId)} 
+      style={{ 
+        position: 'relative', width: '22px', height: '22px', 
+        borderRadius: '3px', overflow: 'hidden', 
+        background:'#111', border:'1px solid #333', cursor: isValid ? 'pointer' : 'default' 
+      }}
+    >
+      {isValid ? (
+        <>
+          <div style={{ filter: 'grayscale(100%) brightness(0.5)' }}>
+            <GameIcon id={heroId} size={22} shape="square" />
+          </div>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '2px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)' }} />
+        </>
+      ) : (
+        <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Ban size={10} color="#333"/>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const NeutralObjBar = ({ obj, label, color, icon }: any) => {
   if (!obj) return null;
@@ -52,7 +70,9 @@ export const NeutralObjBar = ({ obj, label, color, icon }: any) => {
 
 export const ObjectStatBox = ({ stats, color, side }: any) => {
   if (!stats) return null;
-  const hpPercent = (stats.nexusHp / stats.maxNexusHp) * 100;
+  const nexusHp = stats.nexusHp || 0;
+  const maxNexusHp = stats.maxNexusHp || 1;
+  const hpPercent = (nexusHp / maxNexusHp) * 100;
   const TowerIndicator = ({ label, brokenCount }: any) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color:'#555' }}>
       <span style={{ width:'18px' }}>{label}</span>
@@ -82,7 +102,7 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
         </div>
         <div style={{ textAlign:'right' }}>
            <div style={{ fontSize:'8px', color:'#666' }}>NEXUS</div>
-           <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(stats.nexusHp)).toLocaleString()}</div>
+           <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(nexusHp)).toLocaleString()}</div>
            <div style={{ width:'50px', height:'3px', background:'#222', borderRadius:'1px', marginTop:'2px', overflow:'hidden' }}>
               <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : color }} />
            </div>
@@ -93,13 +113,17 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
 };
 
 export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any) => {
-  if (!p) return null; // Safe check
-  const hpPercent = (p.currentHp / p.maxHp) * 100;
-  const isDead = p.currentHp <= 0;
+  if (!p) return null; 
+  const currentHp = p.currentHp || 0;
+  const maxHp = p.maxHp || 1;
+  const hpPercent = (currentHp / maxHp) * 100;
+  const isDead = currentHp <= 0;
+  const displayId = p.heroId || ''; // 빈 문자열 처리
+
   return (
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', background: isSelected ? `${teamColor}15` : '#161b22', borderRadius: '4px', border: isSelected ? `1px solid ${teamColor}` : '1px solid #30363d', marginBottom: '4px', cursor: 'pointer', height: '34px', opacity: isDead ? 0.6 : 1, filter: isDead ? 'grayscale(0.8)' : 'none', position: 'relative', overflow:'hidden' }}>
       <div style={{ position: 'relative', display:'flex', alignItems:'center', gap:'8px' }}>
-        <GameIcon id={p.heroId} size={28} shape="rounded" />
+        <GameIcon id={displayId} size={28} shape="rounded" />
         <div>
           <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{heroName}</div>
           <div style={{ fontSize: '9px', color: '#8b949e' }}>{p.name}</div>
@@ -107,7 +131,7 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{p.kills}/{p.deaths}/{p.assists}</div>
-        <div style={{ fontSize: '9px', color: '#8b949e' }}>{(p.gold/1000).toFixed(1)}k | {p.cs}cs</div>
+        <div style={{ fontSize: '9px', color: '#8b949e' }}>{((p.gold||0)/1000).toFixed(1)}k | {p.cs||0}cs</div>
       </div>
       <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '2px', background: 'rgba(0,0,0,0.3)' }}>
         <div style={{ width: `${hpPercent}%`, height: '100%', background: hpPercent < 30 ? '#da3633' : teamColor }} />
@@ -117,18 +141,18 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
 };
 
 export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: any[], onClose: () => void }) => {
-  // [Safety] 데이터가 없으면 빈 배열 사용 (튕김 방지)
   const blueTeam = match.blueTeam || [];
   const redTeam = match.redTeam || [];
   const timer = Math.ceil(match.draft?.timer || 0);
 
+  // [Safety] heroId가 없으면 안전하게 빈 문자열 처리하여 GameIcon이 깨지지 않게 함
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
       <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
       
       <div style={{ marginBottom:'40px', textAlign:'center' }}>
-        <h2 style={{ color:'#fff', fontSize:'24px' }}>DRAFT PHASE</h2>
-        <div style={{ fontSize:'24px', fontWeight:'900', color:'#fff', marginTop:'10px' }}>{timer}</div>
+        <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
+        <div style={{ fontSize:'24px', fontWeight:'900', color:'#fff' }}>{timer}</div>
       </div>
 
       <div style={{ display:'flex', width:'90%', justifyContent:'space-between' }}>
