@@ -1,5 +1,3 @@
-// === FILE: /src/engine/match/MatchUpdater.ts ===
-
 // ==========================================
 // FILE PATH: /src/engine/match/MatchUpdater.ts
 // ==========================================
@@ -28,82 +26,67 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   const watcherBuffAmount = (safeField.watcher?.buffAmount || 20) / 100;
 
   return matches.map(m => {
-    // 딥카피 (React 리렌더링 감지용)
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    // [안전장치 추가] 밴픽/게임 로직 중 에러 발생 시 해당 매치만 건너뛰고 진행
-    try {
-        // 1. 드래프트 로직
-        if (match.status === 'DRAFTING') {
-            if (!match.draft) return match;
-            match.draft.timer -= delta;
+    // 1. 드래프트 로직
+    if (match.status === 'DRAFTING') {
+        if (!match.draft) return match;
+        
+        // 시간 감소
+        match.draft.timer -= delta;
+
+        // 시간이 다 되었을 때 (픽 완료)
+        if (match.draft.timer <= 0) {
+            const turn = match.draft.turnIndex;
+            let currentUserIq = 50; 
+            if (turn >= 10) { 
+                const pickIdx = turn - 10;
+                // 스네이크 방식 고려해서 유저 IQ 가져오는 로직은 BanPickEngine에 위임되어 있지만
+                // 여기서는 단순히 턴 넘김 처리를 합니다.
+            }
             
-            if (match.draft.timer <= 0) {
-                const turn = match.draft.turnIndex;
-                let currentUserIq = 50; 
-                
-                // 픽 순서가 되었을 때, 해당 유저의 지능(IQ)을 가져옴
-                if (turn >= 10) { 
-                    const pickIdx = turn - 10;
-                    const isBlue = pickIdx % 2 === 0;
-                    const teamIdx = Math.floor(pickIdx / 2);
-                    const player = isBlue ? match.blueTeam[teamIdx] : match.redTeam[teamIdx];
-                    
-                    // player가 undefined일 경우를 대비
-                    if (player) {
-                        const user = userPool.find(u => u.name === player.name);
-                        if (user) currentUserIq = user.brain;
-                    }
-                }
+            // 밴/픽 실행
+            processDraftTurn(match, heroes, currentUserIq);
+            
+            // 다음 턴으로 넘김
+            match.draft.turnIndex++;
 
-                // 밴픽 처리 실행 (에러 발생 가능 지점)
-                processDraftTurn(match, heroes, currentUserIq);
-                
-                match.draft.turnIndex++;
-                match.draft.timer = 1.0; // 밴픽 사이 딜레이
+            // [수정] 다음 사람의 고민 시간 설정
+            // 최소 3초 ~ 최대 35초 사이의 랜덤 시간 부여
+            // (칼픽하는 사람도 있고, 시간 끄는 사람도 있음)
+            match.draft.timer = 3 + Math.random() * 32; 
 
-                // 밴픽 종료 조건 (20턴: 10밴 + 10픽)
-                if (match.draft.turnIndex >= 20) {
-                    match.status = 'PLAYING';
-                    match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
-                    
-                    // 영웅 스탯 초기화
-                    [...match.blueTeam, ...match.redTeam].forEach(p => {
-                        if (!p.heroId) return; // 픽 실패 시 건너뜀
-                        const h = heroes.find(x => x.id === p.heroId);
-                        if (h) { p.maxHp = h.stats.hp; p.currentHp = h.stats.hp; }
-                    });
-                }
+            // 20턴(밴10 + 픽10)이 모두 끝나면 게임 시작
+            if (match.draft.turnIndex >= 20) {
+                match.status = 'PLAYING';
+                match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
+                [...match.blueTeam, ...match.redTeam].forEach(p => {
+                    const h = heroes.find(x => x.id === p.heroId);
+                    if (h) { p.maxHp = h.stats.hp; p.currentHp = h.stats.hp; }
+                });
             }
-            return match;
         }
+        return match;
+    }
 
-        // 2. 인게임 로직
-        if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
+    // 2. 인게임 로직
+    if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
 
-        match.currentDuration += delta;
-        let remainingTime = delta;
+    match.currentDuration += delta;
+    let remainingTime = delta;
 
-        while (remainingTime > 0) {
-            const dt = Math.min(remainingTime, 1.0);
+    while (remainingTime > 0) {
+        const dt = Math.min(remainingTime, 1.0);
 
-            processGrowthPhase(match, battleSettings, heroes, dt);
-            if (Math.random() < (0.05 * dt)) { 
-                [...match.blueTeam, ...match.redTeam].forEach(p => attemptBuyItem(p, shopItems, heroes));
-            }
-            processCombatPhase(match, heroes, battleSettings, roleSettings, watcherBuffType, watcherBuffAmount, dt);
-            processSiegePhase(match, heroes, safeField, roleSettings, battleSettings, dt);
-            processObjectiveLogic(match, safeField, dt);
-
-            remainingTime -= dt;
+        processGrowthPhase(match, battleSettings, heroes, dt);
+        if (Math.random() < (0.05 * dt)) { 
+            [...match.blueTeam, ...match.redTeam].forEach(p => attemptBuyItem(p, shopItems, heroes));
         }
-    } catch (error) {
-        console.error(`Match ${match.id} Error:`, error);
-        // 에러 발생 시 안전하게 밴픽을 강제 종료하고 게임을 시작시키거나, 매치를 유지함
-        if (match.status === 'DRAFTING') {
-             match.status = 'PLAYING';
-             match.logs.push({ time: 0, message: "시스템 오류로 밴픽이 조기 종료되었습니다.", type: 'START' });
-        }
+        processCombatPhase(match, heroes, battleSettings, roleSettings, watcherBuffType, watcherBuffAmount, dt);
+        processSiegePhase(match, heroes, safeField, roleSettings, battleSettings, dt);
+        processObjectiveLogic(match, safeField, dt);
+
+        remainingTime -= dt;
     }
 
     return match;
