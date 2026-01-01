@@ -311,7 +311,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     passive: { name: "에너지 충전", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0.2, cd: 0, range: 600, duration: 0, isPassive: true },
     q: { name: "플라즈마", mechanic: "NONE", val: 160, adRatio: 1.3, apRatio: 0, cd: 7, range: 900, duration: 0 },
     w: { name: "중력탄", mechanic: "STUN", val: 80, adRatio: 0.5, apRatio: 0, cd: 15, range: 800, duration: 1.2 },
-    e: { name: "추진기", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 18, range: 5
+    e: { name: "추진기", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 18, range: 5 , duration: 0.4 },
 
        r: { name: "궤도 폭격", mechanic: "GLOBAL", val: 550, adRatio: 2.2, apRatio: 0, cd: 150, range: 20000, duration: 0 }
   },
