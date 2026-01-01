@@ -1,3 +1,4 @@
+// src/store/types.ts
 import { Hero, Item, Post, GameState, RoleSettings, AIConfig, TierConfig, BattleSettings, BattlefieldSettings } from '../types';
 
 export interface HeroSlice {
@@ -40,5 +41,5 @@ export interface GameSlice {
   hardReset: () => void;
 }
 
-// 이게 없어서 에러가 나는 겁니다!
+// [핵심] 이 줄이 반드시 있어야 에러가 안 납니다!
 export interface GameStore extends HeroSlice, CommunitySlice, ItemSlice, GameSlice {}
