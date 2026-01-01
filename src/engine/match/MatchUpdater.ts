@@ -2,7 +2,6 @@
 // FILE PATH: /src/engine/match/MatchUpdater.ts
 // ==========================================
 import { Hero, LiveMatch } from '../../types';
-import { userPool } from '../UserManager';
 import { processDraftTurn } from './BanPickEngine'; 
 import { useGameStore } from '../../store/useGameStore';
 import { applyColossusReward, applyWatcherReward } from './ObjectiveSystem';
@@ -32,31 +31,26 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     if (match.status === 'DRAFTING') {
         if (!match.draft) return match;
         
-        // 시간 감소
-        match.draft.timer -= delta;
+        // [중요 수정] 밴픽 중에는 배속 영향을 받지 않도록 delta를 고정합니다.
+        // delta가 아무리 커도(배속이 빨라도) 한 번 업데이트당 0.05초(리얼타임 비슷)만 흐르게 합니다.
+        // 이렇게 하면 60배속이어도 밴픽은 천천히 진행됩니다.
+        const draftDelta = Math.min(delta, 0.05);
 
-        // 시간이 다 되었을 때 (픽 완료)
+        match.draft.timer -= draftDelta;
+
         if (match.draft.timer <= 0) {
             const turn = match.draft.turnIndex;
             let currentUserIq = 50; 
-            if (turn >= 10) { 
-                const pickIdx = turn - 10;
-                // 스네이크 방식 고려해서 유저 IQ 가져오는 로직은 BanPickEngine에 위임되어 있지만
-                // 여기서는 단순히 턴 넘김 처리를 합니다.
-            }
             
-            // 밴/픽 실행
+            // 밴/픽 로직 실행
             processDraftTurn(match, heroes, currentUserIq);
             
-            // 다음 턴으로 넘김
             match.draft.turnIndex++;
 
-            // [수정] 다음 사람의 고민 시간 설정
-            // 최소 3초 ~ 최대 35초 사이의 랜덤 시간 부여
-            // (칼픽하는 사람도 있고, 시간 끄는 사람도 있음)
+            // 다음 사람 시간 설정 (3~35초)
             match.draft.timer = 3 + Math.random() * 32; 
 
-            // 20턴(밴10 + 픽10)이 모두 끝나면 게임 시작
+            // 종료 체크
             if (match.draft.turnIndex >= 20) {
                 match.status = 'PLAYING';
                 match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
@@ -69,7 +63,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         return match;
     }
 
-    // 2. 인게임 로직
+    // 2. 인게임 로직 (여기는 배속 적용)
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
 
     match.currentDuration += delta;
