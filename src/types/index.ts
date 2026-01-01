@@ -190,12 +190,13 @@ export interface NeutralObjState {
   status: 'ALIVE' | 'DEAD';
   nextSpawnTime: number;
 }
-
-// [NEW] 밴픽 진행 상태
+  
+// [NEW] 밴픽 진행 상태 (decisionTime 추가됨)
 export interface DraftState {
-  isBlueTurn: boolean; // 누구 턴인가?
-  turnIndex: number;   // 몇 번째 픽인가? (0~19: 밴10개 + 픽10개)
-  timer: number;       // 남은 시간
+  isBlueTurn: boolean;
+  turnIndex: number;
+  timer: number;       // UI에 보여줄 남은 시간 (예: 30초)
+  decisionTime: number; // [신규] 실제로 픽을 할 시간 (예: 12초에 픽)
   phase: 'BAN' | 'PICK' | 'COMPLETED';
 }
 
