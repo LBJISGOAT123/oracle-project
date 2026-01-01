@@ -2,11 +2,8 @@
 // FILE PATH: /src/components/battle/spectate/SmallComponents.tsx
 // ==========================================
 import React from 'react';
-import { X, Ban, Skull, Circle, Swords, Eye } from 'lucide-react';
-import { GameIcon } from '../../common/GameIcon'; // (경로 수정됨: components/common)
-import { LiveMatch } from '../../../types'; // (경로 수정됨: src/types)
-
-// [수정 완료] import 경로를 ../../../ (3단계 위)로 수정하여 빌드 오류 해결
+import { X, Ban, Skull, Eye } from 'lucide-react'; 
+import { GameIcon } from '../../common/GameIcon';
 
 export const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
   <button 
@@ -52,6 +49,7 @@ export const NeutralObjBar = ({ obj, label, color, icon }: any) => {
 };
 
 export const ObjectStatBox = ({ stats, color, side }: any) => {
+  if (!stats) return null;
   const hpPercent = (stats.nexusHp / stats.maxNexusHp) * 100;
   const TowerIndicator = ({ label, brokenCount }: any) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color:'#555' }}>
@@ -66,15 +64,12 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
   return (
     <div style={{ background: '#121214', border: `1px solid ${color}22`, borderRadius: '6px', padding: '8px', flex: 1 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-        {/* 왼쪽: 포탑 상태 */}
         <div>
           <div style={{ fontSize:'9px', color: color, fontWeight:'900', marginBottom:'2px' }}>{side}</div>
           <TowerIndicator label="TOP" brokenCount={stats.towers?.top || 0} />
           <TowerIndicator label="MID" brokenCount={stats.towers?.mid || 0} />
           <TowerIndicator label="BOT" brokenCount={stats.towers?.bot || 0} />
         </div>
-
-        {/* 중앙: 오브젝트 킬 카운트 */}
         <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'15px' }}>
            <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color:'#ccc', fontWeight:'bold' }}>
              <Skull size={10} color="#7ee787"/> {stats.colossus || 0}
@@ -83,8 +78,6 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
              <Eye size={10} color="#a371f7"/> {stats.watcher || 0}
            </div>
         </div>
-
-        {/* 오른쪽: 넥서스 체력 */}
         <div style={{ textAlign:'right' }}>
            <div style={{ fontSize:'8px', color:'#666' }}>NEXUS</div>
            <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(stats.nexusHp)).toLocaleString()}</div>
@@ -120,19 +113,42 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
   );
 };
 
-export const DraftScreen = ({ match, heroes, onClose }: { match: LiveMatch, heroes: any[], onClose: () => void }) => {
-  const { bans, blueTeam, redTeam, draft } = match;
-  const timer = Math.ceil(draft?.timer || 0);
+export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: any[], onClose: () => void }) => {
+  // [안전 장치] 데이터가 없으면 빈 배열 사용
+  const bans = match.bans || { blue: [], red: [] };
+  const blueTeam = match.blueTeam || [];
+  const redTeam = match.redTeam || [];
+  const timer = Math.ceil(match.draft?.timer || 0);
+
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
       <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
+      
       <div style={{ marginBottom:'40px', textAlign:'center' }}>
         <h2 style={{ color:'#fff', fontSize:'24px' }}>DRAFT PHASE</h2>
         <div style={{ fontSize:'24px', fontWeight:'900', color:'#fff', marginTop:'10px' }}>{timer}</div>
       </div>
+
       <div style={{ display:'flex', width:'90%', justifyContent:'space-between' }}>
-        <div style={{ width:'40%', color:'#58a6ff' }}><h3>BLUE TEAM</h3>{blueTeam.map((p, i) => <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}><GameIcon id={p.heroId} size={50} shape="square"/>{p.name}</div>)}</div>
-        <div style={{ width:'40%', color:'#e84057', textAlign:'right' }}><h3>RED TEAM</h3>{redTeam.map((p, i) => <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center', flexDirection:'row-reverse'}}><GameIcon id={p.heroId} size={50} shape="square"/>{p.name}</div>)}</div>
+        <div style={{ width:'40%', color:'#58a6ff' }}>
+          <h3>BLUE TEAM</h3>
+          {blueTeam.map((p: any, i: number) => (
+            <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
+              <GameIcon id={p.heroId} size={50} shape="square"/>
+              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p.name}</span>
+            </div>
+          ))}
+        </div>
+        
+        <div style={{ width:'40%', color:'#e84057', textAlign:'right' }}>
+          <h3>RED TEAM</h3>
+          {redTeam.map((p: any, i: number) => (
+            <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center', flexDirection:'row-reverse'}}>
+              <GameIcon id={p.heroId} size={50} shape="square"/>
+              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p.name}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
