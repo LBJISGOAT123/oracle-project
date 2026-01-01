@@ -1,10 +1,7 @@
 // === FILE: /src/components/battle/SpectateModal.tsx ===
 
-// ==========================================
-// FILE PATH: /src/components/battle/SpectateModal.tsx
-// ==========================================
-import React, { useState } from 'react';
-import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react';
+import React, { Component, ErrorInfo, useState, useEffect } from 'react';
+import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye, AlertTriangle } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
@@ -13,25 +10,64 @@ import { PersonalLogView } from './spectate/PersonalLogView';
 import { UserDetailView } from './spectate/UserDetailView';
 import { SpeedButton, BanCard, PlayerCard, ObjectStatBox, NeutralObjBar, DraftScreen } from './spectate/SmallComponents';
 
-export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
+// [1] 에러 방어막 컴포넌트 (Class Component 필수)
+class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, errorMsg: string }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, errorMsg: "" };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMsg: error.toString() };
+  }
+
+  componentDidCatch(error: any, errorInfo: ErrorInfo) {
+    console.error("Spectate Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', color: '#ff6b6b', textAlign: 'center', background:'#111', height:'100%' }}>
+          <AlertTriangle size={40} style={{ marginBottom: '20px' }} />
+          <h3>관전 중 오류가 발생했습니다.</h3>
+          <p style={{ fontSize: '12px', color: '#ccc', background: '#333', padding: '10px', borderRadius: '8px' }}>
+            {this.state.errorMsg}
+          </p>
+          <button onClick={() => window.location.reload()} style={{ marginTop:'20px', padding:'10px 20px' }}>새로고침</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// [2] 실제 관전 컴포넌트
+const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore(); 
   
-  // [안전 장치 1] 실시간 데이터 가져오기 (없으면 초기 데이터)
+  // 데이터 찾기
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
-  const match = liveMatch || initialMatch || {}; 
+  const match = liveMatch || initialMatch;
 
-  // [핵심 해결] 계산 로직보다 먼저 상태를 확인해서 리턴해버립니다.
-  // 시간이 0초거나, 상태가 DRAFTING이면 무조건 밴픽 화면을 보여줍니다.
+  // [중요] match가 아예 없으면 에러가 아니라 '종료됨'으로 처리
+  if (!match) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', color:'#888' }}>
+        <p>게임 데이터를 찾을 수 없습니다.</p>
+        <button onClick={onClose} style={{ padding:'10px 20px', marginTop:'10px', cursor:'pointer' }}>닫기</button>
+      </div>
+    );
+  }
+
+  // 0초거나 DRAFTING 상태면 DraftScreen
   const isDrafting = (match.status === 'DRAFTING') || (match.currentDuration !== undefined && match.currentDuration < 1);
 
   if (isDrafting) {
     return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
   }
 
-  // =========================================================================
-  // 여기 아래부터는 "게임이 시작된 후"에만 실행되므로 안전합니다.
-  // =========================================================================
-
+  // --- PLAYING 상태 로직 ---
   const isGameEnded = !liveMatch;
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<any | null>(null);
@@ -58,10 +94,10 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
   const redBans = match.bans?.red || [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000, overflowY: 'auto' }}>
-
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050505' }}>
+      
       {/* 1. 상단 바 */}
-      <div style={{ position:'sticky', top:0, zIndex:100, background: '#121214', borderBottom: '1px solid #222', padding: '8px 12px' }}>
+      <div style={{ flexShrink: 0, background: '#121214', borderBottom: '1px solid #222', padding: '8px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'6px' }}>
           <div style={{ display:'flex', gap:'15px', alignItems:'center', flex:1, justifyContent:'center' }}>
              <span style={{ color: '#58a6ff', fontWeight: '900', fontSize:'22px' }}>{match.score?.blue || 0}</span>
@@ -83,7 +119,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       </div>
 
       {/* 2. 밴 정보 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
          <div style={{ display: 'flex', gap: '3px' }}>
             <span style={{ fontSize:'9px', color:'#58a6ff', fontWeight:'bold', marginRight:'4px' }}>BAN</span>
             {blueBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
@@ -95,7 +131,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       </div>
 
       {/* 3. 팀 리스트 */}
-      <div style={{ display:'grid', gridTemplateColumns: '1fr 1fr', gap:'8px', padding:'8px', background:'#0a0a0c' }}>
+      <div style={{ flexShrink: 0, display:'grid', gridTemplateColumns: '1fr 1fr', gap:'8px', padding:'8px', background:'#0a0a0c' }}>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
             {blueTeam.map((p: any, i: number) => (
               <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
@@ -110,21 +146,21 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
 
       {/* 4. 전장 정보 */}
       {match.stats && (
-        <div style={{ display:'flex', gap:'6px', padding:'8px', background:'#0a0a0c', borderTop:'1px solid #222' }}>
+        <div style={{ flexShrink: 0, display:'flex', gap:'6px', padding:'8px', background:'#0a0a0c', borderTop:'1px solid #222' }}>
            <ObjectStatBox stats={match.stats.blue} color="#58a6ff" side="BLUE" />
            <ObjectStatBox stats={match.stats.red} color="#e84057" side="RED" />
         </div>
       )}
       
       {match.objectives && (
-        <div style={{ display:'flex', gap:'6px', padding:'6px 8px', background:'#08080a', borderBottom:'1px solid #222' }}>
+        <div style={{ flexShrink: 0, display:'flex', gap:'6px', padding:'6px 8px', background:'#08080a', borderBottom:'1px solid #222' }}>
             <NeutralObjBar obj={match.objectives.colossus} label="거신병" color="#7ee787" icon={<Skull size={10}/>} />
             <NeutralObjBar obj={match.objectives.watcher} label="주시자" color="#a371f7" icon={<Eye size={10}/>} />
         </div>
       )}
 
-      {/* 5. 상세 인터랙티브 영역 */}
-      <div style={{ background: '#000', flex:1, minHeight:'300px' }}>
+      {/* 5. 상세 영역 (스크롤 가능) */}
+      <div style={{ flex: 1, overflowY: 'auto', background: '#000' }}>
          {selectedPlayer && selectedPlayer.heroId ? (
             <div style={{ display:'flex', flexDirection:'column', background:'#0a0a0c', borderTop:'1px solid #333', paddingBottom:'40px' }}>
               <div onClick={() => { setSelectedHeroId(null); setViewingItem(null); }} style={{ padding:'10px', background:'#21262d', color:'#fff', fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderBottom:'1px solid #333', fontSize:'12px' }}>
@@ -161,6 +197,17 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
            </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// [3] 최종 내보내기: ErrorBoundary로 감싸서 내보냄
+export const SpectateModal: React.FC<any> = (props) => {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000 }}>
+      <ErrorBoundary>
+        <SpectateContent {...props} />
+      </ErrorBoundary>
     </div>
   );
 };
