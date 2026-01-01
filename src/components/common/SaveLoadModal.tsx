@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Upload, Download } from 'lucide-react';
-import { useGameStore } from '../../store/useGameStore'; // heroes 가져오기 위해 추가
+import { useGameStore } from '../../store/useGameStore';
 import { saveToSlot, loadFromSlot, getSlotsMeta, exportSaveFile, importSaveFile, SaveMeta } from '../../engine/SaveLoadSystem';
 
 interface Props { onClose: () => void; }
 
 export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
-  const { heroes } = useGameStore(); // heroes 데이터 가져오기
+  const { heroes } = useGameStore();
   const [slots, setSlots] = useState<Record<string, SaveMeta>>({});
   const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
-    // getSlotInfo 대신 getSlotsMeta 사용
     setSlots(getSlotsMeta());
   }, [refreshKey]);
 
   const handleSave = (slotId: string) => {
     if (saveToSlot(slotId)) {
       alert("저장되었습니다!");
-      setSlots(getSlotsMeta()); // 저장 후 갱신
+      setSlots(getSlotsMeta());
     }
   };
 
@@ -26,7 +25,6 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
     if (!slots[slotId]) return;
 
     if (confirm("정말 이 데이터를 불러오시겠습니까?\n현재 진행 상황은 덮어씌워집니다.")) {
-      // 인자 2개 전달 (slotId, heroes)
       const success = loadFromSlot(slotId, heroes);
       if (success) {
         alert("로드 완료!");
@@ -43,7 +41,6 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
     if (!file) return;
 
     if (confirm("파일 데이터를 불러오시겠습니까?")) {
-      // 인자 2개 전달 (file, heroes)
       const success = await importSaveFile(file, heroes);
       if (success) {
         alert("파일 로드 완료!");
@@ -54,7 +51,6 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
     e.target.value = ''; 
   };
 
-  // 타입 명시 (any -> specific types)
   const SlotItem = ({ id, name, color }: { id: string, name: string, color: string }) => {
     const info = slots[id];
     return (
