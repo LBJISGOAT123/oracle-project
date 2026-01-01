@@ -1,10 +1,7 @@
-// ==========================================
-// FILE PATH: /src/components/community/CommunityBoard.tsx
-// ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { Star, ThumbsUp } from 'lucide-react';
+import { Post } from '../../types';
 
 export const CommunityBoard: React.FC = () => {
   const { communityPosts, openPost } = useGameStore();
@@ -45,7 +42,8 @@ export const CommunityBoard: React.FC = () => {
     }
   };
 
-  const MobilePostItem = ({ post }: { post: any }) => (
+  // [수정됨] post 타입 명시
+  const MobilePostItem = ({ post }: { post: Post }) => (
     <div 
       onClick={() => openPost(post)}
       style={{ 
