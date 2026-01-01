@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { Hero } from '../../types';
-import { Target, Swords, Coins } from 'lucide-react';
+// 👇 [수정] 여기에 'Skull'이 빠져 있어서 에러가 났던 겁니다. 추가했습니다.
+import { Target, Swords, Coins, Skull } from 'lucide-react'; 
 import { GameIcon } from '../common/GameIcon';
 
 interface Props {
@@ -34,7 +35,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
                   <span className={`tier-badge tier-${hero.tier}`} style={{ fontSize: '9px', padding: '2px 5px', height: 'fit-content' }}>{hero.tier}티어</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#8b949e' }}>
-                  <span style={{ color: hero.recentWinRate >= 50 ? '#ff4d4d' : '#8b949e', fontWeight: 'bold' }}>승률 {hero.recentWinRate.toFixed(1)}%</span>
+                  <span style={{ color: hero.recentWinRate >= 50 ? '#ff6b6b' : '#8b949e', fontWeight: 'bold' }}>승률 {hero.recentWinRate.toFixed(1)}%</span>
                   <span style={{ margin: '0 4px', opacity: 0.3 }}>•</span>
                   <span>픽률 {hero.pickRate.toFixed(1)}%</span>
                 </div>
@@ -44,8 +45,8 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
               <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#fff' }}>{hero.avgKda}</div>
               <div style={{ fontSize: '10px', color: '#e89d40', fontWeight:'bold' }}>{hero.avgGold} G</div>
               <div style={{ fontSize: '9px', color: '#888', display:'flex', gap:'6px', marginTop:'2px' }}>
-                <span>CS {hero.avgCs}</span>
-                <span style={{ color: '#da3633' }}>{hero.avgDpm}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:'2px' }}><Target size={10}/> {hero.avgCs}</span>
+                <span style={{ color: '#ff6b6b' }}>{hero.avgDpm}</span>
               </div>
             </div>
           </div>
@@ -81,7 +82,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
               </div>
             </div>
 
-            <div style={{ fontWeight: 'bold', color: hero.recentWinRate >= 50 ? '#ff4d4d' : '#4d94ff' }}>{hero.recentWinRate.toFixed(1)}%</div>
+            <div style={{ fontWeight: 'bold', color: hero.recentWinRate >= 50 ? '#ff6b6b' : '#4d94ff' }}>{hero.recentWinRate.toFixed(1)}%</div>
             <div style={{ fontSize: '11px', color: '#888' }}>
               <span style={{ color: '#fff' }}>{hero.pickRate.toFixed(1)}%</span> <span style={{ color: '#444' }}>|</span> <span style={{ color: '#da3633' }}>{hero.banRate.toFixed(1)}%</span>
             </div>
