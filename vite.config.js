@@ -1,10 +1,10 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+// import checker from 'vite-plugin-checker' // 주석 처리 또는 삭제
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: '0.0.0.0',
-  }
+  plugins: [
+    react(),
+    // checker({ typescript: true }) // 주석 처리 또는 삭제
+  ],
 })
