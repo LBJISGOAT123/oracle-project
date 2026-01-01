@@ -8,7 +8,6 @@ import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
-// 분리된 모듈 임포트
 import { GlobalLogPanel } from './spectate/GlobalLogPanel';
 import { PersonalLogView } from './spectate/PersonalLogView';
 import { UserDetailView } from './spectate/UserDetailView';
@@ -17,27 +16,29 @@ import { SpeedButton, BanCard, PlayerCard, ObjectStatBox, NeutralObjBar, DraftSc
 export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore(); 
   
-  // [안전 장치 1] 실시간 매치 데이터 동기화 (없으면 초기 데이터 사용)
+  // [안전 장치 1] 실시간 데이터 가져오기 (없으면 초기 데이터)
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
-  // match가 undefined일 경우를 대비해 빈 객체({}) 할당
   const match = liveMatch || initialMatch || {}; 
-  const isGameEnded = !liveMatch;
 
-  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
-  const [viewingItem, setViewingItem] = useState<any | null>(null);
-  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
-
-  // [핵심 수정] 0초거나 DRAFTING 상태면 무조건 DraftScreen 표시 (데이터 누락 방어)
-  const isDrafting = match.status === 'DRAFTING' || (match.currentDuration !== undefined && match.currentDuration < 1);
+  // [핵심 해결] 계산 로직보다 먼저 상태를 확인해서 리턴해버립니다.
+  // 시간이 0초거나, 상태가 DRAFTING이면 무조건 밴픽 화면을 보여줍니다.
+  const isDrafting = (match.status === 'DRAFTING') || (match.currentDuration !== undefined && match.currentDuration < 1);
 
   if (isDrafting) {
     return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
   }
 
-  // --- 인게임(PLAYING) 로직 ---
+  // =========================================================================
+  // 여기 아래부터는 "게임이 시작된 후"에만 실행되므로 안전합니다.
+  // =========================================================================
+
+  const isGameEnded = !liveMatch;
+  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<any | null>(null);
+  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
   const getHeroName = (id: string) => {
-    if (!id) return "선택 중..."; 
+    if (!id) return "Unknown"; 
     return heroes.find(h => h.id === id)?.name || id;
   };
   
@@ -47,11 +48,14 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // [안전 장치] 팀 배열이 없을 경우 빈 배열 처리
   const blueTeam = match.blueTeam || [];
   const redTeam = match.redTeam || [];
   const allPlayers = [...blueTeam, ...redTeam];
   const selectedPlayer = allPlayers.find(p => p.heroId === selectedHeroId);
+
+  // 밴 목록 안전하게 가져오기
+  const blueBans = match.bans?.blue || [];
+  const redBans = match.bans?.red || [];
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000, overflowY: 'auto' }}>
@@ -82,10 +86,10 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
          <div style={{ display: 'flex', gap: '3px' }}>
             <span style={{ fontSize:'9px', color:'#58a6ff', fontWeight:'bold', marginRight:'4px' }}>BAN</span>
-            {(match.bans?.blue || []).map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
+            {blueBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
          </div>
          <div style={{ display: 'flex', gap: '3px' }}>
-            {(match.bans?.red || []).map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
+            {redBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
             <span style={{ fontSize:'9px', color:'#e84057', fontWeight:'bold', marginLeft:'4px' }}>BAN</span>
          </div>
       </div>
@@ -119,7 +123,7 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
         </div>
       )}
 
-      {/* 5. 상세 인터랙티브 영역 (UserDetailView는 선택된 영웅이 있을 때만 렌더링) */}
+      {/* 5. 상세 인터랙티브 영역 */}
       <div style={{ background: '#000', flex:1, minHeight:'300px' }}>
          {selectedPlayer && selectedPlayer.heroId ? (
             <div style={{ display:'flex', flexDirection:'column', background:'#0a0a0c', borderTop:'1px solid #333', paddingBottom:'40px' }}>
@@ -130,9 +134,9 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
               <UserDetailView player={selectedPlayer} heroName={getHeroName(selectedPlayer.heroId)} viewingItem={viewingItem} setViewingItem={setViewingItem} />
 
               <div style={{ display:'flex', gap:'6px', justifyContent:'center', marginBottom:'20px' }}>
-                {[0,1,2,3,4,5].map(i => (
-                  <div key={i} onClick={() => selectedPlayer.items[i] && setViewingItem(selectedPlayer.items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    {selectedPlayer.items[i] && <GameIcon id={selectedPlayer.items[i].id} size={40} shape="square" />}
+                {([0,1,2,3,4,5]).map(i => (
+                  <div key={i} onClick={() => selectedPlayer.items && selectedPlayer.items[i] && setViewingItem(selectedPlayer.items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {selectedPlayer.items && selectedPlayer.items[i] && <GameIcon id={selectedPlayer.items[i].id} size={40} shape="square" />}
                   </div>
                 ))}
               </div>
