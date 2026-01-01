@@ -1,11 +1,7 @@
-// ==========================================
-// FILE PATH: /src/components/battle/LiveGameListModal.tsx
-// ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { X, Eye, Swords, Clock, User, ChevronDown, ChevronUp } from 'lucide-react';
-import { LiveMatch, LivePlayer } from '../../types';
+import { LiveMatch } from '../../types';
 
 interface Props { onClose: () => void; onSpectate: (match: LiveMatch) => void; }
 
@@ -13,22 +9,18 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
   const { gameState, heroes } = useGameStore();
   const matches = gameState.liveMatches;
 
-  // 모바일 여부 확인
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  // 선택된 매치 ID (모바일은 처음에 아무것도 선택 안 함 = null)
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
-      // PC로 전환되면 첫 번째 게임 자동 선택
       if (!mobile && !selectedMatchId && matches.length > 0) {
         setSelectedMatchId(matches[0].id);
       }
     };
     window.addEventListener('resize', handleResize);
-    // 초기 로드 시 PC라면 첫 번째 선택
     if (!isMobile && matches.length > 0 && !selectedMatchId) {
       setSelectedMatchId(matches[0].id);
     }
@@ -43,7 +35,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     return `${m}분 ${String(s).padStart(2, '0')}초`;
   };
 
-  // 게임 목록 아이템 (공통)
+  // [수정됨] match 타입 명시
   const MatchListItem = ({ match, isSelected, onClick }: { match: LiveMatch, isSelected: boolean, onClick: () => void }) => (
     <div 
       onClick={onClick}
@@ -73,7 +65,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
           <span style={{ color: '#e84057', fontSize: '15px', fontWeight:'900' }}>{match.score.red}</span>
         </div>
       </div>
-      {/* 모바일일 때 펼침/접힘 아이콘 표시 */}
       {isMobile && (
         <div style={{ textAlign:'center', marginTop:'-10px', marginBottom:'-5px' }}>
           {isSelected ? <ChevronUp size={14} color="#555"/> : <ChevronDown size={14} color="#333"/>}
@@ -82,11 +73,9 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
     </div>
   );
 
-  // 상세 정보 뷰 (공통 - 플레이어 목록 & 스코어보드)
+  // [수정됨] match 타입 명시
   const MatchDetailView = ({ match }: { match: LiveMatch }) => (
     <div style={{ background: '#0d1117', paddingBottom: '20px', borderBottom: '1px solid #30363d' }}>
-
-      {/* 상단: 관전 버튼 */}
       <div style={{ padding: '20px', textAlign: 'center', background: '#121212', borderBottom: '1px solid #333' }}>
         <button 
           onClick={() => onSpectate(match)}
@@ -102,10 +91,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
         </button>
       </div>
 
-      {/* 플레이어 목록 */}
       <div style={{ padding: '10px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
-
-        {/* 블루팀 */}
         <div>
           <h4 style={{ color: '#58a6ff', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #58a6ff', paddingBottom:'4px' }}>
             BLUE TEAM (단테)
@@ -115,7 +101,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
           ))}
         </div>
 
-        {/* 레드팀 */}
         <div style={{ marginTop: isMobile ? '10px' : '0' }}>
           <h4 style={{ color: '#e84057', margin: '10px 5px', fontSize:'11px', borderBottom: '2px solid #e84057', paddingBottom:'4px', textAlign: isMobile ? 'left' : 'right' }}>
             RED TEAM (이즈마한)
@@ -151,7 +136,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
         overflow: 'hidden'
       }}>
 
-        {/* 헤더 */}
         <div style={{ 
           padding: '15px 20px', borderBottom: '1px solid #333', 
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
@@ -163,7 +147,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={24}/></button>
         </div>
 
-        {/* [모바일] 아코디언 방식 렌더링 */}
         {isMobile ? (
           <div style={{ flex: 1 }}>
             {matches.map(match => (
@@ -173,7 +156,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
                   isSelected={selectedMatchId === match.id} 
                   onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)} 
                 />
-                {/* 선택되면 바로 아래에 상세 정보 표시 (아코디언) */}
                 {selectedMatchId === match.id && (
                   <MatchDetailView match={match} />
                 )}
@@ -181,9 +163,7 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
             ))}
           </div>
         ) : (
-          /* [PC] 좌우 분할 방식 렌더링 */
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-            {/* 좌측 리스트 */}
             <div style={{ width: '320px', borderRight: '1px solid #333', overflowY: 'auto', background: '#161b22' }}>
               {matches.map(match => (
                 <MatchListItem 
@@ -194,7 +174,6 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
                 />
               ))}
             </div>
-            {/* 우측 상세 */}
             <div style={{ flex: 1, overflowY: 'auto', background: '#0d1117' }}>
               {selectedMatchId ? (
                 <MatchDetailView match={matches.find(m => m.id === selectedMatchId)!} />
@@ -210,8 +189,8 @@ export const LiveGameListModal: React.FC<Props> = ({ onClose, onSpectate }) => {
   );
 };
 
-// 플레이어 카드 컴포넌트
-const PlayerCard = ({ p, color, heroName, alignRight = false }: any) => (
+// [수정됨] p 타입 명시 (any 사용)
+const PlayerCard = ({ p, color, heroName, alignRight = false }: { p: any, color: string, heroName: string, alignRight?: boolean }) => (
   <div style={{ 
     display: 'flex', 
     flexDirection: alignRight ? 'row-reverse' : 'row',
