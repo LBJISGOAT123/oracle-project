@@ -2,8 +2,7 @@
 // FILE PATH: /src/components/battle/SpectateModal.tsx
 // ==========================================
 import React, { useState } from 'react';
-// [수정] Circle 아이콘 임포트 추가
-import { X, Terminal, ChevronLeft, Pause, Play, Skull, Circle } from 'lucide-react';
+import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react'; // Circle 대신 Eye 사용
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
@@ -15,6 +14,8 @@ import { SpeedButton, BanCard, PlayerCard, ObjectStatBox, NeutralObjBar, DraftSc
 
 export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore(); 
+  
+  // 1. 실시간 매치 데이터 찾기 (없으면 초기 데이터 사용)
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
   const match = liveMatch || initialMatch;
   const isGameEnded = !liveMatch;
@@ -23,11 +24,24 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
   const [viewingItem, setViewingItem] = useState<any | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<any>(null);
 
-  if (match.status === 'DRAFTING') return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
+  // =================================================================================
+  // [핵심 수정] 밴픽(DRAFTING) 상태면, 아래의 복잡한 게임 로직을 아예 실행하지 않고 
+  // 즉시 DraftScreen을 리턴하여 튕김을 방지합니다.
+  // =================================================================================
+  if (match.status === 'DRAFTING') {
+    return <DraftScreen match={match} heroes={heroes} onClose={onClose} />;
+  }
 
-  const getHeroName = (id: string) => heroes.find(h => h.id === id)?.name || id;
+  // --- 여기부터는 게임 시작(PLAYING) 이후에만 실행됨 ---
+
+  const getHeroName = (id: string) => {
+    if (!id) return "선택 중..."; // ID가 없을 때 안전 처리
+    return heroes.find(h => h.id === id)?.name || id;
+  };
+  
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
+    const m = Math.floor(seconds / 60); 
+    const s = Math.floor(seconds % 60);
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
@@ -40,16 +54,16 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       <div style={{ position:'sticky', top:0, zIndex:100, background: '#121214', borderBottom: '1px solid #222', padding: '8px 12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'6px' }}>
           <div style={{ display:'flex', gap:'15px', alignItems:'center', flex:1, justifyContent:'center' }}>
-             <span style={{ color: '#58a6ff', fontWeight: '900', fontSize:'22px' }}>{match.score.blue}</span>
+             <span style={{ color: '#58a6ff', fontWeight: '900', fontSize:'22px' }}>{match.score?.blue || 0}</span>
              <div style={{ background:'#000', padding:'4px 12px', borderRadius:'6px', border:'1px solid #333', color:'#fff', fontSize:'14px', fontFamily:'monospace', fontWeight:'bold' }}>
-               {isGameEnded ? '종료됨' : formatTime(match.currentDuration)}
+               {isGameEnded ? '종료됨' : formatTime(match.currentDuration || 0)}
              </div>
-             <span style={{ color: '#e84057', fontWeight: '900', fontSize:'22px' }}>{match.score.red}</span>
+             <span style={{ color: '#e84057', fontWeight: '900', fontSize:'22px' }}>{match.score?.red || 0}</span>
           </div>
           <button onClick={onClose} style={{ position:'absolute', right:'10px', top:'10px', background:'none', border:'none', color:'#888', cursor:'pointer' }}><X size={24}/></button>
         </div>
         <div style={{ display:'flex', justifyContent:'center', gap:'6px' }}>
-           <button onClick={togglePlay} style={{ width:'60px', height:'26px', borderRadius:'4px', background: gameState.isPlaying ? '#3f1515' : '#153f1f', color: gameState.isPlaying ? '#ff6b6b' : '#3fb950', border:'1px solid #333', cursor:'pointer' }}>
+           <button onClick={togglePlay} style={{ width:'60px', height:'26px', borderRadius:'4px', background: gameState.isPlaying ? '#3f1515' : '#153f1f', color: gameState.isPlaying ? '#ff6b6b' : '#3fb950', border:'1px solid #333', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
               {gameState.isPlaying ? <Pause size={14}/> : <Play size={14}/>}
            </button>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
@@ -62,10 +76,10 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
          <div style={{ display: 'flex', gap: '3px' }}>
             <span style={{ fontSize:'9px', color:'#58a6ff', fontWeight:'bold', marginRight:'4px' }}>BAN</span>
-            {match.bans.blue.map(id => <BanCard key={id} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
+            {(match.bans?.blue || []).map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
          </div>
          <div style={{ display: 'flex', gap: '3px' }}>
-            {match.bans.red.map(id => <BanCard key={id} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
+            {(match.bans?.red || []).map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid: any) => setViewingBanHero(heroes.find(h=>h.id===hid))} />)}
             <span style={{ fontSize:'9px', color:'#e84057', fontWeight:'bold', marginLeft:'4px' }}>BAN</span>
          </div>
       </div>
@@ -73,13 +87,13 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       {/* 3. 팀 리스트 */}
       <div style={{ display:'grid', gridTemplateColumns: '1fr 1fr', gap:'8px', padding:'8px', background:'#0a0a0c' }}>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-            {match.blueTeam.map(p => (
-              <PlayerCard key={p.heroId} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); }} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
+            {match.blueTeam.map((p: any, i: number) => (
+              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#58a6ff" />
             ))}
          </div>
          <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-            {match.redTeam.map(p => (
-              <PlayerCard key={p.heroId} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); }} heroName={getHeroName(p.heroId)} teamColor="#e84057" />
+            {match.redTeam.map((p: any, i: number) => (
+              <PlayerCard key={i} p={p} isSelected={selectedHeroId === p.heroId} onClick={() => { if(p.heroId) { setSelectedHeroId(selectedHeroId === p.heroId ? null : p.heroId); setViewingItem(null); } }} heroName={getHeroName(p.heroId)} teamColor="#e84057" />
             ))}
          </div>
       </div>
@@ -92,13 +106,13 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
       {match.objectives && (
         <div style={{ display:'flex', gap:'6px', padding:'6px 8px', background:'#08080a', borderBottom:'1px solid #222' }}>
             <NeutralObjBar obj={match.objectives.colossus} label="거신병" color="#7ee787" icon={<Skull size={10}/>} />
-            <NeutralObjBar obj={match.objectives.watcher} label="주시자" color="#a371f7" icon={<Circle size={10}/>} />
+            <NeutralObjBar obj={match.objectives.watcher} label="주시자" color="#a371f7" icon={<Eye size={10}/>} />
         </div>
       )}
 
       {/* 5. 상세 인터랙티브 영역 */}
       <div style={{ background: '#000', flex:1, minHeight:'300px' }}>
-         {selectedPlayer ? (
+         {selectedPlayer && selectedPlayer.heroId ? (
             <div style={{ display:'flex', flexDirection:'column', background:'#0a0a0c', borderTop:'1px solid #333', paddingBottom:'40px' }}>
               <div onClick={() => { setSelectedHeroId(null); setViewingItem(null); }} style={{ padding:'10px', background:'#21262d', color:'#fff', fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderBottom:'1px solid #333', fontSize:'12px' }}>
                 <ChevronLeft size={14} /> 전체 전투 로그로 돌아가기
@@ -106,29 +120,26 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
 
               <UserDetailView player={selectedPlayer} heroName={getHeroName(selectedPlayer.heroId)} viewingItem={viewingItem} setViewingItem={setViewingItem} />
 
-              {/* 6슬롯 인벤토리 */}
               <div style={{ display:'flex', gap:'6px', justifyContent:'center', marginBottom:'20px' }}>
                 {[0,1,2,3,4,5].map(i => (
-                  <div key={i} onClick={() => selectedPlayer.items[i] && setViewingItem(selectedPlayer.items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden' }}>
+                  <div key={i} onClick={() => selectedPlayer.items[i] && setViewingItem(selectedPlayer.items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {selectedPlayer.items[i] && <GameIcon id={selectedPlayer.items[i].id} size={40} shape="square" />}
                   </div>
                 ))}
               </div>
 
-              {/* 개인 타임라인 */}
-              <PersonalLogView logs={match.logs} heroName={getHeroName(selectedPlayer.heroId)} summonerName={selectedPlayer.name} formatTime={formatTime} />
+              <PersonalLogView logs={match.logs || []} heroName={getHeroName(selectedPlayer.heroId)} summonerName={selectedPlayer.name} formatTime={formatTime} />
             </div>
          ) : (
             <>
                <div style={{ padding:'6px 12px', background:'#121214', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Terminal size={14} color="#666"/><span style={{ fontSize:'11px', color:'#8b949e', fontWeight:'bold' }}>BATTLE LOG</span>
                </div>
-               <GlobalLogPanel logs={match.logs} gameSpeed={gameState.gameSpeed} formatTime={formatTime} />
+               <GlobalLogPanel logs={match.logs || []} gameSpeed={gameState.gameSpeed} formatTime={formatTime} />
             </>
          )}
       </div>
 
-      {/* 밴 정보 팝업 */}
       {viewingBanHero && (
         <div onClick={() => setViewingBanHero(null)} style={{ position:'fixed', inset:0, zIndex:50000, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center' }}>
            <div style={{ background:'#1c1c1f', padding:'15px', borderRadius:'8px', border:'1px solid #444', textAlign:'center' }}>
