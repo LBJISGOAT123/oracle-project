@@ -74,7 +74,10 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
   const [activeField, setActiveField] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
 
-  if (!skills) return <div>스킬 데이터를 불러올 수 없습니다.</div>;
+  // [수정 1] 한글 텍스트를 {""} 로 감싸서 확실하게 문자열로 처리
+  if (!skills) {
+    return <div style={{ color: '#fff', padding: '20px' }}>{"스킬 데이터를 불러올 수 없습니다."}</div>;
+  }
 
   const currentSkill = skills[selectedKey];
   const uiConfig = MECHANIC_UI_CONFIG[currentSkill.mechanic] || MECHANIC_UI_CONFIG.DAMAGE;
@@ -172,7 +175,8 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         <div style={{ background: '#161b22', padding: '15px', borderRadius: '12px', border: '1px solid #58a6ff44', animation: 'fadeIn 0.2s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
             <span style={{ color: '#aaa', fontSize: '12px', fontWeight:'bold' }}>
-              {currentLabel} 조절
+              {/* [수정 2] 텍스트와 변수를 분리하여 안전하게 렌더링 */}
+              {currentLabel} {"조절"}
             </span>
             <strong style={{ color: '#58a6ff', fontSize:'14px' }}>
               {currentStatValue}
