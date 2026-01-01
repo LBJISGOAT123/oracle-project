@@ -52,17 +52,20 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
     const colossusHp = field?.colossus?.hp || 8000;
     const watcherHp = field?.watcher?.hp || 12000;
     const colossusRespawn = field?.colossus?.respawnTime || 300;
-
+    
     newMatches.push({
       id: `m_${currentTime}_${Math.random().toString(36).substr(2, 5)}`,
       status: 'DRAFTING', 
       draft: {
         isBlueTurn: true,
         turnIndex: 0,
-        // [수정] 첫 턴 타이머: 5초 ~ 30초 사이 랜덤
-        timer: 5 + Math.floor(Math.random() * 25), 
+        // [수정] UI 타이머는 30초 시작, 결정은 3초~28초 사이 랜덤한 시점에 수행
+        timer: 30, 
+        decisionTime: 3 + Math.random() * 25, 
         phase: 'BAN'
       },
+      
+    
       blueTeam: blueUsers.map((u, i) => createPlayer(u, i, 'BLUE')),
       redTeam: redUsers.map((u, i) => createPlayer(u, i, 'RED')),
       bans: { blue: [], red: [] },
