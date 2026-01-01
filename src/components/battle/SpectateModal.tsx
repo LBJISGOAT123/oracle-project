@@ -8,7 +8,7 @@ import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 import { LiveMatch, Hero } from '../../types';
 
-// [1] 안전장치: 에러 바운더리
+// [1] 에러 바운더리
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, errorMsg: string }> {
   constructor(props: any) {
     super(props);
@@ -38,7 +38,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
 }
 
 // ----------------------------------------------------------------------
-// [2] 하위 컴포넌트 정의 (안전한 렌더링 보장)
+// [2] 하위 컴포넌트들
 // ----------------------------------------------------------------------
 
 const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
@@ -118,7 +118,6 @@ const NeutralObjBar = ({ obj, label, color, icon }: any) => {
 
 const UserDetailView = ({ player, heroName, viewingItem, setViewingItem }: any) => {
   const hpPercent = (player.currentHp / player.maxHp) * 100;
-  // 아이템이 없거나 배열이 아니면 빈 배열 처리
   const items = Array.isArray(player.items) ? player.items : [];
 
   return (
@@ -152,7 +151,6 @@ const UserDetailView = ({ player, heroName, viewingItem, setViewingItem }: any) 
         </div>
       )}
 
-      {/* 인벤토리 (items가 안전하게 처리됨) */}
       <div style={{ display:'flex', gap:'6px', justifyContent:'center', marginBottom:'20px' }}>
         {([0,1,2,3,4,5]).map(i => (
           <div key={i} onClick={() => items[i] && setViewingItem(items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -166,8 +164,6 @@ const UserDetailView = ({ player, heroName, viewingItem, setViewingItem }: any) 
 
 const PersonalLogView = ({ logs, heroName, summonerName, formatTime }: any) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  
-  // 로그 필터링 (없으면 빈 배열)
   const safeLogs = Array.isArray(logs) ? logs : [];
   const filteredLogs = safeLogs.filter((log: any) => 
     (log.message && (log.message.includes(heroName) || log.message.includes(summonerName)))
@@ -220,33 +216,55 @@ const GlobalLogPanel = ({ logs, formatTime }: any) => {
 };
 
 // ----------------------------------------------------------------------
-// [3] 메인 컨텐츠 (상태 관리 및 UI 조합)
+// [3] 메인 컨텐츠
 // ----------------------------------------------------------------------
 
 const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
+  // [중요 수정] 모든 Hook을 최상단에서 먼저 호출합니다.
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
-  
-  // 실시간 매치 데이터 동기화
+  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<any | null>(null);
+  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
+
+  // 실시간 매치 데이터
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
   const match = liveMatch || initialMatch;
 
-  // 게임 종료 처리
+  // 게임 종료 시
   if (!match) {
-    return (
-      <div style={{ height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:'#888' }}>
-        <p>게임이 종료되었거나 데이터를 찾을 수 없습니다.</p>
-        <button onClick={onClose} style={{ marginTop:'10px', padding:'8px 16px', background:'#333', border:'1px solid #555', color:'#fff', borderRadius:'4px' }}>닫기</button>
-      </div>
-    );
+    return <div style={{padding:'20px', color:'#fff'}}>게임이 종료되었습니다. <button onClick={onClose}>닫기</button></div>;
   }
 
-  // 드래프트 상태 체크
+  // 상태값 계산
   const isDrafting = match.status === 'DRAFTING';
+  const isGameEnded = !liveMatch;
+  const blueTeam = match.blueTeam || [];
+  const redTeam = match.redTeam || [];
+  const blueBans = match.bans?.blue || [];
+  const redBans = match.bans?.red || [];
 
-  // --- A. 드래프트(밴픽) 화면 ---
+  // 유틸 함수
+  const getHeroName = (id: string) => {
+    if (!id) return '-';
+    return heroes.find((h:Hero) => h.id === id)?.name || id;
+  };
+  
+  const formatTime = (seconds: number) => {
+    const m = Math.floor((seconds || 0) / 60); 
+    const s = Math.floor((seconds || 0) % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  // 선택된 플레이어
+  let selectedPlayer = null;
+  if (selectedHeroId) {
+    selectedPlayer = [...blueTeam, ...redTeam].find(p => p.heroId === selectedHeroId);
+  }
+
+  // ----------------------------------------------------------------
+  // A. 드래프트(밴픽) 화면
+  // ----------------------------------------------------------------
   if (isDrafting) {
-    const blueTeam = match.blueTeam || [];
-    const redTeam = match.redTeam || [];
     const draft = match.draft || { timer: 0, turnIndex: 0 };
     const timer = Math.ceil(draft.timer);
     const turn = draft.turnIndex;
@@ -293,34 +311,9 @@ const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
     );
   }
 
-  // --- B. 인게임(PLAYING) 화면 ---
-  const isGameEnded = !liveMatch;
-  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
-  const [viewingItem, setViewingItem] = useState<any | null>(null);
-  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
-
-  const getHeroName = (id: string) => {
-    if (!id) return '-';
-    return heroes.find((h:Hero) => h.id === id)?.name || id;
-  };
-  
-  const formatTime = (seconds: number) => {
-    const m = Math.floor((seconds || 0) / 60); 
-    const s = Math.floor((seconds || 0) % 60);
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  const blueTeam = match.blueTeam || [];
-  const redTeam = match.redTeam || [];
-  const blueBans = match.bans?.blue || [];
-  const redBans = match.bans?.red || [];
-  
-  // 선택된 플레이어 찾기
-  let selectedPlayer = null;
-  if (selectedHeroId) {
-    selectedPlayer = [...blueTeam, ...redTeam].find(p => p.heroId === selectedHeroId);
-  }
-
+  // ----------------------------------------------------------------
+  // B. 인게임 화면
+  // ----------------------------------------------------------------
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050505' }}>
       
@@ -387,8 +380,8 @@ const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
         </div>
       )}
 
-      {/* 5. 상세 및 로그 영역 (스크롤 가능) */}
-      <div style={{ flex: 1, overflowY: 'auto', background: '#000' }}>
+      {/* 5. 상세 및 로그 영역 */}
+      <div style={{ flex: 1, overflowY: 'auto', background: '#000', display:'flex', flexDirection:'column' }}>
          {selectedPlayer && selectedPlayer.heroId ? (
             <div style={{ display:'flex', flexDirection:'column', background:'#0a0a0c', borderTop:'1px solid #333', paddingBottom:'40px' }}>
               <div onClick={() => { setSelectedHeroId(null); setViewingItem(null); }} style={{ padding:'10px', background:'#21262d', color:'#fff', fontWeight:'bold', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderBottom:'1px solid #333', fontSize:'12px' }}>
