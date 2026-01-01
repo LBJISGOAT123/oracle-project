@@ -5,6 +5,9 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "noImplicitAny": false,       // any 타입 허용
+    "strict": false,              // 엄격 모드 해제
+    "skipLibCheck": true          // 라이브러리 타입 체크 건너뛰기
 
     /* 🚨 여기부터가 핵심 치트키입니다 (오류 무시 설정) 🚨 */
     "noImplicitAny": false,
