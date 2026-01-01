@@ -3,16 +3,20 @@
 // ==========================================
 import React from 'react';
 
+// [수정 완료] 
+// 1. 모든 step(조절 단위)을 1로 통일
+// 2. min(최소값)을 0 또는 1로 낮춰서 자유롭게 조절 가능 (기존 50, 100 제한 해제)
 const STAT_CONFIG: any = {
-  baseAtk: { min: 0, max: 500, step: 1, color: '#f1c40f', label: '기본 공격력' },
-  ad: { min: 0, max: 1000, step: 5, color: '#e67e22', label: '추가 AD' },
-  ap: { min: 0, max: 1000, step: 10, color: '#9b59b6', label: '주문력(AP)' },
+  baseAtk: { min: 0, max: 1000, step: 1, color: '#f1c40f', label: '기본 공격력' },
+  ad: { min: 0, max: 1000, step: 1, color: '#e67e22', label: '추가 AD' },
+  ap: { min: 0, max: 1000, step: 1, color: '#9b59b6', label: '주문력(AP)' },
   crit: { min: 0, max: 100, step: 1, color: '#e74c3c', label: '치명타율(%)' },
-  // [사거리 추가]
-  range: { min: 100, max: 800, step: 25, color: '#58a6ff', label: '공격 사거리' },
-  hp: { min: 100, max: 10000, step: 50, color: '#2ecc71', label: '체력(HP)' },
-  armor: { min: 0, max: 500, step: 2, color: '#3498db', label: '방어력' },
-  speed: { min: 100, max: 1000, step: 5, color: '#95a5a6', label: '이동 속도' }
+  
+  // 사거리, 체력, 이속은 0이면 버그가 날 수 있으므로 최소 1로 설정
+  range: { min: 1, max: 2000, step: 1, color: '#58a6ff', label: '공격 사거리' },
+  hp: { min: 1, max: 20000, step: 1, color: '#2ecc71', label: '체력(HP)' },
+  armor: { min: 0, max: 1000, step: 1, color: '#3498db', label: '방어력' },
+  speed: { min: 1, max: 2000, step: 1, color: '#95a5a6', label: '이동 속도' }
 };
 
 interface Props {
@@ -34,7 +38,6 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
               <span style={{ color: conf.color, fontSize:'16px' }}>{stats[f]}</span>
             </div>
 
-            {/* 원본 슬라이더 스타일 보존 */}
             <input 
               type="range" min={conf.min} max={conf.max} step={conf.step}
               value={stats[f]} onChange={e => onChange(f, Number(e.target.value))}
@@ -48,14 +51,14 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
               }}
             />
 
-            {/* 원본 미세 조정 버튼 보존 */}
+            {/* 미세 조정 버튼 (+- 1단위) */}
             <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'10px' }}>
               <button 
-                onClick={() => onChange(f, Math.max(conf.min, stats[f] - conf.step))}
+                onClick={() => onChange(f, Math.max(conf.min, stats[f] - 1))} // 무조건 1씩 감소
                 style={{ background:'#30363d', border:'none', color:'#fff', borderRadius:'4px', width:'30px', height:'30px', cursor:'pointer' }}
               >-</button>
               <button 
-                onClick={() => onChange(f, Math.min(conf.max, stats[f] + conf.step))}
+                onClick={() => onChange(f, Math.min(conf.max, stats[f] + 1))} // 무조건 1씩 증가
                 style={{ background:'#30363d', border:'none', color:'#fff', borderRadius:'4px', width:'30px', height:'30px', cursor:'pointer' }}
               >+</button>
             </div>
