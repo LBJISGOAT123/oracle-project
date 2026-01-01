@@ -1,9 +1,5 @@
-// ==========================================
-// FILE PATH: /src/components/battle/SpectateModal.tsx
-// ==========================================
-
 import React, { useState } from 'react';
-import { X, Clock, Shield, Skull, Zap, Circle, Terminal, Swords, Briefcase, Crown, User, BarChart2, Activity, Coins, Ban } from 'lucide-react';
+import { X, Clock, Shield, Zap, Circle, Terminal, Swords, Briefcase, Crown, BarChart2, Activity, Coins, Ban } from 'lucide-react';
 import { LiveMatch, LivePlayer, Item, TeamStats, Hero } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
@@ -13,7 +9,6 @@ interface Props { match: LiveMatch; onClose: () => void; }
 export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
   const { heroes } = useGameStore(); 
 
-  // 상태 관리
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<Item | null>(null);
   const [viewingBanHero, setViewingBanHero] = useState<Hero | null>(null);
@@ -28,7 +23,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
 
   const maxDamage = Math.max(...match.blueTeam.map(p=>p.totalDamageDealt), ...match.redTeam.map(p=>p.totalDamageDealt), 1);
 
-  // --- 밴 상세 팝업 ---
+  // [수정됨] hero 타입 명시
   const BanDetailPopup = ({ hero, onClose }: { hero: Hero, onClose: () => void }) => {
     return (
       <div 
@@ -53,7 +48,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           <div style={{ padding: '30px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:'15px' }}>
             <div style={{ position:'relative', width: '80px', height: '80px' }}>
               <GameIcon id={hero.id} size={80} shape="rounded" border="2px solid #444" fallback={<span style={{fontSize:'30px'}}>🧙‍♂️</span>} />
-              {/* 팝업 내부에서도 빗금 표시 */}
               <div style={{ 
                 position: 'absolute', top: '50%', left: '50%', width: '120%', height: '4px', 
                 background: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)',
@@ -78,7 +72,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- [수정됨] 밴 카드 컴포넌트 (빗금 스타일) ---
+  // [수정됨] heroId 타입 명시
   const BanCard = ({ heroId }: { heroId: string }) => {
     const hero = heroes.find(h => h.id === heroId);
     if (!hero) return null;
@@ -91,32 +85,23 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           position: 'relative', width: '32px', height: '32px', cursor: 'pointer',
           transition: 'transform 0.1s',
           borderRadius: '6px',
-          overflow: 'hidden' // 빗금이 튀어나오지 않게
+          overflow: 'hidden' 
         }}
         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
-        {/* 1. 흑백 처리된 영웅 아이콘 */}
         <div style={{ filter: 'grayscale(100%) brightness(0.6)' }}>
           <GameIcon id={heroId} size={32} shape="square" border="1px solid #444" fallback={<span style={{fontSize:'12px'}}>🚫</span>} />
         </div>
-
-        {/* 2. 붉은색 빗금 (CSS로 구현) */}
         <div style={{ 
-          position: 'absolute', 
-          top: '50%', left: '50%', 
-          width: '150%', // 대각선 길이를 커버하기 위해 넉넉하게
-          height: '3px', 
-          backgroundColor: '#da3633', // 붉은색
-          transform: 'translate(-50%, -50%) rotate(45deg)', // 중앙 정렬 후 45도 회전
-          boxShadow: '0 0 2px #000', // 가시성을 위한 그림자
-          pointerEvents: 'none' // 클릭 통과
+          position: 'absolute', top: '50%', left: '50%', width: '150%', height: '3px', 
+          backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)',
+          boxShadow: '0 0 2px #000', pointerEvents: 'none' 
         }} />
       </div>
     );
   };
 
-  // --- 전장 현황판 ---
   const ObjectStatBox = ({ stats, color }: { stats: TeamStats, color: string }) => {
     const s = stats || { towers: { top: 0, mid: 0, bot: 0 }, colossus: 0, watcher: 0, fury: 0, nexusHp: 0, maxNexusHp: 5000 };
 
@@ -168,7 +153,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 아이템 아이콘 ---
   const ItemIcon = ({ item, onClick }: { item: Item, onClick: (i: Item) => void }) => {
     const colors = { WEAPON: '#e74c3c', ARMOR: '#2ecc71', ACCESSORY: '#f1c40f', POWER: '#9b59b6' };
     const color = (colors as any)[item.type] || '#555';
@@ -185,7 +169,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 아이템 상세 팝업 ---
   const ItemDetailPopup = ({ item, onClose }: { item: Item, onClose: () => void }) => {
     if (!item) return null;
     const colors = { WEAPON: '#e74c3c', ARMOR: '#2ecc71', ACCESSORY: '#f1c40f', POWER: '#9b59b6' };
@@ -234,7 +217,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 플레이어 리스트 행 ---
   const PlayerRow = ({ p, isBlue }: { p: LivePlayer, isBlue: boolean }) => {
     const isSelected = selectedHeroId === p.heroId;
     const hpPercent = (p.currentHp / p.maxHp) * 100;
@@ -253,9 +235,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
         }}
       >
         <div style={{ position: 'relative' }}>
-          {/* GameIcon 적용 */}
           <GameIcon id={p.heroId} size={36} shape="rounded" border={`1px solid ${isBlue ? '#58a6ff44' : '#e8405744'}`} fallback={<span style={{fontSize:'18px'}}>🧙‍♂️</span>} />
-
           <div style={{ position: 'absolute', bottom: -4, right: -4, background: '#000', color: '#fff', fontSize: '9px', padding: '1px 4px', borderRadius: '3px', border:'1px solid #555', fontWeight:'bold' }}>{p.level}</div>
           <div style={{ position:'absolute', bottom:-4, left:0, width:'100%', height:'3px', background:'#333', borderRadius:'2px', overflow:'hidden' }}>
             <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : '#2ecc71' }}/>
@@ -275,7 +255,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     );
   };
 
-  // --- 개인 분석 패널 ---
   const InspectorPanel = ({ p }: { p: LivePlayer }) => {
     const heroName = getHeroName(p.heroId);
     const hpPercent = (p.currentHp / p.maxHp) * 100;
@@ -344,7 +323,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
     <>
       <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
 
-        {/* HEADER */}
         <div style={{ height: '50px', background: '#161b22', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex:1, justifyContent:'center' }}>
             <div style={{ color: '#58a6ff', fontWeight: 'bold', fontSize: '18px' }}>{match.score.blue}</div>
@@ -356,30 +334,22 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
           <button onClick={onClose} style={{ position:'absolute', right:'15px', background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}><X size={24}/></button>
         </div>
 
-        {/* BAN PICK BAR */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems:'center', padding: '8px 15px', background: '#0d1117', borderBottom: '1px solid #30363d' }}>
-
-          {/* Blue Bans */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             <span style={{ fontSize: '10px', color: '#58a6ff', fontWeight: 'bold', display:'flex', gap:'4px' }}>
               <Ban size={12}/> BAN
             </span>
             {match.bans.blue.map(id => <BanCard key={id} heroId={id} />)}
           </div>
-
-          {/* Red Bans */}
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {match.bans.red.map(id => <BanCard key={id} heroId={id} />)}
             <span style={{ fontSize: '10px', color: '#e84057', fontWeight: 'bold', display:'flex', gap:'4px' }}>
               BAN <Ban size={12}/> 
             </span>
           </div>
-
         </div>
 
-        {/* CONTENT */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
           <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
               <div style={{ fontSize:'10px', color:'#58a6ff', fontWeight:'bold', textAlign:'center', marginBottom:'4px' }}>BLUE TEAM</div>
@@ -391,7 +361,6 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
             </div>
           </div>
 
-          {/* 전장 현황판 */}
           {!selectedPlayer && (
             <div style={{ padding: '10px 15px', background: '#121212', borderTop: '1px solid #30363d', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px' }}>
                <ObjectStatBox stats={match.stats.blue} color="#58a6ff" />
@@ -436,10 +405,7 @@ export const SpectateModal: React.FC<Props> = ({ match, onClose }) => {
         </div>
       </div>
 
-      {/* 아이템 팝업 */}
       {viewingItem && <ItemDetailPopup item={viewingItem} onClose={() => setViewingItem(null)} />}
-
-      {/* 밴 영웅 상세 팝업 */}
       {viewingBanHero && <BanDetailPopup hero={viewingBanHero} onClose={() => setViewingBanHero(null)} />}
     </>
   );
