@@ -1,3 +1,5 @@
+// === FILE: /src/components/battle/spectate/SmallComponents.tsx ===
+
 // ==========================================
 // FILE PATH: /src/components/battle/spectate/SmallComponents.tsx
 // ==========================================
