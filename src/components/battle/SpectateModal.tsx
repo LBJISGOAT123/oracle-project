@@ -6,7 +6,6 @@ import { X, Terminal, ChevronLeft, Pause, Play, Skull, Eye } from 'lucide-react'
 import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 
-// 분리된 모듈 임포트
 import { GlobalLogPanel } from './spectate/GlobalLogPanel';
 import { PersonalLogView } from './spectate/PersonalLogView';
 import { UserDetailView } from './spectate/UserDetailView';
@@ -17,8 +16,6 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
   
   // [안전 장치 1] 실시간 매치 데이터 동기화 (없으면 초기 데이터 사용)
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
-  
-  // [안전 장치 2] match 객체가 깨지지 않도록 방어
   const match = liveMatch || initialMatch || {}; 
   const isGameEnded = !liveMatch;
 
