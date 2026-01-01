@@ -1,125 +1,259 @@
 // ==========================================
-// FILE PATH: /src/components/battle/spectate/SmallComponents.tsx
+// FILE PATH: /src/store/slices/gameSlice.ts
 // ==========================================
-import React from 'react';
-import { X, Ban, Skull, Circle, Swords } from 'lucide-react';
-import { GameIcon } from '../../common/GameIcon';
-import { LiveMatch, Hero } from '../../../types';
+import { StateCreator } from 'zustand';
+import { GameStore, GameSlice } from '../types';
+import { INITIAL_HEROES } from '../../data/heroes';
+import { INITIAL_ITEMS } from '../../data/items';
+import { GameState, Hero } from '../../types';
+import { JUNGLE_CONFIG } from '../../data/jungle';
+import { INITIAL_CUSTOM_IMAGES } from '../../data/initialImages';
 
-export const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
-  <button 
-    onClick={() => setSpeed(speed)} 
-    style={{ 
-      flex: 1, padding: '4px 0', 
-      background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', 
-      border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, 
-      borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', 
-      fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px'
-    }}
-  >
-    {label}
-  </button>
-);
+import { createLiveMatches, finishMatch, updateLiveMatches } from '../../engine/MatchEngine';
+import { initUserPool, updateUserActivity, getTopRankers, userPool } from '../../engine/UserManager';
+import { analyzeHeroMeta, calculateUserEcosystem } from '../../engine/RankingSystem';
+import { updatePostInteractions, generatePostAsync } from '../../engine/CommunityEngine';
+import { calculateTargetSentiment, smoothSentiment } from '../../engine/SentimentEngine';
 
-export const BanCard = ({ heroId, heroes, onClick }: any) => (
-  <div onClick={() => heroId && onClick(heroId)} style={{ position: 'relative', width: '22px', height: '22px', borderRadius: '3px', overflow: 'hidden', background:'#111', border:'1px solid #333', cursor:'pointer' }}>
-    {heroId ? (
-      <>
-        <div style={{ filter: 'grayscale(100%) brightness(0.5)' }}><GameIcon id={heroId} size={22} shape="square" /></div>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '2px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)' }} />
-      </>
-    ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={10} color="#333"/></div>}
-  </div>
-);
-
-export const NeutralObjBar = ({ obj, label, color, icon }: any) => {
-  if (!obj) return null;
-  const isAlive = obj.status === 'ALIVE';
-  const percent = isAlive ? (obj.hp / obj.maxHp) * 100 : 0;
-  return (
-    <div style={{ flex: 1, background: '#121214', padding: '6px 10px', borderRadius: '4px', border: '1px solid #333' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '9px', fontWeight: 'bold' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: color }}>{icon} {label}</div>
-        <span style={{ color: isAlive ? '#fff' : '#666' }}>{isAlive ? `${Math.ceil(obj.hp).toLocaleString()}` : 'SPAWN'}</span>
-      </div>
-      <div style={{ width: '100%', height: '3px', background: '#000', borderRadius: '1px', overflow: 'hidden' }}>
-         <div style={{ width: `${percent}%`, height: '100%', background: isAlive ? color : '#333', transition: 'width 0.3s' }} />
-      </div>
-    </div>
-  );
+const initialGameState: GameState = {
+  season: 1, day: 1, hour: 12, minute: 0, second: 0,
+  isPlaying: false, gameSpeed: 1,
+  userSentiment: 60, 
+  ccu: 0, 
+  totalUsers: 3000, 
+  userStatus: { totalGames: 0, playingUsers: 0, queuingUsers: 0, avgWaitTime: 0, tierDistribution: [] },
+  topRankers: [],
+  godStats: { totalMatches: 0, izmanWins: 0, izmanAvgKills: '0.0', izmanAvgTime: '00:00', danteWins: 0, danteAvgKills: '0.0', danteAvgTime: '00:00', avgGameDuration: 0, guardianDeathRate: 0, godAwakenRate: 0 },
+  itemStats: {},
+  liveMatches: [],
+  tierConfig: { 
+    challengerRank: 200, 
+    master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300,
+    promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 }
+  },
+  battleSettings: {
+    izman: { 
+      name: '이즈마한', atkRatio: 1, defRatio: 1, hpRatio: 10000, 
+      guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, 
+      minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } 
+    },
+    dante: { 
+      name: '단테', atkRatio: 1, defRatio: 1, hpRatio: 10000, 
+      guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, 
+      minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } 
+    },
+    economy: { minionGold: 14, minionXp: 30 }
+  },
+  fieldSettings: {
+    // [밸런스 패치] 포탑 내구도 대폭 상향 (3000 -> 10000, 방어 50 -> 150)
+    tower: { hp: 10000, armor: 150, rewardGold: 150 },
+    colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50, respawnTime: 300 },
+    watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, respawnTime: 420 },
+    jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS
+  },
+  roleSettings: {
+    executor: { damage: 10, defense: 10 },
+    tracker: { gold: 20, smiteChance: 1.5 },
+    prophet: { cdrPerLevel: 2 },
+    slayer: { structureDamage: 30 },
+    guardian: { survivalRate: 20 }
+  },
+  aiConfig: { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
+  customImages: INITIAL_CUSTOM_IMAGES 
 };
 
-export const ObjectStatBox = ({ stats, color, side }: any) => {
-  const hpPercent = (stats.nexusHp / stats.maxNexusHp) * 100;
-  const TowerIndicator = ({ label, brokenCount }: any) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color:'#555' }}>
-      <span style={{ width:'18px' }}>{label}</span>
-      <div style={{ display: 'flex', gap: '1px' }}>
-        {[1, 2, 3].map(tier => (
-          <div key={tier} style={{ width: '6px', height: '6px', borderRadius: '1px', background: tier <= brokenCount ? '#222' : color, opacity: tier <= brokenCount ? 0.2 : 1 }} />
-        ))}
-      </div>
-    </div>
-  );
-  return (
-    <div style={{ background: '#121214', border: `1px solid ${color}22`, borderRadius: '6px', padding: '8px', flex: 1 }}>
-      <div style={{ display:'flex', justifyContent:'space-between' }}>
-        <div>
-          <div style={{ fontSize:'9px', color: color, fontWeight:'900', marginBottom:'2px' }}>{side}</div>
-          <TowerIndicator label="TOP" brokenCount={stats.towers?.top || 0} />
-          <TowerIndicator label="MID" brokenCount={stats.towers?.mid || 0} />
-          <TowerIndicator label="BOT" brokenCount={stats.towers?.bot || 0} />
-        </div>
-        <div style={{ textAlign:'right' }}>
-           <div style={{ fontSize:'8px', color:'#666' }}>NEXUS</div>
-           <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(stats.nexusHp)).toLocaleString()}</div>
-           <div style={{ width:'50px', height:'3px', background:'#222', borderRadius:'1px', marginTop:'2px', overflow:'hidden' }}>
-              <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : color }} />
-           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set, get) => ({
+  gameState: initialGameState,
 
-export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any) => {
-  const hpPercent = (p.currentHp / p.maxHp) * 100;
-  const isDead = p.currentHp <= 0;
-  return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', background: isSelected ? `${teamColor}15` : '#161b22', borderRadius: '4px', border: isSelected ? `1px solid ${teamColor}` : '1px solid #30363d', marginBottom: '4px', cursor: 'pointer', height: '34px', opacity: isDead ? 0.6 : 1, filter: isDead ? 'grayscale(0.8)' : 'none', position: 'relative', overflow:'hidden' }}>
-      <div style={{ position: 'relative', display:'flex', alignItems:'center', gap:'8px' }}>
-        <GameIcon id={p.heroId} size={28} shape="rounded" />
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{heroName}</div>
-          <div style={{ fontSize: '9px', color: '#8b949e' }}>{p.name}</div>
-        </div>
-      </div>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{p.kills}/{p.deaths}/{p.assists}</div>
-        <div style={{ fontSize: '9px', color: '#8b949e' }}>{(p.gold/1000).toFixed(1)}k | {p.cs}cs</div>
-      </div>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '2px', background: 'rgba(0,0,0,0.3)' }}>
-        <div style={{ width: `${hpPercent}%`, height: '100%', background: hpPercent < 30 ? '#da3633' : teamColor }} />
-      </div>
-    </div>
-  );
-};
+  setSpeed: (s) => set((state) => ({ gameState: { ...state.gameState, gameSpeed: s } })),
+  togglePlay: () => set((state) => ({ gameState: { ...state.gameState, isPlaying: !state.gameState.isPlaying } })),
+  setGameState: (updates) => set((state) => ({ gameState: { ...state.gameState, ...updates } })),
 
-export const DraftScreen = ({ match, heroes, onClose }: { match: LiveMatch, heroes: Hero[], onClose: () => void }) => {
-  const { bans, blueTeam, redTeam, draft } = match;
-  const currentTurn = draft?.turnIndex || 0;
-  const timer = Math.ceil(draft?.timer || 0);
-  return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
-      <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
-      <div style={{ marginBottom:'40px', textAlign:'center' }}>
-        <h2 style={{ color:'#fff', fontSize:'24px' }}>DRAFT PHASE</h2>
-        <div style={{ fontSize:'24px', fontWeight:'900', color:'#fff', marginTop:'10px' }}>{timer}</div>
-      </div>
-      <div style={{ display:'flex', width:'90%', justifyContent:'space-between' }}>
-        <div style={{ width:'40%', color:'#58a6ff' }}><h3>BLUE TEAM</h3>{blueTeam.map((p, i) => <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}><GameIcon id={p.heroId} size={50} shape="square"/>{p.name}</div>)}</div>
-        <div style={{ width:'40%', color:'#e84057', textAlign:'right' }}><h3>RED TEAM</h3>{redTeam.map((p, i) => <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center', flexDirection:'row-reverse'}}><GameIcon id={p.heroId} size={50} shape="square"/>{p.name}</div>)}</div>
-      </div>
-    </div>
-  );
-};
+  updateBattleSettings: (s) => set((state) => ({ gameState: { ...state.gameState, battleSettings: { ...state.gameState.battleSettings, ...s } } })),
+  updateFieldSettings: (s) => set((state) => ({ gameState: { ...state.gameState, fieldSettings: { ...state.gameState.fieldSettings, ...s } } })),
+  updateTierConfig: (c) => set((state) => ({ gameState: { ...state.gameState, tierConfig: c } })),
+  updateAIConfig: (c) => set((state) => ({ gameState: { ...state.gameState, aiConfig: { ...state.gameState.aiConfig, ...c } } })),
+  updateRoleSettings: (s) => set((state) => ({ gameState: { ...state.gameState, roleSettings: { ...state.gameState.roleSettings, ...s } } })),
+
+  setCustomImage: (id, imageData) => set((state) => ({
+    gameState: { ...state.gameState, customImages: { ...state.gameState.customImages, [id]: imageData } }
+  })),
+
+  removeCustomImage: (id) => set((state) => {
+    const newImages = { ...state.gameState.customImages };
+    delete newImages[id];
+    return { gameState: { ...state.gameState, customImages: newImages } };
+  }),
+
+  loadModData: (modData: any) => set((state) => {
+    const currentHeroesMap = new Map(state.heroes.map(h => [h.id, h]));
+    const newHeroes: Hero[] = modData.heroes.map((modHero: Hero) => {
+      const existingHero = currentHeroesMap.get(modHero.id);
+      if (existingHero) {
+        return { ...modHero, record: existingHero.record, tier: existingHero.tier, rank: existingHero.rank, recentWinRate: existingHero.recentWinRate, avgKda: existingHero.avgKda };
+      } else {
+        return modHero;
+      }
+    });
+    const newGameState = {
+      ...state.gameState,
+      battleSettings: modData.settings?.battle || state.gameState.battleSettings,
+      fieldSettings: modData.settings?.field || state.gameState.fieldSettings,
+      roleSettings: modData.settings?.role || state.gameState.roleSettings,
+      customImages: { ...state.gameState.customImages, ...(modData.images || {}) }
+    };
+    return { heroes: newHeroes, shopItems: modData.items || state.shopItems, gameState: newGameState };
+  }),
+
+  tick: (deltaSeconds: number) => {
+    const state = get();
+    if (!state.gameState || !state.gameState.isPlaying) return;
+
+    const { heroes, gameState, communityPosts } = state;
+    let { hour, minute, second, day, totalUsers, tierConfig, liveMatches } = gameState;
+
+    // 1. 시간 누적
+    second += deltaSeconds;
+    if (second >= 60) {
+      const extraMinutes = Math.floor(second / 60);
+      second %= 60;
+      minute += extraMinutes;
+      if (minute >= 60) {
+        const extraHours = Math.floor(minute / 60);
+        minute %= 60;
+        hour += extraHours;
+        if (hour >= 24) {
+          const extraDays = Math.floor(hour / 24);
+          hour %= 24;
+          day += extraDays;
+        }
+      }
+    }
+
+    const currentTotalMinutes = day * 1440 + hour * 60 + Math.floor(minute);
+    const prevTotalMinutes = gameState.day * 1440 + gameState.hour * 60 + Math.floor(gameState.minute);
+    const isNewMinute = currentTotalMinutes > prevTotalMinutes;
+    const isNewHour = hour !== gameState.hour;
+
+    // 2. 유저 성장
+    let nextTotalUsers = totalUsers;
+    if (isNewHour) {
+      const growth = Math.floor(Math.random() * 5) + 1 + Math.floor(totalUsers * 0.0005);
+      nextTotalUsers += growth;
+    }
+
+    if (userPool.length === 0) initUserPool(heroes, nextTotalUsers);
+    if (isNewMinute || liveMatches.length === 0) updateUserActivity(hour, heroes);
+
+    // 3. 매치 업데이트
+    let nextHeroes = [...heroes];
+    const updatedMatchesRaw = updateLiveMatches([...liveMatches], nextHeroes, deltaSeconds);
+
+    const updatedMatches = updatedMatchesRaw.map(m => ({
+        ...m,
+        logs: m.logs.length > 60 ? m.logs.slice(-60) : [...m.logs],
+        blueTeam: [...m.blueTeam],
+        redTeam: [...m.redTeam]
+    }));
+
+    // 4. 게임 종료 및 정산
+    const isMatchEnded = (m: any) => (m.stats.blue.nexusHp <= 0 || m.stats.red.nexusHp <= 0);
+    const ongoingMatches = updatedMatches.filter(m => !isMatchEnded(m));
+    const endedMatches = updatedMatches.filter(m => isMatchEnded(m));
+
+    const nextGodStats = { ...gameState.godStats };
+    const nextItemStats = { ...gameState.itemStats }; 
+
+    endedMatches.forEach(match => {
+        const result = finishMatch(match, nextHeroes, day, hour, gameState.battleSettings, tierConfig);
+        nextGodStats.totalMatches++;
+        if (result.isBlueWin) nextGodStats.danteWins++; else nextGodStats.izmanWins++;
+
+        [...match.blueTeam, ...match.redTeam].forEach(p => {
+            p.items.forEach((item: any) => {
+                if (!nextItemStats[item.id]) {
+                    nextItemStats[item.id] = { itemId: item.id, totalPicks: 0, totalWins: 0, totalKills: 0, totalDeaths: 0, totalAssists: 0 };
+                }
+                const st = nextItemStats[item.id];
+                st.totalPicks++;
+                const isWin = (match.blueTeam.includes(p) && result.isBlueWin) || (match.redTeam.includes(p) && !result.isBlueWin);
+                if (isWin) st.totalWins++;
+                st.totalKills += p.kills; st.totalDeaths += p.deaths; st.totalAssists += p.assists;
+            });
+        });
+    });
+
+    const onlineUsers = userPool.filter(u => u.status !== 'OFFLINE').length;
+
+    // 5. 매치 생성
+    let finalMatches = ongoingMatches;
+    const shouldCreate = (Math.floor(second) % 10 === 0 && Math.floor(second) !== Math.floor(gameState.second)) || ongoingMatches.length === 0;
+
+    if (shouldCreate) {
+        const idleUsers = userPool.filter(u => u.status === 'IDLE');
+        if (idleUsers.length >= 10) {
+            const newMatches = createLiveMatches(nextHeroes, onlineUsers, Date.now(), tierConfig);
+            finalMatches = [...ongoingMatches, ...newMatches];
+        }
+    }
+
+    // 6. 분 단위 통계 업데이트
+    let analyzedHeroes = nextHeroes;
+    let userStatus = gameState.userStatus;
+    let topRankers = gameState.topRankers;
+    let newSentiment = gameState.userSentiment;
+    let nextPosts = [...communityPosts];
+
+    if (isNewMinute) {
+        analyzedHeroes = analyzeHeroMeta(nextHeroes);
+        userStatus = calculateUserEcosystem(onlineUsers, nextTotalUsers, tierConfig);
+
+        const sortedUsers = [...userPool].sort((a, b) => b.score - a.score);
+        sortedUsers.forEach((u, idx) => {
+            u.rank = idx + 1; 
+            u.isChallenger = (u.score >= tierConfig.master && u.rank <= tierConfig.challengerRank);
+        });
+
+        topRankers = getTopRankers(analyzedHeroes, tierConfig);
+        newSentiment = smoothSentiment(newSentiment, calculateTargetSentiment(gameState, analyzedHeroes, communityPosts));
+        nextPosts = updatePostInteractions(nextPosts, currentTotalMinutes);
+
+        const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled && gameState.aiConfig.apiKey;
+        if (isAIReady && Math.random() < 0.1) {
+            generatePostAsync(Date.now(), analyzedHeroes, tierConfig, currentTotalMinutes, gameState.aiConfig, userPool, gameState.battleSettings, gameState.fieldSettings)
+            .then(aiPost => {
+                if (aiPost) set(prev => ({ communityPosts: [aiPost, ...prev.communityPosts].slice(0, 150) }));
+            });
+        }
+    }
+
+    set({
+      heroes: analyzedHeroes,
+      communityPosts: nextPosts,
+      gameState: {
+        ...gameState,
+        second, minute, hour, day,
+        ccu: onlineUsers,
+        totalUsers: nextTotalUsers,
+        userStatus,
+        topRankers,
+        godStats: nextGodStats, 
+        itemStats: nextItemStats, 
+        liveMatches: finalMatches,
+        userSentiment: newSentiment
+      }
+    });
+  },
+
+  hardReset: () => {
+    const currentAI = get().gameState.aiConfig;
+    userPool.length = 0; 
+    set({
+      gameState: { ...initialGameState, aiConfig: currentAI },
+      heroes: INITIAL_HEROES,
+      shopItems: INITIAL_ITEMS,
+      communityPosts: [],     
+      selectedPost: null
+    });
+  }
+});
