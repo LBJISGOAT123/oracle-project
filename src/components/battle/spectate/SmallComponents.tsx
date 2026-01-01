@@ -23,30 +23,18 @@ export const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
 );
 
 export const BanCard = ({ heroId, heroes, onClick }: any) => {
-  // [Safety] heroId가 유효한지 확인 (빈 문자열이나 null이면 렌더링 안 함)
   const isValid = heroId && typeof heroId === 'string' && heroId.length > 0;
-
   return (
     <div 
       onClick={() => isValid && onClick && onClick(heroId)} 
-      style={{ 
-        position: 'relative', width: '22px', height: '22px', 
-        borderRadius: '3px', overflow: 'hidden', 
-        background:'#111', border:'1px solid #333', cursor: isValid ? 'pointer' : 'default' 
-      }}
+      style={{ position: 'relative', width: '22px', height: '22px', borderRadius: '3px', overflow: 'hidden', background:'#111', border:'1px solid #333', cursor: isValid ? 'pointer' : 'default' }}
     >
       {isValid ? (
         <>
-          <div style={{ filter: 'grayscale(100%) brightness(0.5)' }}>
-            <GameIcon id={heroId} size={22} shape="square" />
-          </div>
+          <div style={{ filter: 'grayscale(100%) brightness(0.5)' }}><GameIcon id={heroId} size={22} shape="square" /></div>
           <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '2px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)' }} />
         </>
-      ) : (
-        <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Ban size={10} color="#333"/>
-        </div>
-      )}
+      ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={10} color="#333"/></div>}
     </div>
   );
 };
@@ -70,9 +58,7 @@ export const NeutralObjBar = ({ obj, label, color, icon }: any) => {
 
 export const ObjectStatBox = ({ stats, color, side }: any) => {
   if (!stats) return null;
-  const nexusHp = stats.nexusHp || 0;
-  const maxNexusHp = stats.maxNexusHp || 1;
-  const hpPercent = (nexusHp / maxNexusHp) * 100;
+  const hpPercent = (stats.nexusHp / stats.maxNexusHp) * 100;
   const TowerIndicator = ({ label, brokenCount }: any) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color:'#555' }}>
       <span style={{ width:'18px' }}>{label}</span>
@@ -93,16 +79,12 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
           <TowerIndicator label="BOT" brokenCount={stats.towers?.bot || 0} />
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginTop:'15px' }}>
-           <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color:'#ccc', fontWeight:'bold' }}>
-             <Skull size={10} color="#7ee787"/> {stats.colossus || 0}
-           </div>
-           <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color:'#ccc', fontWeight:'bold' }}>
-             <Eye size={10} color="#a371f7"/> {stats.watcher || 0}
-           </div>
+           <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color:'#ccc', fontWeight:'bold' }}><Skull size={10} color="#7ee787"/> {stats.colossus || 0}</div>
+           <div style={{ display:'flex', alignItems:'center', gap:'4px', fontSize:'11px', color:'#ccc', fontWeight:'bold' }}><Eye size={10} color="#a371f7"/> {stats.watcher || 0}</div>
         </div>
         <div style={{ textAlign:'right' }}>
            <div style={{ fontSize:'8px', color:'#666' }}>NEXUS</div>
-           <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(nexusHp)).toLocaleString()}</div>
+           <div style={{ fontSize:'12px', fontWeight:'900', color: hpPercent < 30 ? '#da3633' : '#fff' }}>{Math.max(0, Math.ceil(stats.nexusHp)).toLocaleString()}</div>
            <div style={{ width:'50px', height:'3px', background:'#222', borderRadius:'1px', marginTop:'2px', overflow:'hidden' }}>
               <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : color }} />
            </div>
@@ -113,17 +95,16 @@ export const ObjectStatBox = ({ stats, color, side }: any) => {
 };
 
 export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any) => {
-  if (!p) return null; 
+  if (!p) return null;
   const currentHp = p.currentHp || 0;
   const maxHp = p.maxHp || 1;
   const hpPercent = (currentHp / maxHp) * 100;
   const isDead = currentHp <= 0;
-  const displayId = p.heroId || ''; // 빈 문자열 처리
-
+  
   return (
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', background: isSelected ? `${teamColor}15` : '#161b22', borderRadius: '4px', border: isSelected ? `1px solid ${teamColor}` : '1px solid #30363d', marginBottom: '4px', cursor: 'pointer', height: '34px', opacity: isDead ? 0.6 : 1, filter: isDead ? 'grayscale(0.8)' : 'none', position: 'relative', overflow:'hidden' }}>
       <div style={{ position: 'relative', display:'flex', alignItems:'center', gap:'8px' }}>
-        <GameIcon id={displayId} size={28} shape="rounded" />
+        <GameIcon id={p.heroId || ''} size={28} shape="rounded" />
         <div>
           <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{heroName}</div>
           <div style={{ fontSize: '9px', color: '#8b949e' }}>{p.name}</div>
@@ -141,39 +122,83 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
 };
 
 export const DraftScreen = ({ match, heroes, onClose }: { match: any, heroes: any[], onClose: () => void }) => {
-  const blueTeam = match.blueTeam || [];
-  const redTeam = match.redTeam || [];
-  const timer = Math.ceil(match.draft?.timer || 0);
+  // [Safety] match가 null일 경우를 대비해 기본값 설정
+  const safeMatch = match || {};
+  const blueTeam = safeMatch.blueTeam || [];
+  const redTeam = safeMatch.redTeam || [];
+  
+  // draft 객체가 없으면 기본적으로 0으로 처리 (Crash 방지)
+  const timer = Math.ceil(safeMatch.draft?.timer || 0);
+  const turn = safeMatch.draft?.turnIndex || 0;
+  
+  const isPickPhase = turn >= 10;
+  const isBanPhase = turn < 10;
 
-  // [Safety] heroId가 없으면 안전하게 빈 문자열 처리하여 GameIcon이 깨지지 않게 함
+  // 현재 픽 순서 계산 (하이라이트용)
+  const pickIndex = isPickPhase ? turn - 10 : -1;
+  const currentPickTeam = pickIndex >= 0 && pickIndex % 2 === 0 ? 'BLUE' : 'RED';
+  const currentPickSlot = pickIndex >= 0 ? Math.floor(pickIndex / 2) : -1;
+
+  const DraftPlayerSlot = ({ player, index, side }: { player: any, index: number, side: 'BLUE' | 'RED' }) => {
+    if (!player) return <div style={{ height:'50px' }}></div>; // 플레이어 데이터 없으면 빈 공간
+
+    const isPicking = isPickPhase && currentPickTeam === side && currentPickSlot === index;
+    const isPicked = !!player.heroId; // 이미 픽이 되었는지
+
+    return (
+      <div style={{
+        marginBottom:'8px', 
+        display:'flex', gap:'10px', alignItems:'center', 
+        flexDirection: side === 'RED' ? 'row-reverse' : 'row',
+        opacity: isPicked ? 1 : 0.5, // 픽 전에는 반투명
+        transition: '0.2s',
+        transform: isPicking ? 'scale(1.05)' : 'scale(1)'
+      }}>
+        <div style={{
+          border: isPicking ? `2px solid ${side === 'BLUE' ? '#58a6ff' : '#e84057'}` : '1px solid #333',
+          borderRadius: '12px',
+          boxShadow: isPicking ? `0 0 15px ${side === 'BLUE' ? '#58a6ff' : '#e84057'}44` : 'none',
+          position: 'relative'
+        }}>
+          {/* 영웅 ID가 없으면 물음표 렌더링 (GameIcon 내부 처리) */}
+          <GameIcon id={player.heroId || ''} size={50} shape="square"/>
+          
+          {/* 픽 중일 때 로딩 인디케이터 */}
+          {isPicking && (
+            <div style={{ position:'absolute', inset:0, border:'2px solid #fff', borderRadius:'10px', animation:'pulse 1s infinite' }} />
+          )}
+        </div>
+        <div style={{ textAlign: side === 'RED' ? 'right' : 'left' }}>
+          <div style={{ fontSize:'12px', fontWeight:'bold', color: isPicking ? '#fff' : '#aaa' }}>{player.name}</div>
+          <div style={{ fontSize:'10px', color: '#666' }}>{player.lane}</div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0d1117' }}>
       <button onClick={onClose} style={{ position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={30}/></button>
       
       <div style={{ marginBottom:'40px', textAlign:'center' }}>
         <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
-        <div style={{ fontSize:'24px', fontWeight:'900', color:'#fff' }}>{timer}</div>
+        <div style={{ fontSize:'14px', color:'#888', marginBottom:'5px' }}>
+            {isBanPhase ? '⛔ 챔피언 금지 진행 중...' : '⚔️ 챔피언 선택 진행 중...'}
+        </div>
+        <div style={{ fontSize:'32px', fontWeight:'900', color: timer <= 5 ? '#da3633' : '#fff' }}>{timer}</div>
       </div>
 
-      <div style={{ display:'flex', width:'90%', justifyContent:'space-between' }}>
+      <div style={{ display:'flex', width:'90%', maxWidth:'800px', justifyContent:'space-between' }}>
+        {/* BLUE TEAM */}
         <div style={{ width:'40%', color:'#58a6ff' }}>
-          <h3>BLUE TEAM</h3>
-          {blueTeam.map((p: any, i: number) => (
-            <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
-              <GameIcon id={p?.heroId || ''} size={50} shape="square"/>
-              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p?.name || 'Unknown'}</span>
-            </div>
-          ))}
+          <h3 style={{ borderBottom:'1px solid #58a6ff44', paddingBottom:'10px', marginBottom:'15px', margin:0 }}>BLUE TEAM</h3>
+          {blueTeam.map((p: any, i: number) => <DraftPlayerSlot key={i} player={p} index={i} side="BLUE" />)}
         </div>
-        
+
+        {/* RED TEAM */}
         <div style={{ width:'40%', color:'#e84057', textAlign:'right' }}>
-          <h3>RED TEAM</h3>
-          {redTeam.map((p: any, i: number) => (
-            <div key={i} style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center', flexDirection:'row-reverse'}}>
-              <GameIcon id={p?.heroId || ''} size={50} shape="square"/>
-              <span style={{ fontSize:'14px', fontWeight:'bold' }}>{p?.name || 'Unknown'}</span>
-            </div>
-          ))}
+          <h3 style={{ borderBottom:'1px solid #e8405744', paddingBottom:'10px', marginBottom:'15px', margin:0 }}>RED TEAM</h3>
+          {redTeam.map((p: any, i: number) => <DraftPlayerSlot key={i} player={p} index={i} side="RED" />)}
         </div>
       </div>
     </div>
