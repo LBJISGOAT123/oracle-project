@@ -1,15 +1,48 @@
+// ==========================================
+// FILE PATH: /src/components/hero/patch/SkillEditor.tsx
+// ==========================================
 import React, { useState } from 'react';
 import { HeroSkillSet } from '../../../types';
 import { Edit2, Check } from 'lucide-react';
 
 const MECHANIC_UI_CONFIG: any = {
-  DAMAGE: [{ key: 'val', label: '피해량', max: 1000, step: 10 }, { key: 'adRatio', label: 'AD계수', max: 2.5, step: 0.05, color: '#e67e22' }, { key: 'apRatio', label: 'AP계수', max: 3.0, step: 0.05, color: '#9b59b6' }],
-  HEAL: [{ key: 'val', label: '회복량', max: 800, step: 10, color: '#2ecc71' }, { key: 'apRatio', label: 'AP계수', max: 2.0, step: 0.05, color: '#9b59b6' }],
-  SHIELD: [{ key: 'val', label: '보호막', max: 1000, step: 10, color: '#3498db' }, { key: 'adRatio', label: 'AD계수', max: 1.5, step: 0.05, color: '#e67e22' }, { key: 'duration', label: '지속시간', max: 8, step: 0.5 }],
-  HOOK: [{ key: 'val', label: '그랩거리', max: 1200, step: 25, color: '#f1c40f' }, { key: 'duration', label: '기절시간', max: 3, step: 0.1 }],
-  DASH: [{ key: 'val', label: '이동거리', max: 800, step: 10, color: '#9b59b6' }, { key: 'duration', label: '준비시간', max: 1.5, step: 0.05 }],
-  STUN: [{ key: 'duration', label: '기절시간', max: 4, step: 0.1, color: '#e74c3c' }, { key: 'val', label: '범위', max: 600, step: 10 }],
-  STEALTH: [{ key: 'duration', label: '지속시간', max: 15, step: 0.5, color: '#95a5a6' }, { key: 'val', label: '이속증가', max: 80, step: 1 }]
+  DAMAGE: [
+    { key: 'val', label: '피해량', max: 1000, step: 10 }, 
+    { key: 'adRatio', label: 'AD계수', max: 2.5, step: 0.05, color: '#e67e22' }, 
+    { key: 'apRatio', label: 'AP계수', max: 3.0, step: 0.05, color: '#9b59b6' },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  HEAL: [
+    { key: 'val', label: '회복량', max: 800, step: 10, color: '#2ecc71' }, 
+    { key: 'apRatio', label: 'AP계수', max: 2.0, step: 0.05, color: '#9b59b6' },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  SHIELD: [
+    { key: 'val', label: '보호막', max: 1000, step: 10, color: '#3498db' }, 
+    { key: 'adRatio', label: 'AD계수', max: 1.5, step: 0.05, color: '#e67e22' }, 
+    { key: 'duration', label: '지속시간', max: 8, step: 0.5 },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  HOOK: [
+    { key: 'val', label: '그랩거리', max: 1200, step: 25, color: '#f1c40f' }, 
+    { key: 'duration', label: '기절시간', max: 3, step: 0.1 },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  DASH: [
+    { key: 'val', label: '이동거리', max: 800, step: 10, color: '#9b59b6' }, 
+    { key: 'duration', label: '준비시간', max: 1.5, step: 0.05 },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  STUN: [
+    { key: 'duration', label: '기절시간', max: 4, step: 0.1, color: '#e74c3c' }, 
+    { key: 'val', label: '범위', max: 600, step: 10 },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ],
+  STEALTH: [
+    { key: 'duration', label: '지속시간', max: 15, step: 0.5, color: '#95a5a6' }, 
+    { key: 'val', label: '이속증가', max: 80, step: 1 },
+    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' } // 사거리 추가
+  ]
 };
 
 interface Props {
@@ -69,9 +102,9 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         <option value="STEALTH">👻 은신</option>
       </select>
 
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '15px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '15px' }}>
         {uiConfig.map((item: any) => (
-          <div key={item.key} onClick={() => setActiveField(item.key)} style={{ flex: 1, background: '#161b22', border: activeField === item.key ? '1px solid #58a6ff' : '1px solid #30363d', borderRadius: '10px', padding: '8px 4px', textAlign: 'center', cursor: 'pointer' }}>
+          <div key={item.key} onClick={() => setActiveField(item.key)} style={{ flex: '1 1 45%', background: '#161b22', border: activeField === item.key ? '1px solid #58a6ff' : '1px solid #30363d', borderRadius: '10px', padding: '8px 4px', textAlign: 'center', cursor: 'pointer' }}>
             <label style={{ display: 'block', fontSize: '8px', color: '#8b949e', marginBottom: '4px' }}>{item.label}</label>
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: item.color || '#fff' }}>{(currentSkill as any)[item.key]}</div>
           </div>

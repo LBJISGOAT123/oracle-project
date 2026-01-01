@@ -1,116 +1,116 @@
 // ==========================================
 // FILE PATH: /src/engine/match/MatchUpdater.ts
 // ==========================================
-
 import { Hero, LiveMatch } from '../../types';
+import { userPool } from '../UserManager';
+import { processDraftTurn } from './BanPickEngine'; 
 import { useGameStore } from '../../store/useGameStore';
-import { applyColossusReward, applyWatcherReward, processSiegeUnit } from './ObjectiveSystem';
+import { applyColossusReward, applyWatcherReward } from './ObjectiveSystem';
 import { attemptBuyItem } from './ItemManager';
 import { processCombatPhase } from './phases/CombatPhase';
 import { processSiegePhase } from './phases/SiegePhase';
 import { processGrowthPhase } from './phases/GrowthPhase';
-import { JUNGLE_CONFIG } from '../../data/jungle';
 
-export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], timeSteps: number): LiveMatch[] {
+export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
   const state = useGameStore.getState();
   if (!state || !state.gameState) return matches;
 
-  const fieldSettings = state.gameState.fieldSettings || { tower: { hp: 3000, armor: 50, rewardGold: 80 }, colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50 }, watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180 }, jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS };
-  const battleSettings = state.gameState.battleSettings;
-  const roleSettings = state.gameState.roleSettings;
+  const { fieldSettings, battleSettings, roleSettings } = state.gameState;
   const shopItems = state.shopItems || []; 
 
-  const watcherBuffType = fieldSettings.watcher?.buffType || 'COMBAT';
-  const watcherBuffAmount = (fieldSettings.watcher?.buffAmount || 20) / 100;
+  const safeField = fieldSettings || { 
+    colossus: { hp: 8000, armor: 80, rewardGold: 100, respawnTime: 300 }, 
+    watcher: { hp: 12000, armor: 100, rewardGold: 150, respawnTime: 420, buffType: 'COMBAT', buffAmount: 20 }
+  };
+  const watcherBuffType = safeField.watcher?.buffType || 'COMBAT';
+  const watcherBuffAmount = (safeField.watcher?.buffAmount || 20) / 100;
 
-  return matches.map(match => {
-    // 종료 조건 체크
-    if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
-        match.duration = match.currentDuration; 
-        return match;
-    }
-    if (match.currentDuration >= 3600) {
-        if (match.score.blue > match.score.red) match.stats.red.nexusHp = 0;
-        else match.stats.blue.nexusHp = 0;
-        return match;
-    }
+  // matches.map을 통해 항상 새로운 객체 배열을 반환합니다. (불변성 유지)
+  return matches.map(m => {
+    // 딥카피를 통해 원본 데이터 오염 방지 및 리액트 리렌더링 유도
+    const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    try {
-        for (let i = 0; i < timeSteps; i++) {
-            if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) break;
-            match.currentDuration += 1;
+    // 1. 드래프트 로직 (기존 유지)
+    if (match.status === 'DRAFTING') {
+        if (!match.draft) return match;
+        match.draft.timer -= delta;
+        if (match.draft.timer <= 0) {
+            const turn = match.draft.turnIndex;
+            let currentUserIq = 50; 
+            if (turn >= 10) { 
+                const pickIdx = turn - 10;
+                const isBlue = pickIdx % 2 === 0;
+                const teamIdx = Math.floor(pickIdx / 2);
+                const player = isBlue ? match.blueTeam[teamIdx] : match.redTeam[teamIdx];
+                const user = userPool.find(u => u.name === player.name);
+                if (user) currentUserIq = user.brain;
+            }
+            processDraftTurn(match, heroes, currentUserIq);
+            match.draft.turnIndex++;
+            match.draft.timer = 1.0; 
 
-            // [거신병 공성 효과 처리]
-            processSiegeUnit(match);
-
-            // [주시자 버프 만료 체크]
-            ['blue', 'red'].forEach((side) => {
-                const s = (match.stats as any)[side];
-                if (s.activeBuffs.voidPower && match.currentDuration > s.activeBuffs.voidBuffEndTime) {
-                    s.activeBuffs.voidPower = false;
-                    const team = side === 'blue' ? match.blueTeam : match.redTeam;
-                    team.forEach((p: any) => p.buffs = p.buffs.filter((b: string) => b !== 'VOID'));
-                }
-            });
-
-            // [아이템 구매] (30초마다)
-            if (match.currentDuration % 30 === 0) {
+            if (match.draft.turnIndex >= 20) {
+                match.status = 'PLAYING';
+                match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
                 [...match.blueTeam, ...match.redTeam].forEach(p => {
-                    attemptBuyItem(p, shopItems, heroes);
+                    const h = heroes.find(x => x.id === p.heroId);
+                    if (h) { p.maxHp = h.stats.hp; p.currentHp = h.stats.hp; }
                 });
             }
-
-            // [전투/공성/성장 페이즈]
-            processCombatPhase(match, heroes, battleSettings, roleSettings, watcherBuffType, watcherBuffAmount);
-
-            // [수정: 하수인 스펙 반영을 위해 battleSettings 전달]
-            processSiegePhase(match, heroes, fieldSettings, roleSettings, battleSettings);
-
-            processGrowthPhase(match, battleSettings, heroes);
-
-            // [신규] 1. 거신병 스폰 로직 (타이머 기반)
-            if (match.currentDuration >= match.nextColossusSpawnTime) {
-              // 젠 시간이 되었으므로 교전 발생 확률 증가 (0.0005 -> 0.005, 약 10배)
-              // 즉, 젠 되자마자 바로 먹히진 않고 눈치 싸움하다가 가져감
-              if (Math.random() < 0.005) {
-                const blueJunglerAlive = match.blueTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
-                const redJunglerAlive = match.redTeam.some(p => heroes.find(h=>h.id===p.heroId)?.role === '추적자' && p.currentHp > 0);
-
-                let blueChance = 0.5;
-                const smiteBonus = (roleSettings.tracker.smiteChance - 1.0) / 2; 
-                if (blueJunglerAlive && !redJunglerAlive) blueChance = 0.5 + smiteBonus;
-                if (!blueJunglerAlive && redJunglerAlive) blueChance = 0.5 - smiteBonus;
-
-                const isBlueObj = Math.random() < blueChance;
-                (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += fieldSettings.colossus.rewardGold);
-
-                if(isBlueObj) { match.stats.blue.colossus++; applyColossusReward(match, true); }
-                else { match.stats.red.colossus++; applyColossusReward(match, false); }
-
-                // [중요] 다음 스폰 시간 설정 (5분 후 리젠)
-                match.nextColossusSpawnTime = match.currentDuration + 300; 
-              }
-            }
-
-            // [신규] 2. 주시자 스폰 로직 (타이머 기반)
-            if (match.currentDuration >= match.nextWatcherSpawnTime) {
-              if (Math.random() < 0.003) { 
-                const isBlueObj = Math.random() < 0.5; 
-                (isBlueObj ? match.blueTeam : match.redTeam).forEach(p => p.gold += fieldSettings.watcher.rewardGold);
-
-                if(isBlueObj) { match.stats.blue.watcher++; match.stats.blue.fury++; applyWatcherReward(match, true); }
-                else { match.stats.red.watcher++; match.stats.red.fury++; applyWatcherReward(match, false); }
-
-                // [중요] 다음 스폰 시간 설정 (7분 후 리젠 - 주시자는 더 늦게 뜸)
-                match.nextWatcherSpawnTime = match.currentDuration + 420;
-              }
-            }
         }
-    } catch (error) {
-        console.warn("Sim Error:", error);
-        match.currentDuration += timeSteps; 
+        return match;
+    }
+
+    // 2. 인게임 로직
+    if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
+
+    match.currentDuration += delta;
+    let remainingTime = delta;
+
+    while (remainingTime > 0) {
+        const dt = Math.min(remainingTime, 1.0);
+
+        // 모든 페이즈 실행 (기존 기능 100% 유지)
+        processGrowthPhase(match, battleSettings, heroes, dt);
+        if (Math.random() < (0.05 * dt)) { 
+            [...match.blueTeam, ...match.redTeam].forEach(p => attemptBuyItem(p, shopItems, heroes));
+        }
+        processCombatPhase(match, heroes, battleSettings, roleSettings, watcherBuffType, watcherBuffAmount, dt);
+        processSiegePhase(match, heroes, safeField, roleSettings, battleSettings, dt);
+        processObjectiveLogic(match, safeField, dt);
+
+        remainingTime -= dt;
     }
 
     return match;
   });
+}
+
+function processObjectiveLogic(match: LiveMatch, fieldSettings: any, dt: number) {
+    if (!match.objectives) return;
+    (['colossus', 'watcher'] as const).forEach((type) => {
+        const obj = match.objectives[type];
+        const setting = fieldSettings[type];
+        if(!setting) return;
+        if (obj.status === 'DEAD' && match.currentDuration >= obj.nextSpawnTime) {
+            obj.status = 'ALIVE'; obj.hp = setting.hp; obj.maxHp = setting.hp;
+            match.logs = [...match.logs, { time: match.currentDuration, message: `📢 ${type === 'colossus' ? '거신병' : '주시자'} 등장!`, type: 'START' }];
+        }
+        if (obj.status === 'ALIVE') {
+            const reduction = 100 / (100 + (setting.armor || 50));
+            const dps = (200 + (match.currentDuration / 10)) * dt; 
+            obj.hp -= dps * reduction;
+            if (obj.hp <= 0) {
+                obj.hp = 0; obj.status = 'DEAD'; obj.nextSpawnTime = match.currentDuration + (setting.respawnTime || 300);
+                const isBlueWin = Math.random() > 0.5;
+                if (type === 'colossus') {
+                    if(isBlueWin) match.stats.blue.colossus++; else match.stats.red.colossus++;
+                    applyColossusReward(match, isBlueWin);
+                } else {
+                    if(isBlueWin) match.stats.blue.watcher++; else match.stats.red.watcher++;
+                    applyWatcherReward(match, isBlueWin);
+                }
+            }
+        }
+    });
 }

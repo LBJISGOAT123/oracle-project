@@ -22,7 +22,7 @@ export function finishMatch(
   day: number, 
   hour: number, 
   battleSettings: any,
-  tierConfig: TierConfig // [중요] 함수 인자로 설정을 받음
+  tierConfig: TierConfig
 ) {
 
   let isBlueWin = match.score.blue > match.score.red;
@@ -45,13 +45,15 @@ export function finishMatch(
   const processTeam = (team: LivePlayer[], win: boolean) => {
     team.forEach(player => {
       const hero = heroes.find(h => h.id === player.heroId);
-      // UserProfile에 promoStatus 타입이 정의되어 있다고 가정 (types/index.ts 업데이트 필수)
       const user = userPool.find(u => u.name === player.name) as any;
 
-      // 1. 영웅 통계 갱신
+      // 1. 영웅 통계 갱신 (누적 로직 적용: += 연산자 사용)
       if (hero) {
-        hero.record.totalMatches++; hero.record.totalPicks++; 
+        hero.record.totalMatches++; 
+        hero.record.totalPicks++; 
         if (win) hero.record.totalWins++;
+
+        // [중요] 기존 통계에 이번 경기 기록을 더함 (Accumulation)
         hero.record.totalKills += player.kills; 
         hero.record.totalDeaths += player.deaths; 
         hero.record.totalAssists += player.assists; 
@@ -60,6 +62,8 @@ export function finishMatch(
         hero.record.totalGold += (player.gold + itemsValue);
         hero.record.totalDamage += player.totalDamageDealt; 
         hero.record.totalCs += player.cs;
+
+        // 최근 전적은 배열이므로 push
         hero.record.recentResults.push(win); 
         if (hero.record.recentResults.length > 50) hero.record.recentResults.shift();
       }
@@ -94,7 +98,6 @@ export function finishMatch(
                 historyMsg = 'PROMO LOSS';
 
                 // 탈락 조건: (총 판수 - 목표 승수 + 1)번 패배 시 탈락
-                // 예: 5전 3선승제(총 5, 목표 3) -> 3패 시 탈락
                 const totalGames = user.promoStatus.targetWins * 2 - 1;
                 const maxLosses = totalGames - user.promoStatus.targetWins + 1;
 
@@ -115,8 +118,7 @@ export function finishMatch(
             if (nextTier && user.score >= nextTier.cut) {
                 user.score = nextTier.cut - 1; // 점수 잠금
 
-                // 티어별 설정된 승급전 판수 적용 (기본값 3)
-                // key가 없거나 매칭되지 않으면 3전 2선승
+                // 티어별 설정된 승급전 판수 적용
                 const promoMatches = tierConfig.promos ? (tierConfig.promos[nextTier.key as keyof typeof tierConfig.promos] || 3) : 3;
                 const targetWins = Math.ceil(promoMatches / 2);
 

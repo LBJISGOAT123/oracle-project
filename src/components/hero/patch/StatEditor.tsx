@@ -1,15 +1,15 @@
 // ==========================================
 // FILE PATH: /src/components/hero/patch/StatEditor.tsx
 // ==========================================
-
 import React from 'react';
 
 const STAT_CONFIG: any = {
-  // [수정] 최소값 0, 최대값 상향 조정
   baseAtk: { min: 0, max: 500, step: 1, color: '#f1c40f', label: '기본 공격력' },
   ad: { min: 0, max: 1000, step: 5, color: '#e67e22', label: '추가 AD' },
   ap: { min: 0, max: 1000, step: 10, color: '#9b59b6', label: '주문력(AP)' },
   crit: { min: 0, max: 100, step: 1, color: '#e74c3c', label: '치명타율(%)' },
+  // [사거리 추가]
+  range: { min: 100, max: 800, step: 25, color: '#58a6ff', label: '공격 사거리' },
   hp: { min: 100, max: 10000, step: 50, color: '#2ecc71', label: '체력(HP)' },
   armor: { min: 0, max: 500, step: 2, color: '#3498db', label: '방어력' },
   speed: { min: 100, max: 1000, step: 5, color: '#95a5a6', label: '이동 속도' }
@@ -34,7 +34,7 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
               <span style={{ color: conf.color, fontSize:'16px' }}>{stats[f]}</span>
             </div>
 
-            {/* 슬라이더 스타일 개선 */}
+            {/* 원본 슬라이더 스타일 보존 */}
             <input 
               type="range" min={conf.min} max={conf.max} step={conf.step}
               value={stats[f]} onChange={e => onChange(f, Number(e.target.value))}
@@ -48,7 +48,7 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
               }}
             />
 
-            {/* 미세 조정 버튼 추가 (+/-) */}
+            {/* 원본 미세 조정 버튼 보존 */}
             <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'10px' }}>
               <button 
                 onClick={() => onChange(f, Math.max(conf.min, stats[f] - conf.step))}

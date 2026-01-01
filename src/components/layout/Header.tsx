@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { Settings, Save, FastForward, Play, Pause } from 'lucide-react';
+import { Settings, Save, Play, Pause } from 'lucide-react';
 
 interface Props {
   isMobile: boolean;
@@ -14,8 +14,9 @@ interface Props {
 export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
   const { gameState, togglePlay, setSpeed } = useGameStore();
 
+  // [수정] 시간을 00:00:00 형태로 깔끔하게 포맷팅
   const formatTime = (h: number, m: number, s: number) => 
-    `${String(h || 0).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:${String(s || 0).padStart(2, '0')}`;
+    `${String(h || 0).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:${String(Math.floor(s || 0)).padStart(2, '0')}`;
 
   // 배속 버튼 스타일
   const getBtnStyle = (speed: number) => ({
@@ -46,6 +47,7 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
             <span>📅 S{gameState.season || 1}</span>
             <span>D{gameState.day || 1}</span>
             <span style={{ color: '#fff', fontWeight: 'bold', fontFamily: 'monospace' }}>
+              {/* [수정] 여기서 Math.floor를 적용하여 소수점을 제거합니다 */}
               ⏰ {formatTime(gameState.hour, gameState.minute, gameState.second)}
             </span>
           </div>
@@ -65,7 +67,6 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
             </button>
           )}
 
-          {/* [수정] 배속 버튼: 1초 / 1분(60초) / 10분(600초) */}
           <button style={getBtnStyle(1)} onClick={() => setSpeed(1)}>1초</button>
           <button style={getBtnStyle(60)} onClick={() => setSpeed(60)}>1분</button>
           <button style={getBtnStyle(600)} onClick={() => setSpeed(600)}>10분</button>

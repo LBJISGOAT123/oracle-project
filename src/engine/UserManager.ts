@@ -26,10 +26,16 @@ export class UserAgent {
   mainHeroId: string; 
   activityBias: number; 
 
-  // [신규 필드 추가]
   promoStatus: { targetTier: string; wins: number; losses: number; targetWins: number; } | null = null;
   rank: number = 0;
   isChallenger: boolean = false;
+
+  draftIq: number;   // 뇌지컬 (Brain)
+  mechanics: number; // 피지컬 (Mechanics)
+
+  // 호환성을 위한 getter
+  get brain() { return this.draftIq; }
+  set brain(val: number) { this.draftIq = val; }
 
   constructor(id: number, heroes: Hero[]) {
     this.id = id;
@@ -52,7 +58,44 @@ export class UserAgent {
     registeredNames.add(tempName);
     this.name = tempName;
 
-    this.hiddenMmr = 1000 + (Math.random() * 1000) + (Math.random() * 1000);
+    // MMR 생성 (1000 ~ 3000, 평균 2000 근처에 몰리게)
+    this.hiddenMmr = 1000 + Math.floor(Math.random() * 1000) + Math.floor(Math.random() * 1000);
+
+    // ---------------------------------------------------------
+    // [핵심] 스탯 생성 로직 (평균 40~50, 고수 희귀하게)
+    // ---------------------------------------------------------
+    const mmrFactor = (this.hiddenMmr - 1000) / 2000; // 0.0 ~ 1.0
+    const baseStat = 20 + (mmrFactor * 40) + (Math.random() * 20); 
+
+    // 타입 결정 (피지컬형 / 뇌지컬형 / 밸런스형)
+    const typeRand = Math.random();
+
+    if (typeRand < 0.2) { 
+        // [피지컬 괴물] (뇌 -20%, 손 +30%)
+        this.draftIq = Math.floor(baseStat * 0.8);
+        this.mechanics = Math.floor(baseStat * 1.3);
+    } 
+    else if (typeRand < 0.4) {
+        // [뇌지컬 천재] (뇌 +30%, 손 -20%)
+        this.draftIq = Math.floor(baseStat * 1.3);
+        this.mechanics = Math.floor(baseStat * 0.8);
+    } 
+    else {
+        // [밸런스형]
+        this.draftIq = Math.floor(baseStat);
+        this.mechanics = Math.floor(baseStat);
+    }
+
+    // [슈퍼스타 생성] 1% 확률로 스탯 뻥튀기
+    if (Math.random() < 0.01) {
+        this.mechanics += 20;
+        this.draftIq += 10;
+        this.name = `[Pro] ${this.name}`;
+    }
+
+    // 범위 제한 (10 ~ 100)
+    this.draftIq = Math.min(100, Math.max(10, this.draftIq));
+    this.mechanics = Math.min(100, Math.max(10, this.mechanics));
 
     const lanes = ['TOP', 'JUNGLE', 'MID', 'BOT'];
     this.preferredLane = lanes[Math.floor(Math.random() * lanes.length)] as any;
@@ -83,10 +126,7 @@ export class UserAgent {
     const defaults = { challengerRank: 50, challenger: 9999, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promoMatches: 3 };
     const cfg = config || defaults;
 
-    // [수정] 챌린저 판별 로직: 플래그 확인
     if (this.isChallenger) return '천상계';
-
-    // 나머지는 점수 기반
     if (this.score >= cfg.master) return '마스터';
     if (this.score >= cfg.ace) return '에이스';
     if (this.score >= cfg.joker) return '조커';
@@ -113,7 +153,7 @@ export class UserAgent {
 export const userPool: UserAgent[] = [];
 
 export function getTierNameHelper(score: number, config: TierConfig) {
-  if (score >= 9999) return '천상계'; // 임시 (UserAgent 내부 로직이 정확함)
+  if (score >= 9999) return '천상계';
   if (score >= config.master) return '마스터';
   if (score >= config.ace) return '에이스';
   if (score >= config.joker) return '조커';
@@ -155,6 +195,7 @@ export function updateUserActivity(hour: number, heroes: Hero[]) {
   });
 }
 
+// [수정] 랭킹 정보에 뇌지컬/피지컬 포함
 export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[] {
   const sorted = [...userPool].sort((a, b) => b.score - a.score || a.id - b.id);
 
@@ -182,7 +223,9 @@ export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[]
       preferredLane: u.preferredLane,
       laneStats: [],
       mostChamps: [],
-      promoStatus: u.promoStatus // [추가]
+      promoStatus: u.promoStatus,
+      draftIq: u.brain,       
+      mechanics: u.mechanics  
     };
   });
 }
@@ -199,13 +242,14 @@ export function getUsersInTier(tierName: string, config: TierConfig): UserProfil
       preferredLane: u.preferredLane,
       laneStats: [],
       mostChamps: [],
-      promoStatus: u.promoStatus // [추가]
+      promoStatus: u.promoStatus,
+      draftIq: u.brain,
+      mechanics: u.mechanics
     }));
 }
 
 export function findUserProfileByName(name: string, config: TierConfig): UserProfile | null {
   const user = userPool.find(u => u.name === name);
-
   if (!user) return null;
 
   return {
@@ -221,6 +265,8 @@ export function findUserProfileByName(name: string, config: TierConfig): UserPro
     preferredLane: user.preferredLane,
     laneStats: [],
     mostChamps: [],
-    promoStatus: user.promoStatus // [추가]
+    promoStatus: user.promoStatus,
+    draftIq: user.brain,
+    mechanics: user.mechanics
   };
 }

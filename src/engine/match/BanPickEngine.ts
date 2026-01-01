@@ -2,79 +2,125 @@
 // FILE PATH: /src/engine/match/BanPickEngine.ts
 // ==========================================
 
-import { Hero } from '../../types';
+import { Hero, LiveMatch } from '../../types';
 
-export const performBanPick = (heroes: Hero[], players: any[]) => {
-  const bans: { blue: string[], red: string[] } = { blue: [], red: [] };
-  const picks: { blue: any[], red: any[] } = { blue: [], red: [] };
+// 영웅 분석 헬퍼
+const analyzeHeroTags = (h: Hero) => {
+  const skills = [h.skills.q, h.skills.w, h.skills.e, h.skills.r];
+  return {
+    hasCC: skills.some(s => s.mechanic === 'STUN' || s.mechanic === 'HOOK'),
+    hasDash: skills.some(s => s.mechanic === 'DASH'),
+    hasShield: skills.some(s => s.mechanic === 'SHIELD' || s.mechanic === 'HEAL'),
+    hasExecute: skills.some(s => s.mechanic === 'EXECUTE'),
+    isTank: h.stats.hp >= 2500 || h.stats.armor >= 50,
+    isSquishy: h.stats.hp < 1800,
+    isBurst: h.stats.ad > 80 || h.stats.ap > 80
+  };
+};
+
+/**
+ * [단일 턴 처리] 현재 순서의 유저가 밴 또는 픽을 수행함
+ * @param userIq : 뇌지컬 수치 (0~100)
+ */
+export const processDraftTurn = (match: LiveMatch, heroes: Hero[], userIq: number) => {
+  if (!match.draft) return;
+  const { turnIndex } = match.draft;
+
   const unavailableIds = new Set<string>();
+  [...match.bans.blue, ...match.bans.red].forEach(id => unavailableIds.add(id));
+  [...match.blueTeam, ...match.redTeam].forEach(p => { if(p.heroId) unavailableIds.add(p.heroId); });
 
-  // 1. 밴 페이즈 개선
-  // 승률 최상위권만 밴 당하는 것이 아니라, "상위 30% + 랜덤"이 섞이도록 수정
-  const sortedHeroes = [...heroes].sort((a, b) => b.recentWinRate - a.recentWinRate);
+  // A. 밴 페이즈 (0~9턴)
+  if (turnIndex < 10) {
+    const candidates = heroes.filter(h => !unavailableIds.has(h.id));
+    // 승률 상위 20% 중에서 랜덤 밴
+    candidates.sort((a, b) => b.recentWinRate - a.recentWinRate);
+    const targetPool = candidates.slice(0, Math.max(5, candidates.length / 5));
+    const banTarget = targetPool[Math.floor(Math.random() * targetPool.length)];
 
-  const attemptBan = (sideBans: string[]) => {
-    // 밴 후보군을 상위 15명이 아니라 전체의 40%까지 넓게 봅니다.
-    const banPoolSize = Math.max(10, Math.floor(heroes.length * 0.4));
-    const banCandidates = sortedHeroes.slice(0, banPoolSize).filter(h => !unavailableIds.has(h.id));
-
-    if (banCandidates.length > 0) {
-      // 후보군 중에서 랜덤 선택 (무조건 1등만 밴하지 않음)
-      const target = banCandidates[Math.floor(Math.random() * banCandidates.length)];
-      sideBans.push(target.id);
-      unavailableIds.add(target.id);
+    if (banTarget) {
+      if (turnIndex % 2 === 0) match.bans.blue.push(banTarget.id);
+      else match.bans.red.push(banTarget.id);
     }
+    return;
+  }
+
+  // B. 픽 페이즈 (10~19턴)
+  const pickOrderIndex = turnIndex - 10;
+
+  // 픽 순서: 교차 픽 (단순화: B1->R1->B2->R2...)
+  const isBluePick = pickOrderIndex % 2 === 0;
+  const teamIndex = Math.floor(pickOrderIndex / 2); // 0~4
+
+  const targetTeam = isBluePick ? match.blueTeam : match.redTeam;
+  const enemyTeam = isBluePick ? match.redTeam : match.blueTeam;
+  const player = targetTeam[teamIndex]; 
+
+  const lane = player.lane; 
+
+  // 역할군 필터
+  const preferredRoles: Record<string, string[]> = {
+    'TOP': ['집행관', '수호기사'],
+    'JUNGLE': ['추적자', '집행관'],
+    'MID': ['선지자', '추적자', '신살자'], 
+    'BOT': ['신살자'], 
+    'SUP': ['수호기사', '선지자']
   };
 
-  // 블루팀 2밴, 레드팀 2밴
-  attemptBan(bans.blue);
-  attemptBan(bans.blue);
-  attemptBan(bans.red);
-  attemptBan(bans.red);
+  const roleKey = (teamIndex === 4) ? 'SUP' : lane; 
+  const targetRoles = preferredRoles[roleKey] || ['집행관'];
 
-  // 2. 픽 페이즈 개선 (다양성 확보 핵심 로직)
-  const selectHero = (user: any) => {
-    // 이미 밴/픽된 영웅 제외한 목록
-    const available = heroes.filter(h => !unavailableIds.has(h.id));
+  let candidates = heroes.filter(h => 
+    !unavailableIds.has(h.id) && targetRoles.includes(h.role)
+  );
+  if (candidates.length === 0) candidates = heroes.filter(h => !unavailableIds.has(h.id));
 
-    // 만약 남은 영웅이 없으면(거의 없겠지만) 아무나 리턴
-    if (available.length === 0) return heroes[0].id;
+  // ----------------------------------------------------
+  // [뇌지컬 로직]
+  // ----------------------------------------------------
+  if (userIq >= 70) {
+    // [고지능] 전략적 계산 (카운터 + 시너지)
+    const scored = candidates.map(hero => {
+      let score = hero.recentWinRate * 10;
+      const myTags = analyzeHeroTags(hero);
 
-    const rand = Math.random();
-    let selectedHeroId = '';
+      // 카운터 점수
+      enemyTeam.forEach(e => {
+        if (!e.heroId) return;
+        const eHero = heroes.find(h => h.id === e.heroId);
+        if (!eHero) return;
+        const eTags = analyzeHeroTags(eHero);
 
-    // [전략 A] "즐겜/뉴메타" 픽 (30% 확률)
-    // -> 승률 무시하고 완전 랜덤으로 픽합니다. 
-    // -> 이 로직 덕분에 0% 픽률인 영웅들이 강제로 게임에 참여하게 됩니다.
-    if (rand < 0.3) {
-      const randomPick = available[Math.floor(Math.random() * available.length)];
-      selectedHeroId = randomPick.id;
-    }
-    // [전략 B] "주류 메타" 픽 (50% 확률)
-    // -> 기존에는 상위 4명만 뽑았지만, 이제는 "상위 60%" 중에서 랜덤으로 뽑습니다.
-    // -> 1티어뿐만 아니라 2~3티어도 자주 나오게 됩니다.
-    else if (rand < 0.8) {
-      const sortedByWin = [...available].sort((a, b) => b.recentWinRate - a.recentWinRate);
-      const metaPoolSize = Math.max(5, Math.floor(sortedByWin.length * 0.6)); // 상위 60%
-      const metaPool = sortedByWin.slice(0, metaPoolSize);
+        if (eTags.isSquishy && myTags.hasDash && myTags.isBurst) score += 150; // 암살
+        if (eTags.hasCC && (myTags.hasDash || myTags.hasShield)) score += 80; // 생존
+        if (eTags.isTank && myTags.hasExecute) score += 120; // 탱커킬
+      });
 
-      const metaPick = metaPool[Math.floor(Math.random() * metaPool.length)];
-      selectedHeroId = metaPick.id;
-    }
-    // [전략 C] "장인/애정" 픽 (나머지 20%)
-    // -> 그냥 남은 것 중 또 랜덤 (결과적으로 랜덤성이 50% 가까이 됨)
-    else {
-      const randomPick = available[Math.floor(Math.random() * available.length)];
-      selectedHeroId = randomPick.id;
-    }
+      // 시너지 점수
+      targetTeam.forEach(a => {
+        if (!a.heroId || a === player) return;
+        const aHero = heroes.find(h => h.id === a.heroId);
+        if (!aHero) return;
+        const aTags = analyzeHeroTags(aHero);
 
-    unavailableIds.add(selectedHeroId);
-    return selectedHeroId;
-  };
+        if (aTags.hasCC && myTags.isBurst) score += 100; // CC연계
+        if (aTags.isTank && myTags.isSquishy) score += 60; // 보호
+      });
 
-  // 블루팀 5명 픽, 레드팀 5명 픽
-  players.slice(0, 5).forEach(u => picks.blue.push({ name: u.name, heroId: selectHero(u) }));
-  players.slice(5, 10).forEach(u => picks.red.push({ name: u.name, heroId: selectHero(u) }));
+      return { hero, score };
+    });
 
-  return { bans, picks };
+    scored.sort((a, b) => b.score - a.score);
+    player.heroId = scored[0].hero.id;
+  } 
+  else if (userIq >= 40) {
+    // [일반] 승률 높은거 픽
+    candidates.sort((a, b) => b.recentWinRate - a.recentWinRate);
+    player.heroId = candidates[0].id;
+  } 
+  else {
+    // [즐겜] 랜덤 픽
+    const randomPick = candidates[Math.floor(Math.random() * candidates.length)];
+    player.heroId = randomPick.id;
+  }
 };

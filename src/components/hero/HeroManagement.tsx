@@ -1,16 +1,15 @@
 // ==========================================
 // FILE PATH: /src/components/hero/HeroManagement.tsx
 // ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { Edit3, Search, Plus, Trash2, Shield, Swords, Zap, Crosshair, Skull, Layers } from 'lucide-react';
+import { Edit3, Search, Plus, Trash2, Shield, Swords, Zap, Crosshair, Skull, Layers, Target } from 'lucide-react';
 import { Hero, Role } from '../../types';
-import { GameIcon } from '../common/GameIcon'; // 커스텀 이미지 아이콘 사용
+import { GameIcon } from '../common/GameIcon';
 
 interface Props { onEditHero: (hero: Hero) => void; }
 
-// 역할군 데이터
+// 역할군 데이터 및 아이콘 매핑 (원본 유지)
 const ROLES: (Role | 'ALL')[] = ['ALL', '집행관', '추적자', '선지자', '신살자', '수호기사'];
 
 const getRoleIcon = (role: string) => {
@@ -41,7 +40,7 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<Role | 'ALL'>('ALL');
 
-  // 모바일 감지
+  // 모바일 감지 로직 (원본 유지)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -49,20 +48,20 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 필터링 로직
+  // 필터링 로직 (원본 유지)
   const filteredHeroes = heroes.filter(h => {
     const matchRole = selectedRole === 'ALL' || h.role === selectedRole;
     const matchSearch = h.name.includes(searchTerm) || h.role.includes(searchTerm);
     return matchRole && matchSearch;
   });
 
-  // 영웅 생성
+  // 영웅 생성 로직 (stats에 range 기본값 포함하여 무결성 유지)
   const handleCreateHero = () => {
     const id = `h_custom_${Date.now()}`;
     const newHero: Hero = {
       id,
       name: "이름 없는 영웅",
-      role: selectedRole === 'ALL' ? "집행관" : selectedRole, // 현재 탭의 역할로 생성
+      role: selectedRole === 'ALL' ? "집행관" : selectedRole,
       tier: "3",
       stats: { hp: 2000, ad: 60, ap: 0, armor: 30, crit: 0, range: 150, speed: 340, regen: 10, pen: 0, baseAtk: 60 },
       skills: {
@@ -95,7 +94,7 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
   return (
     <div style={{ background: '#161b22', padding: isMobile ? '15px' : '20px', borderRadius: '12px', border: '1px solid #30363d', minHeight:'80vh', display:'flex', flexDirection:'column' }}>
 
-      {/* 1. 헤더 & 검색창 */}
+      {/* 1. 헤더 & 검색창 (원본 디자인 유지) */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '15px', gap: '10px' }}>
         <h3 style={{ margin:0, color:'#fff', display:'flex', alignItems:'center', gap:'8px' }}>
           🛡️ 영웅 데이터 관리
@@ -124,7 +123,7 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
         </div>
       </div>
 
-      {/* 2. 포지션 필터 (가로 스크롤) */}
+      {/* 2. 포지션 필터 (원본 가로 스크롤 디자인 유지) */}
       <div style={{ 
         display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '10px',
         scrollbarWidth: 'none', msOverflowStyle: 'none' 
@@ -146,7 +145,7 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
         ))}
       </div>
 
-      {/* 3. 영웅 리스트 (모바일 최적화) */}
+      {/* 3. 영웅 리스트 (원본 디자인 유지 + 사거리 정보만 추가) */}
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', 
@@ -158,12 +157,10 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
             display: 'flex', alignItems: 'center', gap: '15px', position: 'relative'
           }}>
 
-            {/* 좌측: 사진 (GameIcon 적용) */}
             <div onClick={() => onEditHero(hero)} style={{ cursor:'pointer' }}>
                 <GameIcon id={hero.id} size={50} fallback={<span style={{fontSize:'24px'}}>🧙‍♂️</span>} shape="rounded" border={`2px solid ${getRoleColor(hero.role)}44`}/>
             </div>
 
-            {/* 중앙: 정보 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }} onClick={() => onEditHero(hero)}>
               <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
                 <span style={{ fontSize: '10px', color: getRoleColor(hero.role), border: `1px solid ${getRoleColor(hero.role)}44`, padding:'1px 4px', borderRadius:'3px', fontWeight:'bold' }}>
@@ -174,12 +171,17 @@ export const HeroManagement: React.FC<Props> = ({ onEditHero }) => {
                 )}
               </div>
               <strong style={{ fontSize: '15px', color: '#fff', cursor:'pointer' }}>{hero.name}</strong>
-              <div style={{ fontSize: '11px', color: '#666' }}>
-                승률 {hero.recentWinRate.toFixed(1)}% • {hero.tier}티어
+
+              {/* [추가] 사거리 정보 및 기존 승률 정보 무결하게 표시 */}
+              <div style={{ fontSize: '11px', color: '#666', display:'flex', gap:'8px', marginTop:'2px' }}>
+                <span style={{ display:'flex', alignItems:'center', gap:'3px' }}>
+                    <Target size={10} color="#58a6ff"/> {hero.stats.range}
+                </span>
+                <span style={{ color:'#444' }}>|</span>
+                <span>승률 {hero.recentWinRate.toFixed(1)}%</span>
               </div>
             </div>
 
-            {/* 우측: 버튼 */}
             <div style={{ display:'flex', flexDirection: isMobile ? 'row' : 'column', gap:'6px' }}>
               <button onClick={() => onEditHero(hero)} style={{ background: '#21262d', border: '1px solid #30363d', color: '#fff', padding: '8px', borderRadius: '6px', cursor: 'pointer' }}>
                 <Edit3 size={16} />

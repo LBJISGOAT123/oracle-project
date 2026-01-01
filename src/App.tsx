@@ -30,7 +30,7 @@ import { Hero, UserProfile, LiveMatch } from './types';
 const TABS = [
   { id: 'hero-stats', label: '영웅 통계', icon: Swords },
   { id: 'hero-manage', label: '영웅 관리', icon: Settings },
-  { id: 'shop', label: '아이템 상점', icon: ShoppingBag }, // [신규]
+  { id: 'shop', label: '아이템 상점', icon: ShoppingBag }, 
   { id: 'user', label: '유저 현황', icon: User },
   { id: 'gods', label: '신(Gods)', icon: Crown },
   { id: 'battlefield', label: '전장', icon: Map },
@@ -70,7 +70,7 @@ function App() {
       <div style={{ minHeight: '600px' }}>
         {activeTab === 'hero-stats' && <HeroStatsView />}
         {activeTab === 'hero-manage' && <HeroManagement onEditHero={setSelectedHero} />}
-        {activeTab === 'shop' && <ShopTab />} {/* [신규] 상점 탭 연결 */}
+        {activeTab === 'shop' && <ShopTab />} 
         {activeTab === 'user' && <UserDashboard onUserClick={setSelectedUser} />}
         {activeTab === 'gods' && <BattleDashboard />}
         {activeTab === 'battlefield' && <BattlefieldTab />}
@@ -89,10 +89,31 @@ function App() {
       )}
 
       {showSystemMenu && <SystemMenu onClose={() => setShowSystemMenu(false)} />}
+
       {selectedHero && <PatchModal hero={selectedHero} onClose={() => setSelectedHero(null)} />}
+
       {selectedUser && <UserDetailModal user={selectedUser} onClose={() => setSelectedUser(null)} />}
-      {showGameList && <LiveGameListModal onClose={() => setShowGameList(false)} onSpectate={(m) => { setShowGameList(false); setSpectatingMatch(m); }} />}
-      {spectatingMatch && <SpectateModal match={spectatingMatch} onClose={() => setSpectatingMatch(null)} />}
+
+      {showGameList && (
+        <LiveGameListModal 
+          onClose={() => setShowGameList(false)} 
+          onSpectate={(m) => { 
+            setShowGameList(false); // 관전 시작하면 리스트 닫기
+            setSpectatingMatch(m); 
+          }} 
+        />
+      )}
+
+      {spectatingMatch && (
+        <SpectateModal 
+          match={spectatingMatch} 
+          onClose={() => { 
+            setSpectatingMatch(null); 
+            setShowGameList(true); // [핵심] 관전 종료 시 리스트 다시 열기
+          }} 
+        />
+      )}
+
       {selectedPost && <PostDetailModal post={selectedPost} onClose={closePost} onUserClick={(user) => setSelectedUser(user)} />}
     </div>
   );

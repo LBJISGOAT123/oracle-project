@@ -1,7 +1,6 @@
 // ==========================================
 // FILE PATH: /src/components/hero/PatchModal.tsx
 // ==========================================
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Hero, HeroStats, HeroSkillSet } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
@@ -58,7 +57,7 @@ export const PatchModal: React.FC<Props> = ({ hero, onClose }) => {
 
         <header style={{ padding: '15px 20px', display: 'flex', justifyContent: 'space-between', background: '#161b22', borderRadius: '24px 24px 0 0', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-
+            {/* 원본 이미지 업로드 UI 보존 */}
             <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
               <GameIcon id={hero.id} size={50} fallback={<span style={{fontSize:'24px'}}>🧙‍♂️</span>} />
               <div style={{ position:'absolute', bottom:-5, right:-5, background:'#58a6ff', borderRadius:'50%', padding:'4px', border:'2px solid #161b22' }}>
@@ -87,6 +86,7 @@ export const PatchModal: React.FC<Props> = ({ hero, onClose }) => {
           <button onClick={onClose} style={{ background: '#333', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer' }}><X size={18}/></button>
         </header>
 
+        {/* 탭 디자인 보존 */}
         <nav style={{ display: 'flex', background: '#161b22', borderBottom: '1px solid #30363d' }}>
           <button onClick={()=>setActiveTab('skill')} style={{ flex: 1, padding: '12px', background: 'none', border: 'none', color: activeTab === 'skill' ? '#58a6ff' : '#8b949e', borderBottom: activeTab === 'skill' ? '2px solid #58a6ff' : 'none', fontWeight: 'bold', cursor: 'pointer' }}>스킬</button>
           <button onClick={()=>setActiveTab('combat')} style={{ flex: 1, padding: '12px', background: 'none', border: 'none', color: activeTab === 'combat' ? '#58a6ff' : '#8b949e', borderBottom: activeTab === 'combat' ? '2px solid #58a6ff' : 'none', fontWeight: 'bold', cursor: 'pointer' }}>전투</button>
@@ -95,7 +95,8 @@ export const PatchModal: React.FC<Props> = ({ hero, onClose }) => {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           {activeTab === 'skill' && <SkillEditor skills={skills} onChange={(k, f, v) => setSkills({...skills, [k]: {...(skills as any)[k], [f]: v}})} />}
-          {activeTab === 'combat' && <StatEditor fields={['baseAtk', 'ad', 'ap', 'crit']} stats={stats} onChange={(f, v) => setStats({...stats, [f]: v})} />}
+          {/* [수정] combat 탭에 'range' 필드만 무결하게 추가 */}
+          {activeTab === 'combat' && <StatEditor fields={['baseAtk', 'ad', 'ap', 'crit', 'range']} stats={stats} onChange={(f, v) => setStats({...stats, [f]: v})} />}
           {activeTab === 'basic' && <StatEditor fields={['hp', 'armor', 'speed']} stats={stats} onChange={(f, v) => setStats({...stats, [f]: v})} />}
         </div>
 
