@@ -3,14 +3,9 @@
 // ==========================================
 import { HeroSkillSet } from '../../types';
 
-// [데이터 무결성 보장]
-// 1. 모든 액티브 스킬(Q,W,E,R)에 유의미한 val, cd, range, duration 부여.
-// 2. DASH, STUN, SHIELD 등은 duration 필수 (최소 0.2초 이상).
-// 3. GLOBAL 등 특수 스킬도 val(위력) 0 금지.
-
 export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   // =================================================================
-  // 1. 집행관 (EXECUTOR) - 근접 브루저
+  // 1. 집행관 (EXECUTOR)
   // =================================================================
   h_ragna: { 
     passive: { name: "피의 갈증", mechanic: "HEAL", val: 30, adRatio: 0.2, apRatio: 0, cd: 5, range: 0, duration: 0, isPassive: true }, 
@@ -23,7 +18,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     passive: { name: "검의 극의", mechanic: "NONE", val: 20, adRatio: 0.3, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "발도술", mechanic: "NONE", val: 140, adRatio: 1.4, apRatio: 0, cd: 5, range: 400, duration: 0 }, 
     w: { name: "반격", mechanic: "SHIELD", val: 120, adRatio: 0.6, apRatio: 0, cd: 14, range: 0, duration: 2.0 }, 
-    e: { name: "일섬", mechanic: "DASH", val: 80, adRatio: 0.7, apRatio: 0, cd: 8, range: 500, duration: 0.2 }, 
+    e: { name: "일섬", mechanic: "DASH", val: 80, adRatio: 0.7, apRatio: 0, cd: 8, range: 500, duration: 0.1 }, 
     r: { name: "오의: 무신참", mechanic: "STUN", val: 350, adRatio: 1.8, apRatio: 0, cd: 110, range: 550, duration: 1.5 } 
   },
   h_baldur: { 
@@ -37,7 +32,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     passive: { name: "전장의 춤", mechanic: "NONE", val: 15, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "투창", mechanic: "NONE", val: 110, adRatio: 1.1, apRatio: 0, cd: 6, range: 600, duration: 0 }, 
     w: { name: "깃털 방패", mechanic: "SHIELD", val: 100, adRatio: 0.4, apRatio: 0, cd: 14, range: 0, duration: 3.0 }, 
-    e: { name: "비상", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 15, range: 550, duration: 0.3 }, 
+    e: { name: "비상", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 15, range: 550, duration: 0.2 }, 
     r: { name: "발키리의 강림", mechanic: "GLOBAL", val: 350, adRatio: 1.6, apRatio: 0, cd: 130, range: 1000, duration: 0 } 
   },
   h_gorgon: { 
@@ -48,7 +43,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     r: { name: "메두사의 저주", mechanic: "STUN", val: 250, adRatio: 1.2, apRatio: 0.8, cd: 110, range: 700, duration: 2.0 } 
   },
   h_arthur: { 
-    passive: { name: "왕의 권위", mechanic: "NONE", val: 10, adRatio: 0.2, apRatio: 0, cd: 0, range: 500, duration: 0, isPassive: true }, 
+    passive: { name: "왕의 권위", mechanic: "NONE", val: 15, adRatio: 0.2, apRatio: 0, cd: 0, range: 500, duration: 0, isPassive: true }, 
     q: { name: "엑스칼리버", mechanic: "NONE", val: 150, adRatio: 1.3, apRatio: 0, cd: 8, range: 350, duration: 0 }, 
     w: { name: "원탁의 가호", mechanic: "SHIELD", val: 150, adRatio: 0.5, apRatio: 0, cd: 16, range: 0, duration: 4.0 }, 
     e: { name: "왕의 진격", mechanic: "DASH", val: 100, adRatio: 0.6, apRatio: 0, cd: 12, range: 500, duration: 0.3 }, 
@@ -64,7 +59,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   h_musashi: { 
     passive: { name: "이도류", mechanic: "NONE", val: 20, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "십자 베기", mechanic: "NONE", val: 140, adRatio: 1.3, apRatio: 0, cd: 5, range: 300, duration: 0 }, 
-    w: { name: "반사 신경", mechanic: "DASH", val: 60, adRatio: 0.4, apRatio: 0, cd: 10, range: 400, duration: 0.2 }, 
+    w: { name: "반사 신경", mechanic: "DASH", val: 60, adRatio: 0.4, apRatio: 0, cd: 10, range: 400, duration: 0.1 }, 
     e: { name: "무념무상", mechanic: "HEAL", val: 60, adRatio: 0.2, apRatio: 0, cd: 14, range: 0, duration: 0 }, 
     r: { name: "오륜의 서", mechanic: "EXECUTE", val: 450, adRatio: 2.2, apRatio: 0, cd: 110, range: 350, duration: 0 } 
   },
@@ -84,10 +79,10 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 2. 선지자 (PROPHET) - 원거리 마법사
+  // 2. 선지자 (PROPHET)
   // =================================================================
   h_merlin: { 
-    passive: { name: "마력 과부하", mechanic: "NONE", val: 20, adRatio: 0, apRatio: 0.2, cd: 0, range: 0, duration: 0, isPassive: true }, 
+    passive: { name: "마력 과부하", mechanic: "NONE", val: 30, adRatio: 0, apRatio: 0.2, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "화염구", mechanic: "NONE", val: 140, adRatio: 0, apRatio: 1.2, cd: 5, range: 900, duration: 0 }, 
     w: { name: "마법 보호막", mechanic: "SHIELD", val: 120, adRatio: 0, apRatio: 0.8, cd: 15, range: 0, duration: 3.0 }, 
     e: { name: "점멸", mechanic: "DASH", val: 0, adRatio: 0, apRatio: 0, cd: 12, range: 500, duration: 0.1 }, 
@@ -158,7 +153,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
   },
 
   // =================================================================
-  // 3. 추적자 (TRACKER) - 근접 암살자/정글러
+  // 3. 추적자 (TRACKER)
   // =================================================================
   h_kage: { 
     passive: { name: "암습", mechanic: "NONE", val: 30, adRatio: 0.5, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
@@ -168,7 +163,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     r: { name: "암살 비기", mechanic: "EXECUTE", val: 450, adRatio: 2.5, apRatio: 0, cd: 100, range: 450, duration: 0 } 
   },
   h_fenrir: { 
-    passive: { name: "야수성", mechanic: "NONE", val: 20, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
+    passive: { name: "야수성", mechanic: "NONE", val: 25, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "물어뜯기", mechanic: "NONE", val: 120, adRatio: 1.3, apRatio: 0, cd: 6, range: 250, duration: 0 }, 
     w: { name: "포효", mechanic: "STUN", val: 0, adRatio: 0, apRatio: 0, cd: 15, range: 400, duration: 1.5 }, 
     e: { name: "도약", mechanic: "DASH", val: 80, adRatio: 0.8, apRatio: 0, cd: 10, range: 600, duration: 0.2 }, 
@@ -224,7 +219,7 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     r: { name: "여왕의 사냥", mechanic: "NONE", val: 350, adRatio: 1.8, apRatio: 0, cd: 110, range: 600, duration: 0 } 
   },
   h_goemon: { 
-    passive: { name: "의적", mechanic: "NONE", val: 20, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
+    passive: { name: "의적", mechanic: "NONE", val: 15, adRatio: 0.2, apRatio: 0, cd: 0, range: 0, duration: 0, isPassive: true }, 
     q: { name: "참격", mechanic: "NONE", val: 120, adRatio: 1.2, apRatio: 0, cd: 5, range: 300, duration: 0 }, 
     w: { name: "동전 던지기", mechanic: "NONE", val: 90, adRatio: 0.9, apRatio: 0, cd: 8, range: 600, duration: 0 }, 
     e: { name: "지붕 타기", mechanic: "DASH", val: 100, adRatio: 0.7, apRatio: 0, cd: 14, range: 550, duration: 0.3 }, 
@@ -320,4 +315,9 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     q: { name: "난사", mechanic: "NONE", val: 120, adRatio: 1.2, apRatio: 0, cd: 5, range: 600, duration: 0 }, 
     w: { name: "수류탄", mechanic: "NONE", val: 100, adRatio: 0.8, apRatio: 0, cd: 12, range: 700, duration: 0 }, 
     e: { name: "슬라이딩", mechanic: "DASH", val: 60, adRatio: 0.4, apRatio: 0, cd: 10, range: 450, duration: 0.3 }, 
-    r
+    r: { name: "불꽃놀이", mechanic: "GLOBAL", val: 450, adRatio: 1.8, apRatio: 0, cd: 130, range: 2500, duration: 0 } 
+  },
+  h_nova: { 
+    passive: { name: "에너지 충전", mechanic: "NONE", val: 15, adRatio: 0.3, apRatio: 0.2, cd: 0, range: 600, duration: 0, isPassive: true }, 
+    q: { name: "플라즈마 탄", mechanic: "NONE", val: 140, adRatio: 1.3, apRatio: 0, cd: 7, range: 900, duration: 0 }, 
+    w: { name: "중력탄", mechanic
