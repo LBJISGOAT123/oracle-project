@@ -4,8 +4,8 @@
 
 import React from 'react';
 import { Hero } from '../../types';
-// 👇 [수정] 여기에 'Skull'이 빠져 있어서 에러가 났던 겁니다. 추가했습니다.
-import { Target, Swords, Coins, Skull } from 'lucide-react'; 
+// 👇 [수정] Skull을 아예 뺐습니다. (에러 원천 차단)
+import { Target, Swords, Coins } from 'lucide-react'; 
 import { GameIcon } from '../common/GameIcon';
 
 interface Props {
@@ -24,6 +24,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
             background: '#161b22', border: '1px solid #30363d', borderRadius: '12px', padding: '12px 15px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
           }}>
+            {/* 왼쪽: 순위, 아이콘, 이름 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
               <div style={{ fontSize: '16px', fontWeight: '900', fontStyle: 'italic', color: hero.rank <= 3 ? '#e74c3c' : '#666', width: '20px', textAlign: 'center' }}>{hero.rank}</div>
 
@@ -41,6 +42,8 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false }) => 
                 </div>
               </div>
             </div>
+
+            {/* 오른쪽: 스탯 정보 (Skull 아이콘 제거됨) */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', minWidth: '80px' }}>
               <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#fff' }}>{hero.avgKda}</div>
               <div style={{ fontSize: '10px', color: '#e89d40', fontWeight:'bold' }}>{hero.avgGold} G</div>
