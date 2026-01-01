@@ -1,10 +1,7 @@
-// ==========================================
-// FILE PATH: /src/store/slices/heroSlice.ts
-// ==========================================
-
 import { StateCreator } from 'zustand';
-import { GameStore, HeroSlice, Hero } from '../types';
+import { GameStore, HeroSlice } from '../types';
 import { INITIAL_HEROES } from '../../data/heroes';
+import { Hero } from '../../types';
 
 export const createHeroSlice: StateCreator<GameStore, [], [], HeroSlice> = (set) => ({
   heroes: INITIAL_HEROES,
@@ -14,15 +11,15 @@ export const createHeroSlice: StateCreator<GameStore, [], [], HeroSlice> = (set)
   })),
 
   deleteHero: (heroId: string) => set((state) => ({
-    heroes: state.heroes.filter(h => h.id !== heroId)
+    heroes: state.heroes.filter((h) => h.id !== heroId)
   })),
 
   updateHero: (id: string, updates: Partial<Hero>) => set((state) => ({ 
-    heroes: state.heroes.map(h => h.id === id ? { ...h, ...updates } : h) 
+    heroes: state.heroes.map((h) => h.id === id ? { ...h, ...updates } : h) 
   })),
 
   resetHeroStats: () => set((state) => {
-    const resetHeroes = state.heroes.map(hero => ({
+    const resetHeroes = state.heroes.map((hero) => ({
       ...hero,
       record: { 
         totalMatches: 0, totalWins: 0, totalPicks: 0, totalBans: 0, 
