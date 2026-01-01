@@ -1,6 +1,6 @@
+// src/store/types.ts
 import { Hero, Item, Post, GameState, RoleSettings, AIConfig, TierConfig, BattleSettings, BattlefieldSettings } from '../types';
 
-// Hero Slice 인터페이스
 export interface HeroSlice {
   heroes: Hero[];
   addHero: (hero: Hero) => void;
@@ -9,7 +9,6 @@ export interface HeroSlice {
   resetHeroStats: () => void;
 }
 
-// Community Slice 인터페이스
 export interface CommunitySlice {
   communityPosts: Post[];
   selectedPost: Post | null;
@@ -18,7 +17,6 @@ export interface CommunitySlice {
   setCommunityPosts: (posts: Post[]) => void;
 }
 
-// Item Slice 인터페이스
 export interface ItemSlice {
   shopItems: Item[];
   addItem: (item: Item) => void;
@@ -26,7 +24,6 @@ export interface ItemSlice {
   updateItem: (id: string, updates: Partial<Item>) => void;
 }
 
-// Game Slice 인터페이스
 export interface GameSlice {
   gameState: GameState;
   setSpeed: (speed: number) => void;
@@ -44,5 +41,4 @@ export interface GameSlice {
   hardReset: () => void;
 }
 
-// [중요] 모든 Slice를 합친 전체 스토어 타입
 export interface GameStore extends HeroSlice, CommunitySlice, ItemSlice, GameSlice {}
