@@ -1,6 +1,14 @@
-// src/store/types.ts
-import { Hero, Item, Post, GameState, RoleSettings, AIConfig, TierConfig, BattleSettings, BattlefieldSettings } from '../types';
+// ==========================================
+// FILE PATH: /src/store/types.ts
+// ==========================================
 
+import { 
+  Hero, Post, GameState, Item, 
+  BattleSettings, BattlefieldSettings, TierConfig, AIConfig, RoleSettings, 
+  ItemStatData 
+} from '../types';
+
+// 1. Hero Slice Interface
 export interface HeroSlice {
   heroes: Hero[];
   addHero: (hero: Hero) => void;
@@ -9,6 +17,7 @@ export interface HeroSlice {
   resetHeroStats: () => void;
 }
 
+// 2. Community Slice Interface
 export interface CommunitySlice {
   communityPosts: Post[];
   selectedPost: Post | null;
@@ -17,6 +26,29 @@ export interface CommunitySlice {
   setCommunityPosts: (posts: Post[]) => void;
 }
 
+// 3. Game Slice Interface
+export interface GameSlice {
+  gameState: GameState;
+  
+  setSpeed: (speed: number) => void;
+  togglePlay: () => void;
+  setGameState: (updates: Partial<GameState>) => void;
+
+  updateBattleSettings: (settings: Partial<BattleSettings['izman'] | BattleSettings['dante']>) => void;
+  updateFieldSettings: (settings: Partial<BattlefieldSettings>) => void;
+  updateTierConfig: (config: TierConfig) => void;
+  updateAIConfig: (config: Partial<AIConfig>) => void;
+  updateRoleSettings: (settings: Partial<RoleSettings>) => void;
+
+  setCustomImage: (id: string, imageData: string) => void;
+  removeCustomImage: (id: string) => void;
+  loadModData: (modData: any) => void;
+  
+  tick: (deltaSeconds: number) => void;
+  hardReset: () => void;
+}
+
+// 4. Item Slice Interface
 export interface ItemSlice {
   shopItems: Item[];
   addItem: (item: Item) => void;
@@ -24,22 +56,5 @@ export interface ItemSlice {
   updateItem: (id: string, updates: Partial<Item>) => void;
 }
 
-export interface GameSlice {
-  gameState: GameState;
-  setSpeed: (speed: number) => void;
-  togglePlay: () => void;
-  setGameState: (updates: Partial<GameState>) => void;
-  updateBattleSettings: (settings: Partial<BattleSettings>) => void;
-  updateFieldSettings: (settings: Partial<BattlefieldSettings>) => void;
-  updateTierConfig: (config: TierConfig) => void;
-  updateAIConfig: (config: Partial<AIConfig>) => void;
-  updateRoleSettings: (settings: Partial<RoleSettings>) => void;
-  setCustomImage: (id: string, data: string) => void;
-  removeCustomImage: (id: string) => void;
-  loadModData: (data: any) => void;
-  tick: (delta: number) => void;
-  hardReset: () => void;
-}
-
-// [핵심] 이 줄이 반드시 있어야 에러가 안 납니다!
-export interface GameStore extends HeroSlice, CommunitySlice, ItemSlice, GameSlice {}
+// 5. Combined Store Interface (이 부분이 없어서 에러가 발생했습니다)
+export type GameStore = HeroSlice & CommunitySlice & GameSlice & ItemSlice;
