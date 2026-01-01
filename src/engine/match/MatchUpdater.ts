@@ -25,18 +25,22 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   const watcherBuffType = safeField.watcher?.buffType || 'COMBAT';
   const watcherBuffAmount = (safeField.watcher?.buffAmount || 20) / 100;
 
-  // matches.map을 통해 항상 새로운 객체 배열을 반환합니다. (불변성 유지)
   return matches.map(m => {
-    // 딥카피를 통해 원본 데이터 오염 방지 및 리액트 리렌더링 유도
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    // 1. 드래프트 로직 (기존 유지)
+    // 1. 드래프트 로직 (밴픽)
     if (match.status === 'DRAFTING') {
         if (!match.draft) return match;
+        
+        // 시간 흐름 처리
         match.draft.timer -= delta;
+
+        // [타이머 종료 시 턴 진행]
         if (match.draft.timer <= 0) {
             const turn = match.draft.turnIndex;
             let currentUserIq = 50; 
+            
+            // 유저 뇌지컬 가져오기
             if (turn >= 10) { 
                 const pickIdx = turn - 10;
                 const isBlue = pickIdx % 2 === 0;
@@ -45,13 +49,24 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                 const user = userPool.find(u => u.name === player.name);
                 if (user) currentUserIq = user.brain;
             }
-            processDraftTurn(match, heroes, currentUserIq);
-            match.draft.turnIndex++;
-            match.draft.timer = 1.0; 
 
+            // 밴/픽 수행
+            processDraftTurn(match, heroes, currentUserIq);
+            
+            // 다음 턴으로 넘김
+            match.draft.turnIndex++;
+
+            // [최종 수정] 실제 롤(LoL)과 동일하게 턴당 30초 부여
+            // 총 20턴 x 30초 = 600초(10분) 소요. 
+            // 지루하면 게임 내 '10m(10분)' 배속 버튼을 누르면 순식간에 끝납니다.
+            match.draft.timer = 30.0; 
+
+            // 20턴(밴 10 + 픽 10)이 끝나면 게임 시작
             if (match.draft.turnIndex >= 20) {
                 match.status = 'PLAYING';
                 match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
+                
+                // 체력 초기화
                 [...match.blueTeam, ...match.redTeam].forEach(p => {
                     const h = heroes.find(x => x.id === p.heroId);
                     if (h) { p.maxHp = h.stats.hp; p.currentHp = h.stats.hp; }
@@ -61,7 +76,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         return match;
     }
 
-    // 2. 인게임 로직
+    // 2. 인게임 로직 (게임이 끝났으면 업데이트 중단)
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
 
     match.currentDuration += delta;
@@ -70,7 +85,6 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     while (remainingTime > 0) {
         const dt = Math.min(remainingTime, 1.0);
 
-        // 모든 페이즈 실행 (기존 기능 100% 유지)
         processGrowthPhase(match, battleSettings, heroes, dt);
         if (Math.random() < (0.05 * dt)) { 
             [...match.blueTeam, ...match.redTeam].forEach(p => attemptBuyItem(p, shopItems, heroes));
