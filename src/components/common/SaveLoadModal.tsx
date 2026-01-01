@@ -1,64 +1,61 @@
-// ==========================================
-// FILE PATH: /src/components/common/SaveLoadModal.tsx
-// ==========================================
-
 import React, { useState, useEffect } from 'react';
 import { X, Save, Upload, Download } from 'lucide-react';
-import { saveToSlot, loadFromSlot, getSlotInfo, exportSaveFile, importSaveFile } from '../../engine/SaveLoadSystem';
+import { useGameStore } from '../../store/useGameStore'; // heroes 가져오기 위해 추가
+import { saveToSlot, loadFromSlot, getSlotsMeta, exportSaveFile, importSaveFile, SaveMeta } from '../../engine/SaveLoadSystem';
 
 interface Props { onClose: () => void; }
 
 export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
-  const [slots, setSlots] = useState<any>({});
+  const { heroes } = useGameStore(); // heroes 데이터 가져오기
+  const [slots, setSlots] = useState<Record<string, SaveMeta>>({});
   const [refreshKey, setRefreshKey] = useState(0); 
 
   useEffect(() => {
-    setSlots({
-      auto: getSlotInfo('auto'),
-      slot1: getSlotInfo('slot1'),
-      slot2: getSlotInfo('slot2'),
-      slot3: getSlotInfo('slot3'),
-    });
+    // getSlotInfo 대신 getSlotsMeta 사용
+    setSlots(getSlotsMeta());
   }, [refreshKey]);
 
   const handleSave = (slotId: string) => {
     if (saveToSlot(slotId)) {
       alert("저장되었습니다!");
-      setSlots(prev => ({ ...prev, [slotId]: getSlotInfo(slotId) })); // 즉시 UI 갱신
+      setSlots(getSlotsMeta()); // 저장 후 갱신
     }
   };
 
-  // [수정된 부분] 새로고침 로직 삭제
   const handleLoad = (slotId: string) => {
     if (!slots[slotId]) return;
 
     if (confirm("정말 이 데이터를 불러오시겠습니까?\n현재 진행 상황은 덮어씌워집니다.")) {
-      const success = loadFromSlot(slotId);
+      // 인자 2개 전달 (slotId, heroes)
+      const success = loadFromSlot(slotId, heroes);
       if (success) {
         alert("로드 완료!");
-        onClose(); // [중요] 새로고침 없이 모달만 닫습니다.
+        onClose();
+        window.location.reload();
       } else {
         alert("로드 실패! 데이터가 손상되었을 수 있습니다.");
       }
     }
   };
 
-  // [수정된 부분] 파일 불러오기 핸들러도 동일하게 수정
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (confirm("파일 데이터를 불러오시겠습니까?")) {
-      const success = await importSaveFile(file);
+      // 인자 2개 전달 (file, heroes)
+      const success = await importSaveFile(file, heroes);
       if (success) {
         alert("파일 로드 완료!");
-        onClose(); // [중요] 여기도 새로고침 제거
+        onClose();
+        window.location.reload();
       }
     }
-    e.target.value = ''; // 입력 초기화
+    e.target.value = ''; 
   };
 
-  const SlotItem = ({ id, name, color }: any) => {
+  // 타입 명시 (any -> specific types)
+  const SlotItem = ({ id, name, color }: { id: string, name: string, color: string }) => {
     const info = slots[id];
     return (
       <div style={{ background: '#21262d', padding: '15px', borderRadius: '8px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${color}` }}>
@@ -66,7 +63,7 @@ export const SaveLoadModal: React.FC<Props> = ({ onClose }) => {
           <div style={{ fontWeight: 'bold', color: color, marginBottom: '4px' }}>{name}</div>
           {info ? (
             <div style={{ fontSize: '13px', color: '#ccc' }}>
-              <div>{info.info}</div>
+              <div>Day {info.day} • 유저 {info.totalUsers}명</div>
               <div style={{ fontSize: '11px', color: '#777' }}>{new Date(info.timestamp).toLocaleString()}</div>
             </div>
           ) : (
