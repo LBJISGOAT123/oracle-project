@@ -312,3 +312,56 @@ export const HERO_SKILL_DATA: Record<string, HeroSkillSet> = {
     q: { name: "플라즈마", mechanic: "NONE", val: 160, adRatio: 1.3, apRatio: 0, cd: 7, range: 900, duration: 0 },
     w: { name: "중력탄", mechanic: "STUN", val: 80, adRatio: 0.5, apRatio: 0, cd: 15, range: 800, duration: 1.2 },
     e: { name: "추진기", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 18, range: 5
+
+       r: { name: "궤도 폭격", mechanic: "GLOBAL", val: 550, adRatio: 2.2, apRatio: 0, cd: 150, range: 20000, duration: 0 }
+  },
+  h_flint: { 
+    passive: { name: "화약 냄새", mechanic: "NONE", val: 30, adRatio: 0.3, apRatio: 0, cd: 0, range: 500, duration: 0, isPassive: true },
+    q: { name: "산탄 사격", mechanic: "NONE", val: 170, adRatio: 1.5, apRatio: 0, cd: 8, range: 400, duration: 0 },
+    w: { name: "연막탄", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 20, range: 0, duration: 3.5 },
+    e: { name: "와이어", mechanic: "DASH", val: 650, adRatio: 0.6, apRatio: 0, cd: 16, range: 650, duration: 0.5 },
+    r: { name: "데스페라도", mechanic: "NONE", val: 450, adRatio: 2.5, apRatio: 0, cd: 120, range: 800, duration: 0 }
+  },
+  h_sylvia: { 
+    passive: { name: "바람의 속삭임", mechanic: "NONE", val: 20, adRatio: 0.4, apRatio: 0, cd: 0, range: 650, duration: 0, isPassive: true },
+    q: { name: "바람 화살", mechanic: "NONE", val: 140, adRatio: 1.3, apRatio: 0, cd: 6, range: 1000, duration: 0 },
+    w: { name: "밀쳐내기", mechanic: "NONE", val: 100, adRatio: 0.6, apRatio: 0, cd: 12, range: 500, duration: 0 },
+    e: { name: "바람타기", mechanic: "DASH", val: 500, adRatio: 0.4, apRatio: 0, cd: 14, range: 500, duration: 0.3 },
+    r: { name: "폭풍우", mechanic: "NONE", val: 400, adRatio: 1.8, apRatio: 0, cd: 110, range: 900, duration: 0 }
+  },
+  h_gambit: { 
+    passive: { name: "도박사의 행운", mechanic: "NONE", val: 20, adRatio: 0.5, apRatio: 0, cd: 0, range: 550, duration: 0, isPassive: true },
+    q: { name: "카드 투척", mechanic: "NONE", val: 150, adRatio: 1.2, apRatio: 0, cd: 5, range: 750, duration: 0 },
+    w: { name: "속임수", mechanic: "STEALTH", val: 0, adRatio: 0, apRatio: 0, cd: 18, range: 0, duration: 3.0 },
+    e: { name: "판돈 올리기", mechanic: "NONE", val: 0, adRatio: 0.4, apRatio: 0, cd: 10, range: 0, duration: 0 },
+    r: { name: "로열 스트레이트", mechanic: "EXECUTE", val: 550, adRatio: 2.4, apRatio: 0, cd: 130, range: 1200, duration: 0 }
+  },
+  h_robin: { 
+    passive: { name: "의적", mechanic: "NONE", val: 20, adRatio: 0.2, apRatio: 0, cd: 0, range: 600, duration: 0, isPassive: true },
+    q: { name: "정확한 사격", mechanic: "NONE", val: 150, adRatio: 1.3, apRatio: 0, cd: 6, range: 1100, duration: 0 },
+    w: { name: "화살비", mechanic: "NONE", val: 120, adRatio: 1.0, apRatio: 0, cd: 10, range: 800, duration: 0 },
+    e: { name: "숲으로 도주", mechanic: "DASH", val: 500, adRatio: 0.4, apRatio: 0, cd: 14, range: 500, duration: 0.3 },
+    r: { name: "로빈의 화살", mechanic: "EXECUTE", val: 450, adRatio: 2.1, apRatio: 0, cd: 110, range: 1300, duration: 0 }
+  },
+  h_artemis: { 
+    passive: { name: "달의 사냥꾼", mechanic: "NONE", val: 15, adRatio: 0.4, apRatio: 0, cd: 0, range: 650, duration: 0, isPassive: true },
+    q: { name: "월광 화살", mechanic: "NONE", val: 140, adRatio: 1.2, apRatio: 0.3, cd: 5, range: 900, duration: 0 },
+    w: { name: "덫 설치", mechanic: "STUN", val: 70, adRatio: 0.5, apRatio: 0, cd: 12, range: 700, duration: 1.5 },
+    e: { name: "달빛 질주", mechanic: "DASH", val: 550, adRatio: 0.5, apRatio: 0, cd: 15, range: 550, duration: 0.4 },
+    r: { name: "사냥 개시", mechanic: "NONE", val: 420, adRatio: 1.9, apRatio: 0, cd: 120, range: 1000, duration: 0 }
+  },
+  h_apollo: { 
+    passive: { name: "태양의 전차", mechanic: "NONE", val: 30, adRatio: 0.3, apRatio: 0.2, cd: 0, range: 550, duration: 0, isPassive: true },
+    q: { name: "음파 공격", mechanic: "NONE", val: 130, adRatio: 1.1, apRatio: 0.4, cd: 6, range: 850, duration: 0 },
+    w: { name: "눈부신 빛", mechanic: "STUN", val: 60, adRatio: 0, apRatio: 0.6, cd: 14, range: 600, duration: 1.0 },
+    e: { name: "전차 돌진", mechanic: "DASH", val: 550, adRatio: 0.6, apRatio: 0, cd: 16, range: 550, duration: 0.3 },
+    r: { name: "태양 폭발", mechanic: "GLOBAL", val: 500, adRatio: 2.0, apRatio: 0.5, cd: 140, range: 1500, duration: 0 }
+  },
+  h_kaiser: { 
+    passive: { name: "황제의 위엄", mechanic: "NONE", val: 35, adRatio: 0.5, apRatio: 0, cd: 0, range: 700, duration: 0, isPassive: true },
+    q: { name: "관통탄", mechanic: "NONE", val: 160, adRatio: 1.4, apRatio: 0, cd: 8, range: 1000, duration: 0 },
+    w: { name: "지휘", mechanic: "NONE", val: 0, adRatio: 0, apRatio: 0, cd: 15, range: 0, duration: 0 },
+    e: { name: "전술 이동", mechanic: "DASH", val: 500, adRatio: 0.4, apRatio: 0, cd: 12, range: 500, duration: 0.3 },
+    r: { name: "궤멸 사격", mechanic: "EXECUTE", val: 600, adRatio: 2.5, apRatio: 0, cd: 150, range: 3000, duration: 0 } 
+  }
+};
