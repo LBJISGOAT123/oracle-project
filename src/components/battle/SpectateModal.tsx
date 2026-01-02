@@ -241,7 +241,6 @@ const DraftView: React.FC<any> = ({ match, onClose, heroes, setSpeed, gameState,
   while(blueBans.length < 5) blueBans.push('');
   while(redBans.length < 5) redBans.push('');
 
-  // 픽 순서 (0:Blue, 1:Red)
   const PICK_ORDER = [
     {team: 0, slot: 0}, {team: 1, slot: 0}, {team: 1, slot: 1}, {team: 0, slot: 1}, 
     {team: 0, slot: 2}, {team: 1, slot: 2}, {team: 1, slot: 3}, {team: 0, slot: 3}, 
@@ -265,13 +264,13 @@ const DraftView: React.FC<any> = ({ match, onClose, heroes, setSpeed, gameState,
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', background:'#0d1117', overflowY:'auto' }}>
       
-      {/* 상단바 (배속 버튼 수정) */}
+      {/* 상단바 (배속 버튼 수정: 1x, 5x, 10x, 15x) */}
       <div style={{ width:'100%', padding:'15px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', gap:'6px', width:'200px' }}>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="10x" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="20max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="15x" speed={15} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
         <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={28}/></button>
       </div>
@@ -406,7 +405,7 @@ const GameView: React.FC<any> = ({ match, onClose, heroes, gameState, setSpeed, 
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="10x" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="20max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="15x" speed={15} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
       </div>
 
