@@ -5,16 +5,16 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { 
-  Coins, Plus, Trash2, Shield, Sword, Zap, Briefcase, 
+  Coins, Plus, Shield, Sword, Zap, Briefcase, 
   BarChart2, ShoppingCart, Search, ChevronRight, Footprints, Gem 
-} from 'lucide-react';
+} from 'lucide-react'; // Trash 제거됨
 import { ItemStatsView } from './ItemStatsView'; 
 import { ItemPatchModal } from './ItemPatchModal';
 import { Item } from '../../types';
 import { GameIcon } from '../common/GameIcon';
 
 export const ShopTab: React.FC = () => {
-  const { shopItems, deleteItem } = useGameStore();
+  const { shopItems } = useGameStore();
   const [mode, setMode] = useState<'MANAGE' | 'STATS'>('MANAGE');
   const [filter, setFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,10 +40,6 @@ export const ShopTab: React.FC = () => {
 
   const handleCreate = () => { setEditingItem(null); setIsModalOpen(true); };
   const handleEdit = (item: Item) => { setEditingItem(item); setIsModalOpen(true); };
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if(confirm('삭제하시겠습니까?')) deleteItem(id);
-  };
 
   const getTypeIcon = (type: string) => {
     switch(type) {
@@ -51,7 +47,6 @@ export const ShopTab: React.FC = () => {
       case 'ARMOR': return <Shield size={14} color="#2ecc71"/>;
       case 'ACCESSORY': return <Briefcase size={14} color="#f1c40f"/>;
       case 'POWER': return <Zap size={14} color="#9b59b6"/>;
-      // [신규 아이콘 매핑]
       case 'BOOTS': return <Footprints size={14} color="#00b894"/>;
       case 'ARTIFACT': return <Gem size={14} color="#a29bfe"/>;
       default: return <Coins size={14} color="#888"/>;
@@ -80,8 +75,6 @@ export const ShopTab: React.FC = () => {
       <StatBadge label="DEF" val={item.armor} color="#3498db" />
       <StatBadge label="CRI" val={item.crit} color="#e67e22" />
       <StatBadge label="SPD" val={item.speed} color="#f1c40f" />
-
-      {/* [신규 스탯 표시] */}
       <StatBadge label="MP" val={item.mp} color="#3498db" />
       <StatBadge label="PEN" val={item.pen} color="#da3633" />
       <StatBadge label="REG" val={item.regen} color="#27ae60" />
@@ -93,7 +86,8 @@ export const ShopTab: React.FC = () => {
     <div 
       onClick={() => handleEdit(item)}
       style={{ 
-        display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr 80px', 
+        // [수정] 그리드 컬럼에서 삭제 버튼 공간 제거 (80px -> 제거)
+        display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr', 
         padding: '10px 15px', borderBottom: '1px solid #2c2c2f', 
         alignItems: 'center', background: '#161b22', cursor: 'pointer',
         transition: 'background 0.1s'
@@ -115,11 +109,8 @@ export const ShopTab: React.FC = () => {
         {item.cost.toLocaleString()} G
       </div>
       <div><ItemStatsRenderer item={item} /></div>
-      <div style={{ textAlign: 'right' }}>
-        <button onClick={(e) => handleDelete(e, item.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: '5px' }}>
-          <Trash2 size={14} className="hover-red" />
-        </button>
-      </div>
+      
+      {/* [수정] 삭제 버튼 제거됨 */}
     </div>
   );
 
@@ -135,6 +126,7 @@ export const ShopTab: React.FC = () => {
         <ItemStatsRenderer item={item} />
       </div>
       <ChevronRight size={16} color="#444" />
+      {/* [수정] 삭제 버튼 제거됨 */}
     </div>
   );
 
@@ -157,7 +149,6 @@ export const ShopTab: React.FC = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#1c1c1f', border: '1px solid #30363d', borderRadius: '12px', overflow: 'hidden' }}>
           <div style={{ padding: '10px 15px', borderBottom: '1px solid #30363d', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', background: '#252528' }}>
             <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-              {/* [신규 탭 추가] */}
               {['ALL', 'WEAPON', 'ARMOR', 'ARTIFACT', 'BOOTS', 'ACCESSORY', 'POWER'].map(f => (
                 <button key={f} onClick={() => setFilter(f)} style={{ background: filter === f ? '#30363d' : 'transparent', color: filter === f ? '#fff' : '#888', border: '1px solid', borderColor: filter === f ? '#555' : 'transparent', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', whiteSpace: 'nowrap' }}>
                   {f === 'ALL' ? '전체' : f}
@@ -173,12 +164,13 @@ export const ShopTab: React.FC = () => {
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {!isMobile && (
-              <div style={{ display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr 80px', padding: '10px 15px', borderBottom: '1px solid #30363d', background: '#161b22', fontSize: '11px', fontWeight: 'bold', color: '#8b949e', position: 'sticky', top: 0 }}>
+              // [수정] 헤더 그리드 조정 (80px 삭제)
+              <div style={{ display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr', padding: '10px 15px', borderBottom: '1px solid #30363d', background: '#161b22', fontSize: '11px', fontWeight: 'bold', color: '#8b949e', position: 'sticky', top: 0 }}>
                 <div style={{ textAlign:'center' }}>No.</div>
                 <div>아이템 정보</div>
                 <div>가격</div>
                 <div>능력치 (Stats)</div>
-                <div style={{ textAlign: 'right' }}>관리</div>
+                {/* 관리(삭제) 탭 헤더 제거됨 */}
               </div>
             )}
             {filteredItems.length > 0 ? (
@@ -191,7 +183,6 @@ export const ShopTab: React.FC = () => {
       )}
 
       {isModalOpen && <ItemPatchModal item={editingItem} onClose={() => setIsModalOpen(false)} />}
-      <style>{` .hover-red:hover { color: #ff4d4d !important; } `}</style>
     </div>
   );
 };
