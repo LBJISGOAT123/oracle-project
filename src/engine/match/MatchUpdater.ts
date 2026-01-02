@@ -27,17 +27,17 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   return matches.map(m => {
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    // 1. 드래프트 로직 (리얼한 시간차 적용)
+    // 1. 드래프트 로직
     if (match.status === 'DRAFTING') {
         if (!match.draft) return match;
         
-        // 밴픽 중에는 배속 영향 없이 리얼타임(최대 0.05초)으로만 시간 흐름
-        const draftDelta = Math.min(delta, 0.05);
-        match.draft.timer -= draftDelta;
+        // [수정됨] 인위적인 속도 제한(Math.min)을 제거했습니다.
+        // 이제 delta는 사용자가 설정한 배속(1x, 3x, 5x...)이 그대로 적용된 시간입니다.
+        // 따라서 배속을 올리면 밴픽 타이머도 빨리 줄어듭니다.
+        match.draft.timer -= delta;
 
-        // [핵심 변경] 타이머가 0이 아니라, '결정 시간(decisionTime)'보다 작아지면 픽 수행
-        // 예: timer가 30에서 시작해서 줄어들다가, decisionTime(12)보다 작아지면 픽!
-        const triggerTime = match.draft.decisionTime || 0;
+        // '결정 시간(decisionTime)'보다 작아지면 픽 수행
+        const triggerTime = match.draft.decisionTime !== undefined ? match.draft.decisionTime : 0;
 
         if (match.draft.timer <= triggerTime) {
             const turn = match.draft.turnIndex;
@@ -49,12 +49,12 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
             match.draft.turnIndex++;
 
             // [다음 턴 준비]
-            // UI 타이머는 다시 30초로 리셋
-            match.draft.timer = 30; 
-            // 다음 결정은 2초 ~ 28초 사이에 랜덤하게 발생 (빨리할수도, 늦게할수도 있음)
-            match.draft.decisionTime = 2 + Math.random() * 26; 
+            // UI 타이머: 40초 (고민하는 척)
+            match.draft.timer = 40; 
+            // 실제 결정 시점: 5~35초 사이 랜덤
+            match.draft.decisionTime = 5 + Math.random() * 30; 
 
-            // 종료 체크
+            // 20턴(밴10 + 픽10) 종료 시 게임 시작
             if (match.draft.turnIndex >= 20) {
                 match.status = 'PLAYING';
                 match.logs = [...match.logs, { time: 0, message: "밴픽 종료. 전장에 오신 것을 환영합니다.", type: 'START' }];
