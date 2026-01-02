@@ -39,7 +39,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
 // ----------------------------------------------------------------------
 
 const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
-  <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px' }}>{label}</button>
+  <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px', minWidth:'30px' }}>{label}</button>
 );
 
 const BanCard = ({ heroId, heroes, isActive }: any) => {
@@ -48,24 +48,24 @@ const BanCard = ({ heroId, heroes, isActive }: any) => {
 
   return (
     <div style={{ 
-      display:'flex', flexDirection:'column', alignItems:'center', width:'40px', margin:'2px',
+      display:'flex', flexDirection:'column', alignItems:'center', width:'36px', margin:'2px',
       opacity: (isActive || heroId) ? 1 : 0.3,
       transform: isActive ? 'scale(1.1)' : 'scale(1)',
       transition: 'all 0.3s'
     }}>
       <div style={{ 
-        position: 'relative', width: '36px', height: '36px', borderRadius: '4px', overflow: 'hidden', 
+        position: 'relative', width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', 
         background:'#111', 
         border: isActive ? '2px solid #ff4d4d' : '1px solid #444',
         boxShadow: isActive ? '0 0 10px rgba(255, 77, 77, 0.5)' : 'none'
       }}>
         {heroId ? (
           <>
-            <div style={{ filter: 'grayscale(100%) brightness(0.4)' }}><GameIcon id={heroId} size={36} shape="square" /></div>
+            <div style={{ filter: 'grayscale(100%) brightness(0.4)' }}><GameIcon id={heroId} size={32} shape="square" /></div>
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: '2px solid #da3633', boxSizing:'border-box', opacity:0.8 }}></div>
             <div style={{ position: 'absolute', top: '50%', left: '50%', width: '140%', height: '4px', backgroundColor: '#da3633', transform: 'translate(-50%, -50%) rotate(45deg)', boxShadow:'0 0 5px #000' }} />
           </>
-        ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={18} color={isActive ? "#ff4d4d" : "#333"}/></div>}
+        ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={16} color={isActive ? "#ff4d4d" : "#333"}/></div>}
       </div>
       {heroId && <span style={{ color:'#da3633', fontSize:'8px', fontWeight:'bold', marginTop:'2px', whiteSpace:'nowrap', letterSpacing:'-0.5px' }}>{name}</span>}
     </div>
@@ -134,24 +134,21 @@ const NeutralObjBar = ({ obj, label, color, icon }: any) => {
 // [3] 화면 컴포넌트
 // ----------------------------------------------------------------------
 
-// [A] 드래프트 화면 (수정됨: 배속 버튼 추가, 픽하는 사람 강조 표시)
+// [A] 드래프트 화면
 const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[], setSpeed: any, gameState: any }> = ({ match, onClose, heroes, setSpeed, gameState }) => {
   const { blueTeam, redTeam, draft, bans } = match;
   const timer = Math.ceil(draft?.timer || 0);
   const turn = draft?.turnIndex || 0;
   
-  // 현재 밴픽 단계 계산
   const isBanPhase = turn < 10;
   const phaseLabel = isBanPhase ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...';
 
-  // 밴 목록 5개씩 채우기
   const blueBans = [...(bans?.blue || [])];
   const redBans = [...(bans?.red || [])];
   while(blueBans.length < 5) blueBans.push('');
   while(redBans.length < 5) redBans.push('');
 
-  // 픽 순서 매핑 (스네이크 방식 대응)
-  // 0:Blue, 1:Red / Slot: 0~4
+  // 픽 순서 (0:Blue, 1:Red)
   const PICK_ORDER = [
     {team: 0, slot: 0}, {team: 1, slot: 0}, {team: 1, slot: 1}, {team: 0, slot: 1}, 
     {team: 0, slot: 2}, {team: 1, slot: 2}, {team: 1, slot: 3}, {team: 0, slot: 3}, 
@@ -167,23 +164,22 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
     activeSlot = order.slot;
   }
 
-  // 밴 턴 계산 (0~9) - 짝수는 블루, 홀수는 레드
-  // [수정] 밴할 사람(플레이어)도 강조하기 위해 밴 순서와 플레이어 매핑
-  // Ban 0 -> Blue Player 0, Ban 1 -> Red Player 0 ...
+  // 밴 턴 계산 (0~9)
   const activeBanSlot = isBanPhase ? Math.floor(turn / 2) : -1;
-  const activeBanTeam = isBanPhase ? (turn % 2) : -1; // 0: Blue, 1: Red
+  const activeBanTeam = isBanPhase ? (turn % 2) : -1;
 
   const getHeroName = (id: string) => heroes.find(h => h.id === id)?.name || '';
 
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', background:'#0d1117', overflowY:'auto' }}>
       
-      {/* 상단바 (닫기 버튼 및 배속 조절) */}
+      {/* 상단바 (배속 버튼 추가) */}
       <div style={{ width:'100%', padding:'15px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        {/* [추가] 배속 버튼 (밴픽때는 적용 안되지만, 게임 직전 속도 세팅용) */}
-        <div style={{ display:'flex', gap:'6px', width:'150px' }}>
+        <div style={{ display:'flex', gap:'6px' }}>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="10m" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="3x" speed={3} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="Max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
         <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={28}/></button>
       </div>
@@ -194,15 +190,13 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
         <div style={{ fontSize:'36px', fontWeight:'900', color: timer <= 10 ? '#e74c3c' : '#fff' }}>{timer}</div>
       </div>
 
-      {/* 밴 현황 */}
+      {/* 밴 현황 (모바일 줄바꿈 적용) */}
       <div style={{ display:'flex', justifyContent:'space-between', width:'90%', maxWidth:'600px', marginBottom:'30px' }}>
-        {/* 블루팀 밴 슬롯 */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-start' }}>
           {blueBans.map((id, i) => (
             <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} />
           ))}
         </div>
-        {/* 레드팀 밴 슬롯 */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-end' }}>
           {redBans.map((id, i) => (
             <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} />
@@ -210,36 +204,35 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
         </div>
       </div>
 
-      {/* 픽 현황 (이름 표시 & 활성 강조 - 밴 할때도 밴하는 사람 강조) */}
+      {/* 픽 현황 (이름 표시 & 주체 강조) */}
       <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px', paddingBottom:'40px' }}>
         
         {/* 블루팀 픽 */}
         <div style={{ width:'48%' }}>
           <h3 style={{ color:'#58a6ff', borderBottom:'2px solid #58a6ff', paddingBottom:'5px', fontSize:'16px' }}>BLUE TEAM</h3>
           {blueTeam.map((p:any, i:number) => {
-            // [수정] 픽할 차례거나(Pick Phase), 밴할 차례(Ban Phase)인 경우 강조
             const isPicking = (!isBanPhase && activeTeam === 0 && activeSlot === i);
             const isBanning = (isBanPhase && activeBanTeam === 0 && activeBanSlot === i);
             const isActive = isPicking || isBanning;
             
-            // 밴 중이면 빨간색, 픽 중이면 파란색
             const glowColor = isBanning ? 'rgba(255, 77, 77, 0.4)' : 'rgba(88, 166, 255, 0.4)';
-            const borderColor = isBanning ? '#ff4d4d' : '#58a6ff';
+            const borderColor = isActive ? (isBanning ? '#ff4d4d' : '#58a6ff') : 'transparent';
 
             return (
               <div key={i} style={{ 
                 marginBottom:'8px', display:'flex', alignItems:'center', gap:'10px', 
                 background: isActive ? `linear-gradient(90deg, ${glowColor}, transparent)` : '#161b22', 
-                border: isActive ? `1px solid ${borderColor}` : '1px solid transparent',
+                border: `1px solid ${borderColor}`,
                 padding:'8px', borderRadius:'6px',
-                transition: 'all 0.3s'
+                transition: 'all 0.3s',
+                boxShadow: isActive ? `0 0 15px ${glowColor}` : 'none',
+                transform: isActive ? 'scale(1.02)' : 'scale(1)'
               }}>
                 <GameIcon id={p.heroId} size={40} shape="square" />
                 <div style={{ color: p.heroId ? '#fff' : '#555' }}>
                   <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
                   <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
                   {p.heroId && <div style={{ fontSize:'11px', color:'#58a6ff', fontWeight:'bold', marginTop:'2px' }}>{getHeroName(p.heroId)}</div>}
-                  {/* 현재 행동 표시 */}
                   {isBanning && <div style={{ fontSize:'9px', color:'#ff4d4d', fontWeight:'bold' }}>금지 중...</div>}
                   {isPicking && <div style={{ fontSize:'9px', color:'#fff', fontWeight:'bold' }}>선택 중...</div>}
                 </div>
@@ -257,22 +250,23 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
             const isActive = isPicking || isBanning;
 
             const glowColor = isBanning ? 'rgba(255, 77, 77, 0.4)' : 'rgba(232, 64, 87, 0.4)';
-            const borderColor = isBanning ? '#ff4d4d' : '#e84057';
+            const borderColor = isActive ? (isBanning ? '#ff4d4d' : '#e84057') : 'transparent';
 
             return (
               <div key={i} style={{ 
                 marginBottom:'8px', display:'flex', flexDirection:'row-reverse', alignItems:'center', gap:'10px', 
                 background: isActive ? `linear-gradient(90deg, transparent, ${glowColor})` : '#161b22', 
-                border: isActive ? `1px solid ${borderColor}` : '1px solid transparent',
+                border: `1px solid ${borderColor}`,
                 padding:'8px', borderRadius:'6px',
-                transition: 'all 0.3s'
+                transition: 'all 0.3s',
+                boxShadow: isActive ? `0 0 15px ${glowColor}` : 'none',
+                transform: isActive ? 'scale(1.02)' : 'scale(1)'
               }}>
                 <GameIcon id={p.heroId} size={40} shape="square" />
                 <div style={{ textAlign:'right', color: p.heroId ? '#fff' : '#555' }}>
                   <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
                   <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
                   {p.heroId && <div style={{ fontSize:'11px', color:'#e84057', fontWeight:'bold', marginTop:'2px' }}>{getHeroName(p.heroId)}</div>}
-                  {/* 현재 행동 표시 */}
                   {isBanning && <div style={{ fontSize:'9px', color:'#ff4d4d', fontWeight:'bold' }}>금지 중...</div>}
                   {isPicking && <div style={{ fontSize:'9px', color:'#fff', fontWeight:'bold' }}>선택 중...</div>}
                 </div>
@@ -324,8 +318,9 @@ const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[]
               {gameState.isPlaying ? <Pause size={14}/> : <Play size={14}/>}
            </button>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="1m" speed={60} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="10m" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="3x" speed={3} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="Max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
       </div>
 
@@ -399,20 +394,14 @@ export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) =
     );
   }
 
+  // [핵심] key 속성 추가로 Error #310 완전 방지
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000 }}>
       <ErrorBoundary>
         {match.status === 'DRAFTING' ? (
-          <DraftView match={match} onClose={onClose} heroes={heroes} setSpeed={setSpeed} gameState={gameState} />
+          <DraftView key="draft" match={match} onClose={onClose} heroes={heroes} setSpeed={setSpeed} gameState={gameState} />
         ) : (
-          <GameView 
-            match={match} 
-            onClose={onClose} 
-            heroes={heroes} 
-            gameState={gameState} 
-            setSpeed={setSpeed} 
-            togglePlay={togglePlay} 
-          />
+          <GameView key="game" match={match} onClose={onClose} heroes={heroes} gameState={gameState} setSpeed={setSpeed} togglePlay={togglePlay} />
         )}
       </ErrorBoundary>
     </div>
