@@ -17,34 +17,67 @@ const getTierWeight = (tier: string) => {
   return 0; 
 };
 
-const getRandomTopicContext = (heroes: Hero[], battleSettings: BattleSettings) => {
+// [핵심] 다양한 주제를 생성하는 함수
+const getRichTopicContext = (heroes: Hero[], userPool: any[], battleSettings: BattleSettings) => {
   const rand = Math.random();
-  if (rand < 0.3) {
-    const h1 = pick(heroes);
-    const h2 = pick(heroes.filter(h => h.id !== h1.id));
-    const gap = h1.recentWinRate - h2.recentWinRate;
-    const winner = gap > 0 ? h1.name : h2.name;
-    return `주제: '${h1.name}' vs '${h2.name}' 성능 비교. (팩트: ${winner} 승률이 더 높음)`;
-  }
-  else if (rand < 0.6) {
+
+  // 1. 유저 저격 (5%) - 징징/잡담 카테고리
+  if (rand < 0.05 && userPool.length > 0) {
+    // 성적이 안 좋은 유저나, 랭킹이 높은 유저를 타겟팅
+    const targetUser = pick(userPool); 
+    const isHighRank = targetUser.score > 3000;
+    const isFeeder = targetUser.winRate < 45;
+    
+    let tone = "비난";
+    if (isHighRank) tone = "질투/의심 (대리, 버스 의심)";
+    else if (isFeeder) tone = "극딜 (트롤 박제)";
+    
+    return {
+      type: 'SNIPING',
+      text: `주제: 유저 '${targetUser.name}' 저격. (티어: ${targetUser.getTierName()}). ${tone}하는 내용.`
+    };
+  } 
+  
+  // 2. 밸런스 토론 - 특정 영웅/스킬 (25%) - 분석/공략/징징
+  else if (rand < 0.40) {
     const h = pick(heroes);
     const skillKeys = ['q', 'w', 'e', 'r'] as const;
-    const skillKey = pick(skillKeys);
-    const skill = h.skills[skillKey];
-    return `주제: ${h.name}의 ${skillKey.toUpperCase()}스킬('${skill.name}')에 대한 평가. (수치: 기본데미지 ${skill.val}, 쿨타임 ${skill.cd}초)`;
+    const skill = h.skills[pick(skillKeys)];
+    return {
+      type: 'BALANCE',
+      text: `주제: ${h.name}의 ${skill.name} 스킬이 너무 ${h.recentWinRate > 52 ? '사기(OP)' : '쓰레기'}라는 내용. (승률: ${h.recentWinRate.toFixed(1)}%)`
+    };
   }
-  else if (rand < 0.8) {
-    const object = Math.random() < 0.5 ? '거신병' : '주시자';
-    const stat = object === '거신병' ? battleSettings.izman.towerAtk : battleSettings.izman.servantGold;
-    return `주제: 게임 내 ${object} 밸런스 토론. (관련 수치: ${stat})`;
+
+  // 3. 아이템/시스템 불만 (15%) - 징징/분석
+  else if (rand < 0.55) {
+    const topic = Math.random() < 0.5 ? '매칭 시스템' : '특정 아이템';
+    return {
+      type: 'SYSTEM',
+      text: `주제: 이 게임의 ${topic}이 엉망이라는 불만 토로. (억까, 팀운, 버그 등)`
+    };
   }
+
+  // 4. 개드립/뻘글 (20%) - 유머/잡담
+  else if (rand < 0.75) {
+    const keywords = ["라면", "여자친구", "군대", "시험", "치킨", "제로투"];
+    return {
+      type: 'NONSENSE',
+      text: `주제: 게임과 관련 없는 ${pick(keywords)} 이야기 또는 웃긴 드립. 짧고 굵게.`
+    };
+  }
+
+  // 5. 일반적인 게임 이야기 (25%)
   else {
-    return `주제: 방금 겪은 랭크 게임 썰`;
+    return {
+      type: 'NORMAL',
+      text: `주제: 방금 한 게임 썰, 티어 올리는 팁, 혹은 그냥 심심하다는 잡담.`
+    };
   }
 };
 
 // ------------------------------------------------------------------
-// 1. 게시글 생성 (오직 외부 AI & 실제 유저만 사용)
+// 1. 게시글 생성
 // ------------------------------------------------------------------
 export async function generatePostAsync(
   uniqueId: number, 
@@ -57,58 +90,48 @@ export async function generatePostAsync(
   fieldSettings: BattlefieldSettings
 ): Promise<Post | null> {
 
-  // [핵심] AI가 꺼져있거나 유저가 없으면 생성 안함
   if (!aiConfig.apiKey || !aiConfig.enabled) return null;
   if (!userPool || userPool.length === 0) return null;
 
-  // 실제 유저 풀에서 작성자 선정
-  let author: any;
-  let selectedCategory = "잡담";
-
-  if (Math.random() < 0.2) { 
-    // 랭커가 글 쓸 확률
-    const rankers = [...userPool].sort((a,b) => b.score - a.score).slice(0, 50);
-    author = pick(rankers);
-    const rand = Math.random();
-    if (rand < 0.4) selectedCategory = '공략';
-    else if (rand < 0.7) selectedCategory = '분석';
-    else selectedCategory = '자랑';
-  } else {
-    // 일반 유저
-    author = pick(userPool);
-    const rand = Math.random();
-    if (rand < 0.3) selectedCategory = '징징';
-    else if (rand < 0.5) selectedCategory = '유머';
-    else if (rand < 0.6) selectedCategory = '질문';
-    else selectedCategory = '잡담'; 
-  }
-
-  // AI에게 보낼 컨텍스트 생성
-  const mostChamp = heroes.find(h => h.id === author.mainHeroId)?.name || '알수없음';
+  // 작성자 선정
+  const author = pick(userPool);
   const currentTierName = author.getTierName(tierConfig);
-  const dynamicTopic = getRandomTopicContext(heroes, battleSettings);
+  const mostChamp = heroes.find(h => h.id === author.mainHeroId)?.name || '랜덤';
 
-  const userContext = `[작성자 정보] 닉네임: ${author.name}, 티어: ${currentTierName}, 주챔피언: ${mostChamp}`;
-  const fullContext = `${userContext}\n${dynamicTopic}\n카테고리: ${selectedCategory}\n(JSON만 출력)`;
+  // [수정] 풍부한 주제 가져오기
+  const contextObj = getRichTopicContext(heroes, userPool, battleSettings);
+  
+  // 주제에 맞는 카테고리 자동 매핑
+  let category = "잡담";
+  if (contextObj.type === 'SNIPING') category = Math.random() < 0.5 ? '징징' : '잡담';
+  else if (contextObj.type === 'BALANCE') category = Math.random() < 0.4 ? '분석' : '징징';
+  else if (contextObj.type === 'NONSENSE') category = Math.random() < 0.6 ? '유머' : '잡담';
+  else if (contextObj.type === 'SYSTEM') category = '징징';
+  
+  // 가끔 카테고리 꼬기 (뻘글인데 공략탭에 쓰는 등 리얼함 추가)
+  if (Math.random() < 0.1) category = pick(['공략', '질문', '자랑']);
 
-  // 외부 AI 호출
-  const aiResult = await fetchAIPost(aiConfig, fullContext, selectedCategory);
+  const userContext = `[작성자 정보] 닉네임: ${author.name}, 티어: ${currentTierName}, 주챔: ${mostChamp}`;
+  const fullContext = `${userContext}\n${contextObj.text}\n(카테고리: ${category} 게시판)`;
+
+  // AI 호출
+  const aiResult = await fetchAIPost(aiConfig, fullContext, category);
 
   if (!aiResult) return null;
 
   let basePotential = 10;
   const tierWeight = getTierWeight(currentTierName);
 
-  if (selectedCategory === '공략') basePotential += tierWeight * 1.5;
-  if (selectedCategory === '질문') basePotential += 30; // 질문글은 댓글 유도용
+  if (category === '공략' || category === '분석') basePotential += 20;
+  if (category === '유머' || contextObj.type === 'SNIPING') basePotential += 30; // 저격/유머글은 어그로가 잘 끌림
 
   return {
     id: uniqueId,
     author: author.name, 
-    authorTier: currentTierName, // [중요] 실제 유저의 현재 티어 사용
+    authorTier: currentTierName,
     title: aiResult.title,
     content: aiResult.content,
-    category: selectedCategory as any,
+    category: category as any,
     views: 1, upvotes: 0, downvotes: 0, 
     comments: 0, commentList: [],
     createdAt: currentTick,
@@ -118,26 +141,20 @@ export async function generatePostAsync(
   };
 }
 
-// ------------------------------------------------------------------
-// 2. 댓글 생성 (오직 외부 AI & 실제 유저만 사용)
-// ------------------------------------------------------------------
+// ... (나머지 generateCommentAsync, updatePostInteractions 함수는 기존 유지)
+// generateCommentAsync와 updatePostInteractions 코드가 없다면 
+// 이전 답변의 코드를 참고하여 아래에 붙여넣으세요.
 export async function generateCommentAsync(
   post: Post, 
   aiConfig: AIConfig, 
   userPool: any[], 
   tierConfig: TierConfig
 ): Promise<Comment | null> {
-
-  // [핵심] AI 미설정시 생성 거부
   if (!aiConfig.apiKey || !aiConfig.enabled) return null;
   if (!userPool || userPool.length === 0) return null;
 
-  // [핵심] 댓글 작성자도 '실제 유저' 중에서 뽑음 (가짜 유저 생성 X)
   const commenter = pick(userPool);
-
-  // [중요] 해당 유저 객체의 메소드를 통해 실시간 티어를 가져옴
   const commenterTier = commenter.getTierName(tierConfig);
-
   const commentText = await fetchAIComment(aiConfig, post.title, post.content);
 
   if (!commentText) return null;
@@ -145,15 +162,12 @@ export async function generateCommentAsync(
   return {
     id: Date.now() + Math.random(), 
     author: commenter.name, 
-    authorTier: commenterTier, // 실제 유저의 티어
+    authorTier: commenterTier,
     content: commentText, 
     timestamp: "방금 전"
   };
 }
 
-// ------------------------------------------------------------------
-// 3. 인터랙션 업데이트
-// ------------------------------------------------------------------
 export function updatePostInteractions(posts: Post[], currentTick: number): Post[] {
   return posts.map(post => {
     const age = currentTick - post.createdAt;
@@ -185,9 +199,6 @@ export function updatePostInteractions(posts: Post[], currentTick: number): Post
             if (Math.random() < conversionRate) updatedPost.upvotes += 1;
             if (Math.random() < dislikeRate) updatedPost.downvotes += 1;
         }
-
-        // [중요] 댓글 자동 생성 부분 삭제됨. 
-        // 댓글은 오직 gameSlice의 비동기 AI 호출을 통해서만 생성됩니다.
     }
 
     if (updatedPost.downvotes > updatedPost.upvotes * 3) {

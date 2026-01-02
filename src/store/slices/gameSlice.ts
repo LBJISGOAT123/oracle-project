@@ -6,14 +6,23 @@ import { GameStore, GameSlice } from '../types';
 import { INITIAL_HEROES } from '../../data/heroes';
 import { INITIAL_ITEMS } from '../../data/items';
 import { GameState, Hero } from '../../types';
-import { JUNGLE_CONFIG } from '../../data/jungle';
 import { INITIAL_CUSTOM_IMAGES } from '../../data/initialImages';
 
 import { createLiveMatches, finishMatch, updateLiveMatches } from '../../engine/MatchEngine';
 import { initUserPool, updateUserActivity, getTopRankers, userPool } from '../../engine/UserManager';
 import { analyzeHeroMeta, calculateUserEcosystem } from '../../engine/RankingSystem';
-import { updatePostInteractions, generatePostAsync } from '../../engine/CommunityEngine';
+import { updatePostInteractions, generatePostAsync, generateCommentAsync } from '../../engine/CommunityEngine';
 import { calculateTargetSentiment, smoothSentiment } from '../../engine/SentimentEngine';
+
+// ▼▼▼ [수정 1] 로컬 스토리지에서 저장된 AI 설정 불러오기 ▼▼▼
+const loadSavedAIConfig = () => {
+  try {
+    const saved = localStorage.getItem('GW_AI_CONFIG');
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) { return null; }
+};
+
+const savedAI = loadSavedAIConfig();
 
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
@@ -48,7 +57,6 @@ const initialGameState: GameState = {
     tower: { hp: 10000, armor: 150, rewardGold: 150 },
     colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50, respawnTime: 300 },
     watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, respawnTime: 420 },
-    // [수정] 정글 초기값에 xp, gold 추가
     jungle: { density: 50, yield: 50, attack: 30, defense: 20, threat: 0, xp: 160, gold: 80 }
   },
 
@@ -59,7 +67,10 @@ const initialGameState: GameState = {
     slayer: { structureDamage: 30 },
     guardian: { survivalRate: 20 }
   },
-  aiConfig: { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
+  
+  // 저장된 설정이 있으면 그것을 사용하고, 없으면 기본값 사용
+  aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
+  
   customImages: INITIAL_CUSTOM_IMAGES 
 };
 
@@ -73,7 +84,14 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
   updateBattleSettings: (s) => set((state) => ({ gameState: { ...state.gameState, battleSettings: { ...state.gameState.battleSettings, ...s } } })),
   updateFieldSettings: (s) => set((state) => ({ gameState: { ...state.gameState, fieldSettings: { ...state.gameState.fieldSettings, ...s } } })),
   updateTierConfig: (c) => set((state) => ({ gameState: { ...state.gameState, tierConfig: c } })),
-  updateAIConfig: (c) => set((state) => ({ gameState: { ...state.gameState, aiConfig: { ...state.gameState.aiConfig, ...c } } })),
+  
+  // ▼▼▼ [수정 2] AI 설정 변경 시 로컬 스토리지에도 자동 저장 ▼▼▼
+  updateAIConfig: (c) => set((state) => {
+    const newConfig = { ...state.gameState.aiConfig, ...c };
+    localStorage.setItem('GW_AI_CONFIG', JSON.stringify(newConfig)); // 자동 저장
+    return { gameState: { ...state.gameState, aiConfig: newConfig } };
+  }),
+
   updateRoleSettings: (s) => set((state) => ({ gameState: { ...state.gameState, roleSettings: { ...state.gameState.roleSettings, ...s } } })),
 
   setCustomImage: (id, imageData) => set((state) => ({
@@ -219,12 +237,41 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         newSentiment = smoothSentiment(newSentiment, calculateTargetSentiment(gameState, analyzedHeroes, communityPosts));
         nextPosts = updatePostInteractions(nextPosts, currentTotalMinutes);
 
-        const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled && gameState.aiConfig.apiKey;
+        // AI 활성화 여부
+        const isAIReady = gameState.aiConfig && gameState.aiConfig.enabled;
+
+        // [글 작성] 1분에 10% 확률
         if (isAIReady && Math.random() < 0.1) {
             generatePostAsync(Date.now(), analyzedHeroes, tierConfig, currentTotalMinutes, gameState.aiConfig, userPool, gameState.battleSettings, gameState.fieldSettings)
             .then(aiPost => {
                 if (aiPost) set(prev => ({ communityPosts: [aiPost, ...prev.communityPosts].slice(0, 150) }));
             });
+        }
+
+        // [댓글 작성] 1분에 60% 확률
+        if (isAIReady && nextPosts.length > 0 && Math.random() < 0.6) {
+            const activePosts = nextPosts.filter(p => (currentTotalMinutes - p.createdAt) < 180);
+            
+            if (activePosts.length > 0) {
+                const targetPost = activePosts[Math.floor(Math.random() * activePosts.length)];
+
+                generateCommentAsync(targetPost, gameState.aiConfig, userPool, tierConfig)
+                .then(newComment => {
+                    if (newComment) {
+                        set(state => ({
+                            communityPosts: state.communityPosts.map(p => 
+                                p.id === targetPost.id 
+                                    ? { 
+                                        ...p, 
+                                        comments: p.comments + 1, 
+                                        commentList: [...p.commentList, newComment] 
+                                      }
+                                    : p
+                            )
+                        }));
+                    }
+                });
+            }
         }
     }
 
@@ -247,6 +294,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
   },
 
   hardReset: () => {
+    // 초기화 시에도 AI 설정은 유지 (사용자 편의)
     const currentAI = get().gameState.aiConfig;
     userPool.length = 0; 
     set({

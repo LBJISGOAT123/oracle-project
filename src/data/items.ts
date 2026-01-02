@@ -59,7 +59,7 @@ export const INITIAL_ITEMS: Item[] = [
   // 5. ACCESSORY (장신구) - 하이브리드, 보조 스탯 (5개)
   // =================================================================
   { id: 'i_acc_1', name: '학자의 반지', cost: 400, ad: 0, ap: 18, hp: 70, mp: 50, armor: 0, crit: 0, speed: 0, regen: 0, mpRegen: 4, pen: 0, type: 'ACCESSORY', description: '마법 입문자에게 적합한 반지입니다.' },
-  { id: 'i_acc_2', name: '전사의 검', cost: 450, ad: 10, ap: 0, hp: 90, mp: 0, armor: 0, crit: 0, speed: 0, regen: 3, mpRegen: 0, pen: 0, type: 'ACCESSORY', description: '전투의 기본이 되는 검입니다.' },
+  { id: 'i_acc_2', name: '전사의 목걸이', cost: 450, ad: 10, ap: 0, hp: 90, mp: 0, armor: 0, crit: 0, speed: 0, regen: 3, mpRegen: 0, pen: 0, type: 'ACCESSORY', description: '전투의 기본이 되는 검입니다.' },
   { id: 'i_acc_3', name: '나무 방패', cost: 450, ad: 0, ap: 0, hp: 100, mp: 0, armor: 0, crit: 0, speed: 0, regen: 8, mpRegen: 0, pen: 0, type: 'ACCESSORY', description: '초반 생존력을 높여줍니다.' },
   { id: 'i_acc_4', name: '부서진 모래시계', cost: 750, ad: 0, ap: 0, hp: 0, mp: 0, armor: 0, crit: 0, speed: 0, regen: 0, mpRegen: 0, pen: 0, type: 'ACCESSORY', description: '시간을 멈추는 마법이 깃들어 있습니다.' },
   { id: 'i_acc_5', name: '빛나는 파편', cost: 700, ad: 0, ap: 0, hp: 0, mp: 300, armor: 0, crit: 0, speed: 0, regen: 0, mpRegen: 0, pen: 0, type: 'ACCESSORY', description: '스킬 사용 후 평타를 강화합니다.' },

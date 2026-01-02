@@ -49,18 +49,21 @@ const BanCard = ({ heroId, heroes, isActive, onClick }: any) => {
     <div 
       onClick={() => heroId && onClick && onClick(hero)}
       style={{ 
-        display:'flex', flexDirection:'column', alignItems:'center', width:'36px', margin:'2px',
+        display:'flex', flexDirection:'column', alignItems:'center', width:'42px', margin:'2px',
         opacity: (isActive || heroId) ? 1 : 0.3,
         transform: isActive ? 'scale(1.1)' : 'scale(1)',
         transition: 'all 0.3s',
-        cursor: heroId ? 'pointer' : 'default'
+        cursor: heroId ? 'pointer' : 'default',
+        minHeight: '46px' // 이름 표시 공간 확보
       }}
     >
+      {/* 챔피언 아이콘 박스 */}
       <div style={{ 
         position: 'relative', width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', 
         background:'#111', 
         border: isActive ? '2px solid #ff4d4d' : '1px solid #444',
-        boxShadow: isActive ? '0 0 10px rgba(255, 77, 77, 0.5)' : 'none'
+        boxShadow: isActive ? '0 0 10px rgba(255, 77, 77, 0.5)' : 'none',
+        marginBottom: '2px' // 텍스트와 간격
       }}>
         {heroId ? (
           <>
@@ -70,6 +73,18 @@ const BanCard = ({ heroId, heroes, isActive, onClick }: any) => {
           </>
         ) : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Ban size={16} color={isActive ? "#ff4d4d" : "#333"}/></div>}
       </div>
+
+      {/* [수정] 밴 당한 챔피언 이름 (빨간색) 표시 */}
+      {hero && (
+        <div style={{ 
+          fontSize:'9px', color:'#ff4d4d', fontWeight:'bold', 
+          textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', 
+          textOverflow:'ellipsis', width:'100%', letterSpacing:'-0.5px',
+          textShadow: '0 0 2px black' 
+        }}>
+          {hero.name}
+        </div>
+      )}
     </div>
   );
 };
@@ -397,10 +412,10 @@ const GameView: React.FC<any> = ({ match, onClose, heroes, gameState, setSpeed, 
            <button onClick={togglePlay} style={{ width:'60px', height:'26px', borderRadius:'4px', background: gameState.isPlaying ? '#3f1515' : '#153f1f', color: gameState.isPlaying ? '#ff6b6b' : '#3fb950', border:'1px solid #333', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
               {gameState.isPlaying ? <Pause size={14}/> : <Play size={14}/>}
            </button>
-           <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="10x" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="15x" speed={15} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="1배" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="2배" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="3배" speed={30} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="4배" speed={60} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
       </div>
 
@@ -608,6 +623,71 @@ const DraftView: React.FC<any> = ({ match, onClose, heroes, setSpeed, gameState,
     </div>
   );
 };
+
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// [4] 컨텐츠 분기 처리 (실시간 동기화 개선)
+// ----------------------------------------------------------------------
+
+const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
+  // [핵심 수정] useGameStore의 selector 기능을 사용하여
+  // 매 프레임마다 변경되는 match 데이터와 gameState를 확실하게 구독합니다.
+  const match = useGameStore(state => 
+    state.gameState.liveMatches.find(m => m.id === initialMatch.id)
+  );
+  
+  const gameState = useGameStore(state => state.gameState);
+  const { heroes, setSpeed, togglePlay } = useGameStore();
+  
+  // 내부 상태 관리
+  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<any>(null);
+  const [viewingBanHero, setViewingBanHero] = useState<Hero | null>(null);
+
+  // 매치가 종료되었거나 찾을 수 없는 경우
+  if (!match) {
+    return (
+      <div style={{color:'white', padding:'20px', textAlign:'center', display:'flex', flexDirection:'column', height:'100%', justifyContent:'center', alignItems:'center'}}>
+        <h3 style={{marginBottom:'20px'}}>게임이 종료되었습니다.</h3>
+        <button onClick={onClose} style={{padding:'10px 30px', cursor:'pointer', background:'#333', color:'#fff', border:'1px solid #555', borderRadius:'8px'}}>나가기</button>
+      </div>
+    );
+  }
+
+  // 밴픽 화면 (상태가 DRAFTING이고 턴이 20 미만일 때)
+  if (match.status === 'DRAFTING' && (match.draft?.turnIndex || 0) < 20) {
+    return (
+      <DraftView 
+        match={match}
+        heroes={heroes}
+        onClose={onClose}
+        gameState={gameState}
+        setSpeed={setSpeed}
+        onBanClick={(h: Hero) => setViewingBanHero(h)}
+      />
+    );
+  }
+
+  // 인게임 화면
+  return (
+    <GameView 
+      match={match}
+      heroes={heroes}
+      gameState={gameState}
+      onClose={onClose}
+      setSpeed={setSpeed}
+      togglePlay={togglePlay}
+      selectedHeroId={selectedHeroId}
+      setSelectedHeroId={setSelectedHeroId}
+      viewingItem={viewingItem}
+      setViewingItem={setViewingItem}
+      viewingBanHero={viewingBanHero}
+      setViewingBanHero={setViewingBanHero}
+    />
+  );
+};
+
+
 
 // [5] 최종 모달 (ErrorBoundary 감싸기)
 export const SpectateModal: React.FC<any> = (props) => {
