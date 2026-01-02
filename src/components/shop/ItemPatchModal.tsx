@@ -5,245 +5,232 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Item } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
-import { X, Save, Sword, Shield, Zap, Briefcase, Coins, Camera, Trash2 } from 'lucide-react';
-import { GameIcon } from '../common/GameIcon'; // GameIcon import
+import { X, Save, Trash2, Sliders } from 'lucide-react';
+import { GameIcon } from '../common/GameIcon';
 
 interface Props {
-  item?: Item | null; // null이면 '새 아이템 추가', 있으면 '수정'
+  item?: Item | null;
   onClose: () => void;
 }
 
+// 전체 스탯 설정 정의
+const ALL_STATS: Record<string, { label: string, color: string, max: number, step: number, unit: string }> = {
+  ad: { label: '공격력 (AD)', color: '#e74c3c', max: 300, step: 1, unit: '' },
+  ap: { label: '주문력 (AP)', color: '#9b59b6', max: 500, step: 1, unit: '' },
+  crit: { label: '치명타 (CRI)', color: '#e67e22', max: 100, step: 1, unit: '%' },
+  pen: { label: '관통력 (PEN)', color: '#da3633', max: 100, step: 1, unit: '' },
+
+  hp: { label: '체력 (HP)', color: '#2ecc71', max: 2000, step: 10, unit: '' },
+  armor: { label: '방어력 (DEF)', color: '#3498db', max: 200, step: 1, unit: '' },
+  regen: { label: '체력 재생', color: '#27ae60', max: 100, step: 1, unit: '/s' },
+
+  mp: { label: '마나 (MP)', color: '#3498db', max: 2000, step: 10, unit: '' },
+  mpRegen: { label: '마나 재생', color: '#2980b9', max: 50, step: 1, unit: '/s' },
+  speed: { label: '이동속도', color: '#f1c40f', max: 150, step: 1, unit: '' },
+};
+
+// [핵심] 분류별 허용 스탯 정의
+const TYPE_ALLOWED_STATS: Record<string, string[]> = {
+  WEAPON: ['ad', 'crit', 'pen', 'speed', 'hp'], // 무기 (공격 + 약간의 체력)
+  ARMOR: ['hp', 'armor', 'regen', 'mp'],        // 방어구 (방어 + 재생 + 마나)
+  ARTIFACT: ['ap', 'mp', 'mpRegen', 'pen', 'hp'], // 마도구 (마법)
+  BOOTS: ['speed', 'armor', 'pen'],             // 신발 (이동 + 유틸)
+  ACCESSORY: Object.keys(ALL_STATS),            // 장신구 (전체 허용)
+  POWER: Object.keys(ALL_STATS),                // 권능 (전체 허용)
+};
+
 const DEFAULT_ITEM: Item = {
-  id: '',
-  name: '',
-  cost: 1000,
+  id: '', name: '', cost: 1000,
   ad: 0, ap: 0, hp: 0, armor: 0, crit: 0, speed: 0,
-  type: 'WEAPON',
-  description: ''
+  mp: 0, regen: 0, mpRegen: 0, pen: 0,
+  type: 'WEAPON', description: ''
+};
+
+// 스탯 에디터 컴포넌트
+const StatEditor = ({ 
+  statKey, data, activeStat, setActiveStat, handleChange 
+}: { 
+  statKey: string, 
+  data: Item, 
+  activeStat: string | null, 
+  setActiveStat: (key: string | null) => void, 
+  handleChange: (field: keyof Item, value: number) => void 
+}) => {
+  const config = ALL_STATS[statKey];
+  const value = (data as any)[statKey] || 0;
+  const isActive = activeStat === statKey;
+
+  return (
+    <div 
+      onClick={() => setActiveStat(isActive ? null : statKey)}
+      style={{
+        background: isActive ? '#1f242e' : '#161b22',
+        border: isActive ? `1px solid ${config.color}` : '1px solid #30363d',
+        borderRadius: '10px', padding: '12px',
+        cursor: 'pointer', transition: 'all 0.2s',
+        display: 'flex', flexDirection: 'column', gap: '8px'
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', color: isActive ? config.color : '#888', fontWeight: 'bold' }}>
+          {config.label}
+        </span>
+        <span style={{ fontSize: '16px', fontWeight: '900', color: value > 0 ? config.color : '#555', fontFamily: 'monospace' }}>
+          {value > 0 ? '+' : ''}{value}{config.unit}
+        </span>
+      </div>
+
+      {isActive && (
+        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '10px', animation: 'fadeIn 0.2s' }}>
+          <input 
+            type="range" min={0} max={config.max} step={config.step} value={value}
+            onChange={(e) => handleChange(statKey as keyof Item, Number(e.target.value))}
+            style={{ width: '100%', accentColor: config.color, height: '20px', cursor: 'pointer', marginBottom: '10px', touchAction: 'none' }}
+          />
+          <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
+            <button onClick={() => handleChange(statKey as keyof Item, Math.max(0, value - (config.step*10)))} className="mini-btn">--</button>
+            <button onClick={() => handleChange(statKey as keyof Item, Math.max(0, value - config.step))} className="mini-btn">-</button>
+            <button onClick={() => handleChange(statKey as keyof Item, Math.min(config.max, value + config.step))} className="mini-btn">+</button>
+            <button onClick={() => handleChange(statKey as keyof Item, Math.min(config.max, value + (config.step*10)))} className="mini-btn">++</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
   const { addItem, updateItem, setCustomImage, removeCustomImage } = useGameStore();
   const [data, setData] = useState<Item>(DEFAULT_ITEM);
+  const [activeStat, setActiveStat] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
-    if (item) {
-      setData({ ...item }); // 기존 아이템 데이터 복사
-    } else {
-      // 새 아이템일 경우 ID 자동 생성
-      setData({ ...DEFAULT_ITEM, id: `i_custom_${Date.now()}` });
-    }
+    if (item) setData({ ...DEFAULT_ITEM, ...item });
+    else setData({ ...DEFAULT_ITEM, id: `i_custom_${Date.now()}` });
   }, [item]);
 
   const handleSave = () => {
-    if (!data.name) {
-      alert('아이템 이름을 입력해주세요.');
-      return;
-    }
-
-    if (item) {
-      updateItem(item.id, data);
-      alert('아이템 패치가 완료되었습니다.');
-    } else {
-      addItem(data);
-      alert('신규 아이템이 개발되었습니다.');
-    }
+    if (!data.name) return alert('아이템 이름을 입력해주세요.');
+    item ? updateItem(item.id, data) : addItem(data);
     onClose();
   };
 
   const handleChange = (field: keyof Item, value: any) => {
+    // [중요] 타입을 변경할 때, 해당 타입에서 쓸 수 없는 스탯은 0으로 초기화 (선택 사항)
+    // 여기서는 유저의 편의를 위해 값은 유지하되 UI에서만 숨기는 방식을 사용
     setData(prev => ({ ...prev, [field]: value }));
   };
 
-  // 이미지 업로드 핸들러
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setCustomImage(data.id, reader.result);
-        }
+        if (typeof reader.result === 'string') setCustomImage(data.id, reader.result);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // 타입에 따른 기본 아이콘 반환
-  const getDefaultIcon = () => {
-    const size = 32;
-    const color = '#8b949e';
-    switch(data.type) {
-      case 'WEAPON': return <Sword size={size} color="#e74c3c"/>;
-      case 'ARMOR': return <Shield size={size} color="#2ecc71"/>;
-      case 'ACCESSORY': return <Briefcase size={size} color="#f1c40f"/>;
-      case 'POWER': return <Zap size={size} color="#9b59b6"/>;
-      default: return <Coins size={size} color={color}/>;
-    }
-  };
+  // 현재 선택된 타입에 허용된 스탯 목록 가져오기
+  const visibleStats = TYPE_ALLOWED_STATS[data.type] || Object.keys(ALL_STATS);
 
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999,
-      display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)', padding: '10px'
+      display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)', padding: '15px'
     }}>
       <div style={{ 
-        width: '100%', maxWidth: '500px', background: '#161b22', border: '1px solid #30363d', 
-        borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
-        display: 'flex', flexDirection: 'column', maxHeight: '90vh'
+        width: '100%', maxWidth: '500px', background: '#0d1117', border: '1px solid #30363d', 
+        borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
       }}>
 
-        {/* 헤더 */}
-        <div style={{ padding: '15px 20px', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background:'#21262d' }}>
-          <h3 style={{ margin: 0, color: '#fff', display:'flex', alignItems:'center', gap:'8px', fontSize:'16px' }}>
-            {item ? '🛠️ 아이템 패치' : '✨ 신규 아이템 개발'}
-          </h3>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#8b949e', cursor:'pointer' }}><X size={24}/></button>
+        {/* 1. 상단 정보 */}
+        <div style={{ padding: '20px', borderBottom: '1px solid #30363d', background: '#161b22', display: 'flex', gap: '15px' }}>
+          <div onClick={() => fileInputRef.current?.click()} className="group" style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+            <GameIcon id={data.id} size={72} shape="rounded" border="2px solid #30363d" />
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', opacity: 0, transition: '0.2s', color: '#fff', fontSize: '10px', fontWeight: 'bold' }} className="hover-show">변경</div>
+            <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageUpload} />
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <input 
+              type="text" value={data.name} onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="아이템 이름"
+              style={{ background: 'transparent', border: 'none', borderBottom: '1px solid #30363d', color: '#fff', fontSize: '16px', fontWeight: 'bold', padding: '5px 0', width: '100%', outline: 'none' }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '10px', color: '#888' }}>가격</label>
+                <input 
+                  type="number" value={data.cost} onChange={(e) => handleChange('cost', Number(e.target.value))}
+                  style={{ background: '#0d1117', border: '1px solid #30363d', color: '#f1c40f', borderRadius: '4px', width: '100%', padding: '6px', fontWeight: 'bold', fontSize: '13px' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '10px', color: '#888' }}>분류</label>
+                <select 
+                  value={data.type} onChange={(e) => handleChange('type', e.target.value)}
+                  style={{ background: '#0d1117', border: '1px solid #30363d', color: '#ccc', borderRadius: '4px', width: '100%', padding: '6px', fontSize: '12px' }}
+                >
+                  <option value="WEAPON">⚔️ 무기</option>
+                  <option value="ARMOR">🛡️ 방어구</option>
+                  <option value="ARTIFACT">🔮 마도구</option>
+                  <option value="BOOTS">👞 신발</option>
+                  <option value="ACCESSORY">💍 장신구</option>
+                  <option value="POWER">⚡ 권능</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 바디 (스크롤 가능) */}
-        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-
-          {/* 0. 아이콘 및 기본 정보 (레이아웃 변경) */}
-          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', alignItems: 'flex-start' }}>
-
-            {/* 이미지 업로드 영역 */}
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'5px' }}>
-              <div 
-                style={{ position: 'relative', cursor: 'pointer' }}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <GameIcon 
-                  id={data.id} 
-                  size={80} 
-                  fallback={getDefaultIcon()} 
-                  shape="rounded" 
-                  border="2px solid #30363d"
-                />
-
-                {/* 호버 오버레이 */}
-                <div style={{
-                  position: 'absolute', inset: 0, borderRadius: '12px',
-                  background: 'rgba(0,0,0,0.5)', display: isHovered ? 'flex' : 'none',
-                  alignItems: 'center', justifyContent: 'center', transition: '0.2s'
-                }}>
-                  <Camera size={24} color="#fff" />
-                </div>
-
-                {/* 카메라 뱃지 */}
-                <div style={{ position:'absolute', bottom:-5, right:-5, background:'#58a6ff', borderRadius:'50%', padding:'4px', border:'2px solid #161b22' }}>
-                  <Camera size={12} color="#000" />
-                </div>
-
-                <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageUpload} />
-              </div>
-
-              <button 
-                onClick={() => removeCustomImage(data.id)}
-                style={{ fontSize:'10px', color:'#da3633', background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:'2px' }}
-              >
-                <Trash2 size={10}/> 사진 삭제
-              </button>
-            </div>
-
-            {/* 이름 및 가격 입력 */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="input-group">
-                <label style={{display:'block', fontSize:'11px', color:'#8b949e', marginBottom:'4px'}}>아이템 이름</label>
-                <input 
-                  type="text" value={data.name} 
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  style={{ width: '100%', padding: '10px', background: '#0d1117', border: '1px solid #30363d', color: '#fff', borderRadius: '6px', boxSizing:'border-box', fontWeight:'bold' }}
-                  placeholder="이름 입력..."
-                />
-              </div>
-              <div className="input-group">
-                <label style={{display:'block', fontSize:'11px', color:'#8b949e', marginBottom:'4px'}}>가격 (Gold)</label>
-                <input 
-                  type="number" value={data.cost} 
-                  onChange={(e) => handleChange('cost', Number(e.target.value))}
-                  style={{ width: '100%', padding: '10px', background: '#0d1117', border: '1px solid #30363d', color: '#f1c40f', fontWeight:'bold', borderRadius: '6px', boxSizing:'border-box' }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 1. 타입 선택 */}
+        {/* 2. 설명 및 스탯 그리드 (필터링 적용됨) */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{display:'block', fontSize:'11px', color:'#8b949e', marginBottom:'5px'}}>아이템 분류</label>
-            <div style={{ display: 'flex', gap: '8px', overflowX:'auto', paddingBottom:'5px' }}>
-              {[
-                { id: 'WEAPON', label: '무기', icon: Sword, color: '#e74c3c' },
-                { id: 'ARMOR', label: '방어구', icon: Shield, color: '#2ecc71' },
-                { id: 'ACCESSORY', label: '장신구', icon: Briefcase, color: '#f1c40f' },
-                { id: 'POWER', label: '권능', icon: Zap, color: '#9b59b6' },
-              ].map(t => (
-                <button 
-                  key={t.id}
-                  onClick={() => handleChange('type', t.id)}
-                  style={{ 
-                    flex: 1, padding: '10px', borderRadius: '8px', border: `1px solid ${data.type === t.id ? t.color : '#30363d'}`,
-                    background: data.type === t.id ? `${t.color}22` : '#0d1117',
-                    color: data.type === t.id ? t.color : '#8b949e',
-                    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', fontSize:'11px', fontWeight:'bold', minWidth:'60px'
-                  }}
-                >
-                  <t.icon size={16}/> {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 2. 스탯 설정 */}
-          <div style={{ background:'#0d1117', padding:'15px', borderRadius:'8px', border:'1px solid #30363d', marginBottom:'20px' }}>
-            <label style={{display:'block', fontSize:'12px', color:'#fff', marginBottom:'10px', fontWeight:'bold'}}>능력치 설정</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <StatInput label="공격력 (AD)" value={data.ad} onChange={(v)=>handleChange('ad', v)} color="#e74c3c" />
-              <StatInput label="주문력 (AP)" value={data.ap} onChange={(v)=>handleChange('ap', v)} color="#9b59b6" />
-              <StatInput label="체력 (HP)" value={data.hp} onChange={(v)=>handleChange('hp', v)} color="#2ecc71" />
-              <StatInput label="방어력 (Armor)" value={data.armor} onChange={(v)=>handleChange('armor', v)} color="#3498db" />
-              <StatInput label="치명타 (%)" value={data.crit} onChange={(v)=>handleChange('crit', v)} color="#e67e22" />
-              <StatInput label="이동속도" value={data.speed} onChange={(v)=>handleChange('speed', v)} color="#fff" />
-            </div>
-          </div>
-
-          {/* 3. 설명 */}
-          <div>
-            <label style={{display:'block', fontSize:'11px', color:'#8b949e', marginBottom:'5px'}}>아이템 설명</label>
             <textarea 
-              value={data.description || ''} 
-              onChange={(e) => handleChange('description', e.target.value)}
-              rows={3}
-              style={{ width: '100%', padding: '10px', background: '#0d1117', border: '1px solid #30363d', color: '#ccc', borderRadius: '6px', resize:'none', boxSizing:'border-box', fontSize:'12px' }}
-              placeholder="아이템에 대한 설명을 입력하세요..."
+              value={data.description || ''} onChange={(e) => handleChange('description', e.target.value)}
+              placeholder="설명..." rows={2}
+              style={{ width: '100%', background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '10px', color: '#ccc', fontSize: '12px', resize: 'none', boxSizing: 'border-box' }}
             />
           </div>
 
+          {/* [핵심] 필터링된 스탯 목록만 렌더링 */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {visibleStats.map(key => (
+              <StatEditor key={key} statKey={key} data={data} activeStat={activeStat} setActiveStat={setActiveStat} handleChange={handleChange} />
+            ))}
+          </div>
+
+          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
+            <button onClick={() => removeCustomImage(data.id)} style={{ background: 'none', border: 'none', color: '#666', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Trash2 size={12}/> 사진 초기화
+            </button>
+          </div>
         </div>
 
-        {/* 푸터 */}
-        <div style={{ padding: '15px 20px', borderTop: '1px solid #30363d', display: 'flex', justifyContent: 'flex-end', background:'#21262d' }}>
-          <button onClick={handleSave} style={{ background: '#238636', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
-            <Save size={16}/> {item ? '패치 적용' : '아이템 생성'}
+        {/* 3. 푸터 */}
+        <div style={{ padding: '15px 20px', borderTop: '1px solid #30363d', background: '#161b22', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #30363d', color: '#ccc', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>취소</button>
+          <button onClick={handleSave} style={{ padding: '10px 24px', background: '#238636', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Save size={16}/> {item ? '수정' : '생성'}
           </button>
         </div>
 
       </div>
+      <style>{`
+        .hover-show:hover { opacity: 1 !important; }
+        .mini-btn {
+          background: #30363d; border: none; color: #fff; 
+          padding: 4px 8px; border-radius: 4px; 
+          cursor: pointer; display: flex; alignItems: center; justifyContent: center;
+          font-size: 11px; font-weight: bold;
+        }
+        .mini-btn:hover { background: #444; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 };
-
-const StatInput = ({ label, value, onChange, color }: any) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-    <span style={{ fontSize: '11px', color: '#8b949e' }}>{label}</span>
-    <input 
-      type="number" value={value} 
-      onChange={(e) => onChange(Number(e.target.value))}
-      style={{ width: '60px', background: 'none', borderBottom: `1px solid ${color}`, borderTop:'none', borderLeft:'none', borderRight:'none', color: color, textAlign: 'right', fontWeight: 'bold', outline: 'none', padding:'4px 0' }}
-    />
-  </div>
-);

@@ -32,31 +32,43 @@ export const OptionTab: React.FC = () => {
     }
   };
 
-  // [신규] MOD 데이터 내보내기
+  // [수정] MOD 데이터 내보내기 (데이터 정화 로직 추가)
   const handleExportMod = () => {
+    // 1. 영웅 데이터에서 '기록(Record)'과 '랭킹' 정보를 제거하고 순수 '설정'만 추출
+    const cleanHeroes = heroes.map(h => ({
+      id: h.id,
+      name: h.name,
+      role: h.role,
+      concept: h.concept, // [필수] 대사/컨셉 포함
+      stats: h.stats,     // [필수] 마나, 재생 등 모든 스탯 포함
+      skills: h.skills    // [필수] 마나 소모량 등 스킬 정보 포함
+      // record, tier, rank, recentWinRate 등은 제외됨 (깨끗!)
+    }));
+
     const modData = {
-      version: 1,
-      heroes: heroes, // 영웅 데이터 전체 (스탯, 스킬 등)
-      items: shopItems, // 아이템 목록
+      version: 2, // 버전 업
+      heroes: cleanHeroes,
+      items: shopItems, // 아이템은 그 자체로 설정이므로 그대로 저장
       settings: {
-        battle: gameState.battleSettings,
-        field: gameState.fieldSettings,
-        role: gameState.roleSettings
+        battle: gameState.battleSettings, // 넥서스 체력 등
+        field: gameState.fieldSettings,   // 정글/오브젝트 설정
+        role: gameState.roleSettings,     // 역할군 밸런스
+        tier: gameState.tierConfig        // 티어 커트라인 설정도 모드에 포함 (선택적)
       },
-      images: gameState.customImages // 커스텀 이미지 포함
+      images: gameState.customImages      // 커스텀 이미지 포함
     };
 
-    const json = JSON.stringify(modData);
+    const json = JSON.stringify(modData, null, 2); // 보기 좋게 정렬
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GodsWar_ModData_${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `GodsWar_Mod_${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // [신규] MOD 데이터 불러오기
+  // MOD 데이터 불러오기 (기존 유지)
   const handleImportMod = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -93,7 +105,6 @@ export const OptionTab: React.FC = () => {
         <h4 style={{ margin:'0 0 15px 0', color:'#58a6ff', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
           <Bot size={16}/> 커뮤니티 AI 설정
         </h4>
-        {/* ... (기존 AI 설정 UI 유지) ... */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
           <span style={{ fontSize:'13px', color:'#fff' }}>AI 글작성 활성화</span>
           <input type="checkbox" checked={aiSettings.enabled} onChange={e => setAiSettings({...aiSettings, enabled: e.target.checked})} style={{ transform:'scale(1.2)', cursor:'pointer' }}/>
@@ -123,17 +134,17 @@ export const OptionTab: React.FC = () => {
 
       <div style={{ borderTop: '1px solid #333', margin: '5px 0' }}></div>
 
-      {/* 2. 파일 관리 (세이브/로드 + MOD 공유) */}
+      {/* 2. 파일 관리 */}
       <h4 style={{ margin:'0 0 10px 0', color:'#ccc' }}>파일 관리</h4>
 
-      {/* [신규] MOD 데이터 공유 섹션 */}
+      {/* MOD 데이터 공유 섹션 */}
       <div style={{ background: '#21262d', padding: '15px', borderRadius: '8px', border: '1px dashed #58a6ff', marginBottom: '10px' }}>
         <div style={{ fontSize: '13px', color: '#58a6ff', fontWeight: 'bold', marginBottom: '5px', display:'flex', alignItems:'center', gap:'6px' }}>
           <Share2 size={14}/> 게임 설정(MOD) 공유
         </div>
         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
-          영웅, 아이템, 밸런스 설정, 사진을 파일로 저장하거나 불러옵니다.<br/>
-          (진행 중인 랭킹이나 전적은 영향을 받지 않습니다.)
+          영웅, 아이템, 밸런스 설정, 사진만 깔끔하게 저장합니다.<br/>
+          <span style={{color:'#e84057'}}>(내 전적, 랭킹, 날짜 등은 포함되지 않습니다.)</span>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={handleExportMod} className="btn" style={{ flex: 1, background: '#1f6feb', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
@@ -146,7 +157,7 @@ export const OptionTab: React.FC = () => {
         </div>
       </div>
 
-      {/* 기존 세이브 파일 관리 */}
+      {/* 전체 세이브 파일 관리 */}
       <div style={{ display: 'flex', gap: '10px' }}>
         <button onClick={exportSaveFile} className="btn" style={{ flex:1, background: '#30363d', border:'1px solid #444', color: '#ccc', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize:'12px' }}>
           <Download size={14} /> 전체 세이브 백업
@@ -170,7 +181,7 @@ export const OptionTab: React.FC = () => {
       <div style={{ background: '#251010', padding: '15px', borderRadius: '8px', border: '1px solid #4a1e1e', marginBottom: '10px' }}>
         <div style={{ fontSize: '12px', color: '#ff7b72', marginBottom: '10px', lineHeight: '1.4' }}>
           <b>현재 진행 중인 게임</b>만 Day 1로 되돌립니다.<br/>
-          <span style={{ color:'#fff', opacity:0.7 }}>* 저장된 슬롯(1,2,3)과 AI 설정(API Key)은 삭제되지 않습니다.</span>
+          <span style={{ color:'#fff', opacity:0.7 }}>* 저장된 슬롯과 AI 설정은 삭제되지 않습니다.</span>
         </div>
         <button onClick={handleSafeReset} className="btn" style={{ background: '#da3633', color: '#fff', width: '100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
           <Trash2 size={16} /> 현재 게임 재시작 (Day 1)

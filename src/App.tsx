@@ -11,7 +11,7 @@ import { GameStats } from './components/dashboard/GameStats';
 import { SystemMenu } from './components/common/SystemMenu';
 
 import { HeroStatsView } from './components/hero/HeroStatsView';
-import { HeroManagement } from './components/hero/HeroManagement';
+// [삭제] HeroManagement import 제거
 import { PatchModal } from './components/hero/PatchModal';
 import { UserDashboard } from './components/user/UserDashboard';
 import { UserDetailModal } from './components/user/UserDetailModal';
@@ -21,15 +21,14 @@ import { CommunityBoard } from './components/community/CommunityBoard';
 import { PostDetailModal } from './components/community/PostDetailModal';
 import { LiveGameListModal } from './components/battle/LiveGameListModal';
 import { SpectateModal } from './components/battle/SpectateModal';
-// [신규] 상점 탭 컴포넌트
 import { ShopTab } from './components/shop/ShopTab';
 
-import { Swords, User, MessageSquare, Settings, Map, Crown, ShoppingBag } from 'lucide-react';
+import { Swords, User, MessageSquare, Map, Crown, ShoppingBag } from 'lucide-react'; // Settings 아이콘 제거
 import { Hero, UserProfile, LiveMatch } from './types';
 
 const TABS = [
   { id: 'hero-stats', label: '영웅 통계', icon: Swords },
-  { id: 'hero-manage', label: '영웅 관리', icon: Settings },
+  // [삭제] 영웅 관리 탭 제거
   { id: 'shop', label: '아이템 상점', icon: ShoppingBag }, 
   { id: 'user', label: '유저 현황', icon: User },
   { id: 'gods', label: '신(Gods)', icon: Crown },
@@ -69,7 +68,7 @@ function App() {
 
       <div style={{ minHeight: '600px' }}>
         {activeTab === 'hero-stats' && <HeroStatsView />}
-        {activeTab === 'hero-manage' && <HeroManagement onEditHero={setSelectedHero} />}
+        {/* [삭제] HeroManagement 렌더링 부분 제거 */}
         {activeTab === 'shop' && <ShopTab />} 
         {activeTab === 'user' && <UserDashboard onUserClick={setSelectedUser} />}
         {activeTab === 'gods' && <BattleDashboard />}
@@ -98,7 +97,7 @@ function App() {
         <LiveGameListModal 
           onClose={() => setShowGameList(false)} 
           onSpectate={(m) => { 
-            setShowGameList(false); // 관전 시작하면 리스트 닫기
+            setShowGameList(false);
             setSpectatingMatch(m); 
           }} 
         />
@@ -109,7 +108,7 @@ function App() {
           match={spectatingMatch} 
           onClose={() => { 
             setSpectatingMatch(null); 
-            setShowGameList(true); // [핵심] 관전 종료 시 리스트 다시 열기
+            setShowGameList(true);
           }} 
         />
       )}

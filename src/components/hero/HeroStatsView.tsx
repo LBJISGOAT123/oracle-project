@@ -5,14 +5,20 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { Award, LayoutGrid, List } from 'lucide-react';
-import { Role } from '../../types';
+import { Role, Hero } from '../../types';
 import { HeroListTable } from './HeroListTable';
 import { LaneStatsView } from './LaneStatsView';
+import { HeroDetailView } from './HeroDetailView';
+import { PatchModal } from './PatchModal';
 
 export const HeroStatsView = () => {
   const { heroes } = useGameStore();
   const [mode, setMode] = useState<'HERO' | 'LANE'>('HERO');
   const [selectedRole, setSelectedRole] = useState<Role>('집행관');
+
+  const [viewingHero, setViewingHero] = useState<Hero | null>(null);
+  const [showPatchModal, setShowPatchModal] = useState(false);
+
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
@@ -21,73 +27,93 @@ export const HeroStatsView = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const handleHeroClick = (hero: Hero) => {
+    setViewingHero(hero);
+  };
+
   return (
     <div className="stats-container" style={{ 
       background: '#161b22', borderRadius: '12px', border: '1px solid #30363d', 
-      minHeight: '600px', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+      minHeight: '600px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      position: 'relative'
     }}>
 
-      {/* 상단 헤더 */}
+      {/* 헤더 및 탭 (한 줄 정렬 수정) */}
       <div style={{ 
-        padding: '15px 20px', borderBottom: '1px solid #30363d', 
-        display: 'flex', flexDirection: isMobile ? 'column' : 'row', 
-        justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', 
-        background:'#21262d', gap: isMobile ? '10px' : '0'
+        padding: '12px 15px', borderBottom: '1px solid #30363d', 
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background:'#21262d', gap: '10px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '16px', color: '#fff' }}>
-          <Award size={18} color="#58a6ff" />
-          <span>시즌 1 데이터 센터</span>
+        {/* 제목 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: isMobile ? '14px' : '16px', color: '#fff', whiteSpace:'nowrap' }}>
+          <Award size={isMobile ? 16 : 18} color="#58a6ff" />
+          <span>시즌 1 데이터</span>
         </div>
 
-        <div style={{ display:'flex', background:'#0d1117', padding:'4px', borderRadius:'8px', border:'1px solid #30363d', width: isMobile ? '100%' : 'auto' }}>
+        {/* 탭 버튼 (우측 정렬) */}
+        <div style={{ display:'flex', background:'#0d1117', padding:'3px', borderRadius:'6px', border:'1px solid #30363d' }}>
           <button 
-            onClick={() => setMode('HERO')}
+            onClick={() => setMode('HERO')} 
             style={{ 
-              flex: isMobile ? 1 : 'none', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', 
-              padding:'8px 16px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize:'12px',
-              background: mode === 'HERO' ? '#58a6ff' : 'transparent', color: mode === 'HERO' ? '#000' : '#8b949e'
+              display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', 
+              padding: isMobile ? '6px 10px' : '6px 14px', 
+              borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', 
+              background: mode === 'HERO' ? '#58a6ff' : 'transparent', color: mode === 'HERO' ? '#000' : '#8b949e',
+              transition: '0.2s', whiteSpace:'nowrap'
             }}
           >
-            <List size={14}/> 영웅별
+            <List size={12}/> 영웅별
           </button>
           <button 
-            onClick={() => setMode('LANE')}
+            onClick={() => setMode('LANE')} 
             style={{ 
-              flex: isMobile ? 1 : 'none', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', 
-              padding:'8px 16px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize:'12px',
-              background: mode === 'LANE' ? '#58a6ff' : 'transparent', color: mode === 'LANE' ? '#000' : '#8b949e'
+              display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', 
+              padding: isMobile ? '6px 10px' : '6px 14px', 
+              borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', 
+              background: mode === 'LANE' ? '#58a6ff' : 'transparent', color: mode === 'LANE' ? '#000' : '#8b949e',
+              transition: '0.2s', whiteSpace:'nowrap'
             }}
           >
-            <LayoutGrid size={14}/> 라인별
+            <LayoutGrid size={12}/> 라인별
           </button>
         </div>
       </div>
 
-      {/* 컨텐츠 영역 */}
+      {/* 메인 컨텐츠 (리스트) */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {mode === 'HERO' ? (
-          <HeroListTable heroes={heroes} isMobile={isMobile} />
+          <HeroListTable 
+            heroes={heroes} 
+            isMobile={isMobile} 
+            onHeroClick={handleHeroClick} 
+          />
         ) : (
           <LaneStatsView 
             heroes={heroes} 
             selectedRole={selectedRole} 
             onSelectRole={setSelectedRole} 
             isMobile={isMobile}
+            onHeroClick={handleHeroClick} 
           />
         )}
       </div>
 
-      <style>{`
-        .tier-badge { 
-          font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 800; 
-          margin-left: 6px; border: 1px solid transparent; letter-spacing: -0.5px;
-        }
-        .tier-OP { background: rgba(255, 77, 77, 0.15); color: #ff4d4d; border-color: rgba(255, 77, 77, 0.4); box-shadow: 0 0 10px rgba(255, 77, 77, 0.1); }
-        .tier-1 { background: rgba(232, 157, 64, 0.15); color: #e89d40; border-color: rgba(232, 157, 64, 0.4); }
-        .tier-2 { background: rgba(88, 166, 255, 0.15); color: #58a6ff; border-color: rgba(88, 166, 255, 0.4); }
-        .tier-3 { background: rgba(46, 204, 113, 0.15); color: #2ecc71; border-color: rgba(46, 204, 113, 0.4); }
-        .tier-4, .tier-5 { background: #21262d; color: #8b949e; border-color: #30363d; }
-      `}</style>
+      {/* 영웅 상세 팝업 */}
+      {viewingHero && (
+        <HeroDetailView 
+          hero={viewingHero} 
+          onBack={() => setViewingHero(null)} 
+          onPatch={() => setShowPatchModal(true)}
+        />
+      )}
+
+      {/* 패치 모달 */}
+      {showPatchModal && viewingHero && (
+        <PatchModal 
+          hero={viewingHero} 
+          onClose={() => setShowPatchModal(false)} 
+        />
+      )}
     </div>
   );
 };

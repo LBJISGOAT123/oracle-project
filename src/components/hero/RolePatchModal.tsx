@@ -16,6 +16,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
   const { gameState, updateRoleSettings } = useGameStore();
 
   // 스토어에서 현재 설정값 가져오기 (없으면 기본값)
+  // [수정] 이곳에서 문법 오류가 발생했었습니다. 괄호와 콤마를 정확히 확인하세요.
   const initialSettings = gameState.roleSettings || {
     executor: { damage: 15, defense: 15 },
     tracker: { gold: 20, smiteChance: 1.5 },
@@ -41,13 +42,28 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
     onClose();
   };
 
+  // 슬라이더 컴포넌트 (내부 정의)
+  const RangeInput = ({ label, value, onChange, unit, max, step = 1 }: any) => (
+    <div style={{ marginBottom: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#ccc' }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 'bold', color: '#58a6ff', fontFamily:'monospace' }}>{value}{unit}</span>
+      </div>
+      <input 
+        type="range" min={0} max={max} step={step} value={value} 
+        onChange={(e) => onChange(Number(e.target.value))} 
+        style={{ width: '100%', accentColor: '#58a6ff', height: '4px', cursor: 'pointer' }} 
+      />
+    </div>
+  );
+
   // 역할군별로 다른 입력창 렌더링
   const renderInputs = () => {
     switch(role) {
       case '집행관':
         return (
           <>
-            <div style={{fontSize:'12px', color:'#888', marginBottom:'10px'}}>
+            <div style={{fontSize:'12px', color:'#888', marginBottom:'15px'}}>
               * 고립(주변에 아군 없음) 상태일 때 적용되는 보너스입니다.
             </div>
             <RangeInput 
@@ -67,7 +83,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
       case '추적자':
         return (
           <>
-            <div style={{fontSize:'12px', color:'#888', marginBottom:'10px'}}>
+            <div style={{fontSize:'12px', color:'#888', marginBottom:'15px'}}>
               * 정글러의 성장 속도와 오브젝트 싸움 능력을 조절합니다.
             </div>
             <RangeInput 
@@ -87,7 +103,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
       case '선지자':
         return (
           <>
-            <div style={{fontSize:'12px', color:'#888', marginBottom:'10px'}}>
+            <div style={{fontSize:'12px', color:'#888', marginBottom:'15px'}}>
               * 레벨이 오를수록 스킬 쿨타임이 줄어드는 효과를 데미지로 환산합니다.
             </div>
             <RangeInput 
@@ -104,7 +120,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
       case '신살자':
         return (
           <>
-             <div style={{fontSize:'12px', color:'#888', marginBottom:'10px'}}>
+             <div style={{fontSize:'12px', color:'#888', marginBottom:'15px'}}>
               * 타워 철거 및 넥서스 파괴 능력을 조절합니다.
             </div>
             <RangeInput 
@@ -118,7 +134,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
       case '수호기사':
         return (
           <>
-            <div style={{fontSize:'12px', color:'#888', marginBottom:'10px'}}>
+            <div style={{fontSize:'12px', color:'#888', marginBottom:'15px'}}>
               * 같은 라인 아군의 생존력을 높여줍니다.
             </div>
             <RangeInput 
@@ -135,7 +151,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ width: '400px', background: '#161b22', border: '1px solid #30363d', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+      <div style={{ width: '90%', maxWidth: '400px', background: '#161b22', border: '1px solid #30363d', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
 
         {/* 헤더 */}
         <div style={{ padding: '15px', background: '#21262d', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -146,7 +162,7 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
         </div>
 
         {/* 바디 */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {renderInputs()}
         </div>
 
@@ -160,18 +176,3 @@ export const RolePatchModal: React.FC<Props> = ({ role, onClose }) => {
     </div>
   );
 };
-
-// 슬라이더 컴포넌트
-const RangeInput = ({ label, value, onChange, unit, max, step = 1 }: any) => (
-  <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#ccc' }}>
-      <span>{label}</span>
-      <span style={{ fontWeight: 'bold', color: '#58a6ff', fontFamily:'monospace' }}>{value}{unit}</span>
-    </div>
-    <input 
-      type="range" min={0} max={max} step={step} value={value} 
-      onChange={(e) => onChange(Number(e.target.value))} 
-      style={{ width: '100%', accentColor: '#58a6ff', height: '4px', cursor: 'pointer' }} 
-    />
-  </div>
-);

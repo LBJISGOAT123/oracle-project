@@ -10,56 +10,57 @@ const MECHANIC_UI_CONFIG: any = {
     { key: 'val', label: '피해량', max: 1000, step: 10 }, 
     { key: 'adRatio', label: 'AD계수', max: 2.5, step: 0.05, color: '#e67e22' }, 
     { key: 'apRatio', label: 'AP계수', max: 3.0, step: 0.05, color: '#9b59b6' },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   HEAL: [
     { key: 'val', label: '회복량', max: 800, step: 10, color: '#2ecc71' }, 
     { key: 'apRatio', label: 'AP계수', max: 2.0, step: 0.05, color: '#9b59b6' },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   SHIELD: [
     { key: 'val', label: '보호막', max: 1000, step: 10, color: '#3498db' }, 
     { key: 'adRatio', label: 'AD계수', max: 1.5, step: 0.05, color: '#e67e22' }, 
     { key: 'duration', label: '지속시간', max: 8, step: 0.5 },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   HOOK: [
     { key: 'val', label: '그랩거리', max: 1200, step: 25, color: '#f1c40f' }, 
     { key: 'duration', label: '기절시간', max: 3, step: 0.1 },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   DASH: [
     { key: 'val', label: '이동거리', max: 800, step: 10, color: '#9b59b6' }, 
     { key: 'duration', label: '준비시간', max: 1.5, step: 0.05 },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   STUN: [
     { key: 'duration', label: '기절시간', max: 4, step: 0.1, color: '#e74c3c' }, 
     { key: 'val', label: '범위', max: 600, step: 10 },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   STEALTH: [
     { key: 'duration', label: '지속시간', max: 15, step: 0.5, color: '#95a5a6' }, 
     { key: 'val', label: '이속증가', max: 80, step: 1 },
-    { key: 'range', label: '사거리', max: 1200, step: 25, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 180, step: 1, color: '#bdc3c7' }
   ],
   EXECUTE: [
     { key: 'val', label: '기본피해', max: 1000, step: 10, color: '#da3633' },
     { key: 'adRatio', label: 'AD계수', max: 3.0, step: 0.1, color: '#e67e22' },
-    { key: 'range', label: '사거리', max: 1500, step: 50, color: '#58a6ff' },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 200, step: 1, color: '#bdc3c7' }
   ],
   GLOBAL: [
     { key: 'val', label: '피해/힐', max: 1000, step: 10, color: '#f1c40f' },
     { key: 'apRatio', label: 'AP계수', max: 3.0, step: 0.1, color: '#9b59b6' },
     { key: 'duration', label: '지속시간', max: 10, step: 0.5 },
+    { key: 'cost', label: '마나 소모', max: 300, step: 5, color: '#3498db' },
     { key: 'cd', label: '쿨타임', max: 300, step: 5, color: '#bdc3c7' }
   ]
 };
@@ -74,7 +75,6 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
   const [activeField, setActiveField] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
 
-  // [수정 1] 한글 텍스트를 {""} 로 감싸서 확실하게 문자열로 처리
   if (!skills) {
     return <div style={{ color: '#fff', padding: '20px' }}>{"스킬 데이터를 불러올 수 없습니다."}</div>;
   }
@@ -90,7 +90,6 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
 
   return (
     <div className="skill-editor">
-      {/* 1. 스킬 선택 버튼 (P, Q, W, E, R) */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
         {(['passive', 'q', 'w', 'e', 'r'] as const).map(k => (
           <button 
@@ -109,7 +108,6 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         ))}
       </div>
 
-      {/* 2. 스킬 이름 및 메커니즘 선택 */}
       <div style={{ marginBottom: '15px', padding: '12px', background: '#161b22', borderRadius: '12px', border: '1px solid #30363d' }}>
         {isEditingName ? (
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -147,7 +145,6 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         <option value="GLOBAL">🌍 글로벌 (GLOBAL)</option>
       </select>
 
-      {/* 3. 스탯 그리드 (쿨타임 포함) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px' }}>
         {uiConfig.map((item: any) => (
           <div 
@@ -170,13 +167,11 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
         ))}
       </div>
 
-      {/* 4. 슬라이더 컨트롤러 */}
       {activeField && (
         <div style={{ background: '#161b22', padding: '15px', borderRadius: '12px', border: '1px solid #58a6ff44', animation: 'fadeIn 0.2s' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
             <span style={{ color: '#aaa', fontSize: '12px', fontWeight:'bold' }}>
-              {/* [수정 2] 텍스트와 변수를 분리하여 안전하게 렌더링 */}
-              {currentLabel} {"조절"}
+              {currentLabel} 조절
             </span>
             <strong style={{ color: '#58a6ff', fontSize:'14px' }}>
               {currentStatValue}
@@ -191,7 +186,6 @@ export const SkillEditor: React.FC<Props> = ({ skills, onChange }) => {
             onChange={e => onChange(selectedKey, activeField!, Number(e.target.value))}
             style={{ width: '100%', accentColor: '#58a6ff', height:'6px', cursor:'pointer' }}
           />
-          {/* 미세 조정 버튼 */}
           <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'10px' }}>
              <button 
                onClick={() => onChange(selectedKey, activeField!, Math.max(0, Number(currentStatValue || 0) - currentStep))} 

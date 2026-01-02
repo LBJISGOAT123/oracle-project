@@ -15,6 +15,7 @@ interface Props {
   selectedRole: Role;
   onSelectRole: (role: Role) => void;
   isMobile?: boolean;
+  onHeroClick?: (hero: Hero) => void; // 클릭 핸들러 추가
 }
 
 const getRoleId = (role: Role) => {
@@ -28,16 +29,17 @@ const getRoleId = (role: Role) => {
   }
 };
 
-export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectRole, isMobile = false }) => {
+export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectRole, isMobile = false, onHeroClick }) => {
   const { gameState, setCustomImage } = useGameStore();
   const [showPatchModal, setShowPatchModal] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const roleInfo = ROLE_DATA[selectedRole];
   const roleId = getRoleId(selectedRole);
-
   const roleBgId = `${roleId}_bg`; 
-  const customBg = gameState.customImages?.[roleBgId];
+
+  // [수정] 배경 이미지 로딩 로직 강화 (배경키 -> 아이콘키 순서로 확인)
+  const displayBg = gameState.customImages?.[roleBgId] || gameState.customImages?.[roleId];
 
   const iconInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
@@ -122,31 +124,20 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
     borderRadius: '6px', 
     cursor: 'pointer', 
     fontWeight: 'bold' as const, 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '8px', 
-    fontSize: '12px', 
-    whiteSpace: 'nowrap' as const, 
-    backdropFilter: 'blur(4px)',
-    width: '100%',
-    justifyContent: 'center'
+    display: 'flex', alignItems: 'center', gap: '8px', 
+    fontSize: '12px', whiteSpace: 'nowrap' as const, 
+    backdropFilter: 'blur(4px)', width: '100%', justifyContent: 'center'
   };
 
   return (
     <div 
-      // [핵심 수정] key 속성을 추가하여 역할군이 바뀔 때마다 컴포넌트를 새로 그려서 스타일 꼬임 방지
       key={selectedRole}
       style={{ 
         display: 'flex', flexDirection: 'column', height: '100%', 
-        // [핵심 수정] background 단축 속성 대신 개별 속성 사용으로 안정성 확보
         backgroundColor: '#0d1117',
-        backgroundImage: customBg 
-          ? `linear-gradient(to bottom, rgba(13,17,23,0.5), rgba(13,17,23,0.95)), url(${customBg})` 
-          : 'none',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center top', // 모바일에서 인물 얼굴이 잘리지 않도록 상단 기준 정렬
-        backgroundRepeat: 'no-repeat',
-        position: 'relative'
+        // [수정] 배경 이미지 적용 부분
+        backgroundImage: displayBg ? `linear-gradient(to bottom, rgba(13,17,23,0.5), rgba(13,17,23,0.95)), url(${displayBg})` : 'none',
+        backgroundSize: 'cover', backgroundPosition: 'center top', position: 'relative'
       }}
     >
 
@@ -160,17 +151,13 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
         {Object.entries(ROLE_DATA).map(([key, info]) => {
           const role = key as Role;
           const isSelected = selectedRole === role;
-
           return (
-            <button 
-              key={role} 
-              onClick={() => onSelectRole(role)}
+            <button key={role} onClick={() => onSelectRole(role)}
               style={{ 
                 flex: 1, minWidth: isMobile ? '70px' : '100px',
                 background: isSelected ? info.color : 'rgba(255,255,255,0.05)', 
                 color: isSelected ? '#000' : '#ccc',
-                border: '1px solid',
-                borderColor: isSelected ? info.color : 'transparent',
+                border: '1px solid', borderColor: isSelected ? info.color : 'transparent',
                 borderRadius: '6px', padding: '10px 0', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent:'center', gap: '6px',
                 transition: '0.2s', fontWeight: '800', fontSize:'12px'
@@ -185,46 +172,25 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
       {/* 1. 역할군 설명 헤더 */}
       <div style={{ 
         padding: isMobile ? '15px' : '30px', 
-        display: 'flex', 
-        flexDirection: isMobile ? 'column' : 'row', 
-        gap: isMobile ? '15px' : '30px', 
-        alignItems: 'flex-start', 
+        display: 'flex', flexDirection: isMobile ? 'column' : 'row', 
+        gap: isMobile ? '15px' : '30px', alignItems: 'flex-start', 
         background: `linear-gradient(180deg, ${roleInfo.color}11 0%, transparent 100%)`,
-        flexShrink: 0,
-        position: 'relative'
+        flexShrink: 0, position: 'relative'
       }}>
 
-        {/* 아이콘 및 타이틀 */}
         <div style={{ display:'flex', gap:'20px', width: isMobile ? '100%' : 'auto', alignItems:'center' }}>
-          <div 
-            style={{ position: 'relative' }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
+          <div style={{ position: 'relative' }} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
             <div onClick={() => iconInputRef.current?.click()} style={{ cursor: 'pointer', display: 'block' }}>
-              <GameIcon 
-                id={roleId} 
-                size={isMobile ? 60 : 100} 
-                fallback={React.createElement(roleInfo.icon, { size: isMobile ? 30 : 50, color: roleInfo.color })}
-                border={`2px solid ${roleInfo.color}`}
-                shape="rounded"
-              />
-              <div style={{
-                position: 'absolute', inset: 0, borderRadius: '12px',
-                background: 'rgba(0,0,0,0.5)', display: isHovered ? 'flex' : 'none',
-                alignItems: 'center', justifyContent: 'center', transition: '0.2s'
-              }}>
+              <GameIcon id={roleId} size={isMobile ? 60 : 100} fallback={React.createElement(roleInfo.icon, { size: isMobile ? 30 : 50, color: roleInfo.color })} border={`2px solid ${roleInfo.color}`} shape="rounded" />
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '12px', background: 'rgba(0,0,0,0.5)', display: isHovered ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}>
                 <Camera size={24} color="#fff" />
               </div>
             </div>
           </div>
-
           {isMobile && (
              <div style={{ flex: 1 }}>
                 <h2 style={{ margin: 0, color: '#fff', fontSize: '24px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{selectedRole}</h2>
-                <span style={{ fontSize: '12px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>
-                  {roleInfo.name}
-                </span>
+                <span style={{ fontSize: '12px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>{roleInfo.name}</span>
              </div>
           )}
         </div>
@@ -235,64 +201,37 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
               {!isMobile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                   <h2 style={{ margin: 0, color: '#fff', fontSize: '32px', fontWeight: '900', textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{selectedRole}</h2>
-                  <span style={{ fontSize: '16px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>
-                    {roleInfo.name}
-                  </span>
+                  <span style={{ fontSize: '16px', color: roleInfo.color, fontWeight: 'bold', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px', border: `1px solid ${roleInfo.color}44` }}>{roleInfo.name}</span>
                 </div>
               )}
-              <div style={{ fontSize: isMobile ? '13px' : '16px', color: '#fff', fontWeight: 'bold', marginBottom: '8px', fontStyle: 'italic', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                "{roleInfo.concept}"
-              </div>
-              <div style={{ fontSize: '13px', color: '#eee', marginBottom: '15px', lineHeight: '1.5', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
-                {roleInfo.desc}
-              </div>
+              <div style={{ fontSize: isMobile ? '13px' : '16px', color: '#fff', fontWeight: 'bold', marginBottom: '8px', fontStyle: 'italic', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>"{roleInfo.concept}"</div>
+              <div style={{ fontSize: '13px', color: '#eee', marginBottom: '15px', lineHeight: '1.5', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{roleInfo.desc}</div>
             </div>
-
             {!isMobile && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '140px' }}>
-                <button onClick={() => setShowPatchModal(true)} style={actionButtonStyle}>
-                  <Wrench size={14}/> 밸런스 패치
-                </button>
-                <button onClick={() => iconInputRef.current?.click()} style={actionButtonStyle}>
-                  <Camera size={14}/> 프로필 변경
-                </button>
-                <button onClick={() => bgInputRef.current?.click()} style={actionButtonStyle}>
-                  <ImageIcon size={14}/> 배경 변경
-                </button>
+                <button onClick={() => setShowPatchModal(true)} style={actionButtonStyle}><Wrench size={14}/> 밸런스 패치</button>
+                <button onClick={() => iconInputRef.current?.click()} style={actionButtonStyle}><Camera size={14}/> 프로필 변경</button>
+                <button onClick={() => bgInputRef.current?.click()} style={actionButtonStyle}><ImageIcon size={14}/> 배경 변경</button>
               </div>
             )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
             <div style={{ background: 'rgba(28, 28, 31, 0.7)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter:'blur(4px)' }}>
-              <div style={{ fontSize: '11px', color: '#58a6ff', fontWeight: 'bold', marginBottom: '4px' }}>
-                고유 특성 : {roleInfo.traitName}
-              </div>
-              <div style={{ fontSize: '12px', color: '#fff', lineHeight: '1.4' }}>
-                {getDynamicTraitText(selectedRole)}
-              </div>
+              <div style={{ fontSize: '11px', color: '#58a6ff', fontWeight: 'bold', marginBottom: '4px' }}>고유 특성 : {roleInfo.traitName}</div>
+              <div style={{ fontSize: '12px', color: '#fff', lineHeight: '1.4' }}>{getDynamicTraitText(selectedRole)}</div>
             </div>
             <div style={{ background: 'rgba(28, 28, 31, 0.7)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter:'blur(4px)' }}>
-              <div style={{ fontSize: '11px', color: '#da3633', fontWeight: 'bold', marginBottom: '4px' }}>
-                시뮬레이션 반영
-              </div>
-              <div style={{ fontSize: '12px', color: '#ccc', lineHeight: '1.4' }}>
-                {roleInfo.simEffect}
-              </div>
+              <div style={{ fontSize: '11px', color: '#da3633', fontWeight: 'bold', marginBottom: '4px' }}>시뮬레이션 반영</div>
+              <div style={{ fontSize: '12px', color: '#ccc', lineHeight: '1.4' }}>{roleInfo.simEffect}</div>
             </div>
           </div>
 
           {isMobile && (
             <div style={{ marginTop: '15px', display: 'flex', gap: '8px' }}>
-              <button onClick={() => setShowPatchModal(true)} style={{...actionButtonStyle, flex:1 }}>
-                <Wrench size={14}/> 패치
-              </button>
-              <button onClick={() => iconInputRef.current?.click()} style={{...actionButtonStyle, flex:1 }}>
-                <Camera size={14}/> 프로필
-              </button>
-              <button onClick={() => bgInputRef.current?.click()} style={{...actionButtonStyle, flex:1 }}>
-                <ImageIcon size={14}/> 배경
-              </button>
+              <button onClick={() => setShowPatchModal(true)} style={{...actionButtonStyle, flex:1 }}><Wrench size={14}/> 패치</button>
+              <button onClick={() => iconInputRef.current?.click()} style={{...actionButtonStyle, flex:1 }}><Camera size={14}/> 프로필</button>
+              <button onClick={() => bgInputRef.current?.click()} style={{...actionButtonStyle, flex:1 }}><ImageIcon size={14}/> 배경</button>
             </div>
           )}
         </div>
@@ -301,18 +240,11 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
       <input type="file" ref={iconInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleIconUpload} />
       <input type="file" ref={bgInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleBgUpload} />
 
-      {/* 2. 역할군 통합 통계 섹션 */}
       {roleStats && (
-        <div style={{ 
-          background: 'rgba(18, 20, 24, 0.85)', borderBottom: '1px solid #30363d', borderTop: '1px solid rgba(255,255,255,0.1)', 
-          padding: '15px 20px', backdropFilter: 'blur(5px)',
-          display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent:'space-between', gap:'15px'
-        }}>
+        <div style={{ background: 'rgba(18, 20, 24, 0.85)', borderBottom: '1px solid #30363d', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '15px 20px', backdropFilter: 'blur(5px)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent:'space-between', gap:'15px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'8px', color:'#fff', fontWeight:'bold', fontSize:'14px' }}>
-            <Activity size={16} color={roleInfo.color}/> 
-            <span style={{ color: roleInfo.color }}>{selectedRole}</span> 통계
+            <Activity size={16} color={roleInfo.color}/> <span style={{ color: roleInfo.color }}>{selectedRole}</span> 통계
           </div>
-
           <div style={{ display:'flex', gap: isMobile ? '10px' : '25px', flexWrap:'wrap', justifyContent: isMobile ? 'space-between' : 'flex-end', width:'100%' }}>
             <RoleStatItem label="평균 승률" value={`${roleStats.avgWinRate.toFixed(1)}%`} color={roleStats.avgWinRate >= 50 ? '#ff4d4d' : '#8b949e'} icon={<TrendingUp size={12}/>} />
             <RoleStatItem label="평균 KDA" value={`${roleStats.avgKda}:1`} color="#fff" icon={<Skull size={12}/>} />
@@ -323,20 +255,18 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
         </div>
       )}
 
-      {/* 3. 챔피언 리스트 */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px', background: 'rgba(13, 17, 23, 0.6)', backdropFilter: 'blur(3px)' }}>
         {isMobile ? (
           <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {laneHeroes.map((hero, idx) => (
-              <div key={hero.id} style={{ 
-                background: 'rgba(22, 27, 34, 0.85)', border: '1px solid rgba(48, 54, 61, 0.8)', borderRadius: '12px', padding: '12px 15px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-              }}>
+              <div 
+                key={hero.id} 
+                onClick={() => onHeroClick && onHeroClick(hero)} // [추가] 클릭 연결
+                style={{ background: 'rgba(22, 27, 34, 0.85)', border: '1px solid rgba(48, 54, 61, 0.8)', borderRadius: '12px', padding: '12px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
                   <div style={{ fontSize: '16px', fontWeight: '900', fontStyle: 'italic', color: idx < 3 ? '#e74c3c' : '#666', width: '20px', textAlign: 'center' }}>{idx + 1}</div>
-
                   <GameIcon id={hero.id} size={42} fallback={<span style={{fontSize:'22px'}}>🧙‍♂️</span>} />
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff' }}>{hero.name}</span>
@@ -375,7 +305,7 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
             </div>
             <div>
               {laneHeroes.map((hero, idx) => (
-                <div key={hero.id} className="hero-row" style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', fontSize: '12px', color: '#ccc', textAlign: 'center', background: 'rgba(22, 27, 34, 0.6)' }}>
+                <div key={hero.id} onClick={() => onHeroClick && onHeroClick(hero)} style={{ display: 'grid', gridTemplateColumns: '40px 140px 100px 120px 140px 100px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', fontSize: '12px', color: '#ccc', textAlign: 'center', background: 'rgba(22, 27, 34, 0.6)', cursor: 'pointer' }}>
                   <div style={{ fontWeight: 'bold', color: '#aaa' }}>{idx + 1}</div>
                   <div style={{ textAlign: 'left', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <GameIcon id={hero.id} size={32} fallback={<span style={{fontSize:'16px'}}>🧙‍♂️</span>} />
@@ -402,13 +332,7 @@ export const LaneStatsView: React.FC<Props> = ({ heroes, selectedRole, onSelectR
         )}
       </div>
 
-      {showPatchModal && (
-        <RolePatchModal 
-          role={selectedRole} 
-          onClose={() => setShowPatchModal(false)} 
-        />
-      )}
-
+      {showPatchModal && <RolePatchModal role={selectedRole} onClose={() => setShowPatchModal(false)} />}
     </div>
   );
 };

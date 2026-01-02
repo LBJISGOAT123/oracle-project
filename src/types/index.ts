@@ -11,22 +11,45 @@ export type SkillMechanic =
   | 'DAMAGE' | 'HEAL' | 'SHIELD' | 'HOOK' | 'DASH' 
   | 'STUN' | 'STEALTH' | 'EXECUTE' | 'GLOBAL' | 'NONE';
 
+// 1. HeroStats 수정
 export interface HeroStats {
-  ad: number; ap: number; hp: number; armor: number; crit: number;
-  range: number; speed: number; regen: number; pen: number; baseAtk: number;
+  ad: number; 
+  ap: number; 
+  hp: number; 
+  mp: number;       // [신규] 최대 마나 (기본값 추천: 300~500)
+  mpRegen: number;  // [신규] 초당 마나 회복 (기본값 추천: 5~10)
+  armor: number; 
+  crit: number;
+  range: number; 
+  speed: number; 
+  regen: number; 
+  pen: number; 
+  baseAtk: number;
 }
 
+// 2. SkillDetail 수정
 export interface SkillDetail {
   name: string; 
   mechanic: SkillMechanic; 
   val: number;
   adRatio: number; 
   apRatio: number; 
+  cost: number;     // [신규] 스킬 소모 마나
   cd: number; 
-  range: number; // [필수] 사거리
+  range: number; 
   duration?: number; 
   isPassive?: boolean;
 }
+
+// 3. LivePlayer 수정
+export interface LivePlayer { 
+  // ... 기존 필드들
+  currentHp: number; 
+  maxHp: number; 
+
+  currentMp: number; // [신규] 현재 마나
+  maxMp: number;     // [신규] 최대 마나 (아이템/레벨 포함)
+  mpRegen: number;   // [신규] 마나젠
 
 export interface HeroSkillSet {
   passive: SkillDetail; q: SkillDetail; w: SkillDetail; e: SkillDetail; r: SkillDetail;
@@ -39,26 +62,55 @@ export interface HeroRecord {
   recentResults: boolean[]; 
 }
 
-export interface Hero {
-  id: string; name: string; role: Role; stats: HeroStats; skills: HeroSkillSet;
-  record: HeroRecord; tier: Tier; rank: number; rankChange: number;
-  recentWinRate: number; pickRate: number; banRate: number;
-  avgKda: string; kdaRatio: string;
-  avgDpm: string; avgDpg: string; avgCs: string; avgGold: string;
-}
-
+  export interface Hero {
+    id: string; 
+    name: string; 
+    role: Role; 
+    concept: string; // [신규] 영웅 고유 대사/컨셉
+    stats: HeroStats; 
+    skills: HeroSkillSet;
+    record: HeroRecord; 
+    tier: Tier; 
+    rank: number; 
+    rankChange: number;
+    recentWinRate: number; 
+    pickRate: number; 
+    banRate: number;
+    avgKda: string; 
+    kdaRatio: string;
+    avgDpm: string; 
+    avgDpg: string; 
+    avgCs: string; 
+    avgGold: string;
+  }
+  
 // ------------------------------------------------------------------
 // 2. 아이템(Item) 및 상점 관련
 // ------------------------------------------------------------------
-export interface Item {
-  id: string;
-  name: string;
-  cost: number;
-  ad: number; ap: number; hp: number; armor: number; crit: number; speed: number;
-  type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER'; 
-  description?: string;
-}
+  export interface Item {
+    id: string;
+    name: string;
+    cost: number;
 
+    // [기존 스탯]
+    ad: number; 
+    ap: number; 
+    hp: number; 
+    armor: number; 
+    crit: number; 
+    speed: number;
+
+    // [신규 추가 스탯]
+    mp?: number;       // 마나
+    regen?: number;    // 체력 재생
+    mpRegen?: number;  // 마나 재생
+    pen?: number;      // 관통력
+
+    // [타입 확장] WEAPON, ARMOR, ACCESSORY, POWER + BOOTS, ARTIFACT
+    type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER' | 'BOOTS' | 'ARTIFACT'; 
+    description?: string;
+  }
+  
 export interface ItemStatData {
   itemId: string;
   totalPicks: number;
@@ -75,12 +127,15 @@ export interface ObjectStats { hp: number; armor: number; rewardGold: number; }
 export interface ColossusSettings extends ObjectStats { attack: number; respawnTime: number; }
 export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; respawnTime: number; }
 
+// [수정] 정글 설정 타입 확장
 export interface JungleSettings {
-  density: number; 
-  threat: number;  
-  yield: number;   
+  density: number; // 생태계 밀도 (만남 확률)
+  threat: number;  // 위협도
+  yield: number;   // 자원 풍요도 (리젠 속도 계수)
   attack: number; 
-  defense: number; 
+  defense: number;
+  xp: number;      // [신규] 마리당 경험치
+  gold: number;    // [신규] 마리당 골드
 }
 
 export interface BattlefieldSettings {
@@ -162,12 +217,14 @@ export interface TimelineEvent { time: number; type: EventType; killerId: string
 export interface LivePlayer { 
   name: string; heroId: string; kills: number; deaths: number; assists: number; 
   gold: number; cs: number; totalDamageDealt: number;
-  currentHp: number; maxHp: number; level: number;  exp: number;
+  currentHp: number; maxHp: number; level: number; exp: number;
   items: Item[]; 
   x: number; y: number; lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE'; buffs: string[]; 
   mmr: number; 
 
-  // [NEW] 인게임 연산을 위해 유저 스탯을 가져옴
+  // [추가] 부활 대기 시간 (0이면 생존, 0보다 크면 죽은 상태)
+  respawnTimer: number;
+
   stats: {
     brain: number;
     mechanics: number;

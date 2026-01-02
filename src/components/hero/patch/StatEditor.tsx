@@ -4,17 +4,21 @@
 import React, { useState } from 'react';
 import { Sliders } from 'lucide-react';
 
-// [설정] 스킬 에디터와 동일한 스타일 적용
-// min/max 범위는 넉넉하게, step은 1로 고정
+// [수정] 스탯 설정 확장 (마나, 재생, 관통력 추가)
 const STAT_CONFIG: any = {
-  baseAtk: { min: 0, max: 1000, step: 1, color: '#f1c40f', label: '기본 공격력', unit: '' },
-  ad: { min: 0, max: 1000, step: 1, color: '#e67e22', label: '추가 AD', unit: '' },
+  baseAtk: { min: 0, max: 200, step: 1, color: '#777', label: '기본 공격력', unit: '' },
+  ad: { min: 0, max: 1000, step: 1, color: '#e67e22', label: '추가 AD (계수용)', unit: '' },
   ap: { min: 0, max: 1000, step: 1, color: '#9b59b6', label: '주문력(AP)', unit: '' },
   crit: { min: 0, max: 100, step: 1, color: '#e74c3c', label: '치명타율', unit: '%' },
-  range: { min: 1, max: 2000, step: 1, color: '#58a6ff', label: '공격 사거리', unit: '' },
-  hp: { min: 1, max: 20000, step: 1, color: '#2ecc71', label: '체력(HP)', unit: '' },
-  armor: { min: 0, max: 1000, step: 1, color: '#3498db', label: '방어력', unit: '' },
-  speed: { min: 1, max: 2000, step: 1, color: '#95a5a6', label: '이동 속도', unit: '' }
+  range: { min: 1, max: 1000, step: 5, color: '#ccc', label: '공격 사거리', unit: '' },
+  pen: { min: 0, max: 100, step: 1, color: '#da3633', label: '방어 관통력', unit: '' },
+
+  hp: { min: 1, max: 5000, step: 10, color: '#2ecc71', label: '체력(HP)', unit: '' },
+  mp: { min: 0, max: 2000, step: 10, color: '#3498db', label: '마나(MP)', unit: '' },
+  regen: { min: 0, max: 100, step: 1, color: '#27ae60', label: '체력 재생', unit: '/s' },
+  mpRegen: { min: 0, max: 50, step: 1, color: '#2980b9', label: '마나 재생', unit: '/s' },
+  armor: { min: 0, max: 300, step: 1, color: '#3498db', label: '방어력', unit: '' },
+  speed: { min: 100, max: 600, step: 5, color: '#f1c40f', label: '이동 속도', unit: '' }
 };
 
 interface Props {
@@ -24,30 +28,28 @@ interface Props {
 }
 
 export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
-  // 현재 수정 중인 스탯 키 (예: 'hp', 'ad')
   const [activeField, setActiveField] = useState<string | null>(null);
 
-  // 현재 선택된 스탯의 설정값 가져오기
   const currentStatValue = activeField ? stats[activeField] : 0;
   const currentConfig = activeField ? STAT_CONFIG[activeField] : null;
-  
-  // 설정이 없으면 기본값 처리
+
   const currentMax = currentConfig?.max || 1000;
-  const currentStep = 1; // 무조건 1단위 고정
+  const currentStep = currentConfig?.step || 1;
   const currentLabel = currentConfig?.label || '';
   const currentUnit = currentConfig?.unit || '';
   const currentColor = currentConfig?.color || '#fff';
 
   return (
     <div className="stat-editor">
-      
-      {/* 1. 스탯 카드 그리드 (터치하면 선택됨) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+
+      {/* 1. 스탯 카드 그리드 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '20px' }}>
         {fields.map(f => {
           const conf = STAT_CONFIG[f];
           if (!conf) return null;
-          
+
           const isActive = activeField === f;
+          const val = stats[f] !== undefined ? stats[f] : 0;
 
           return (
             <div 
@@ -56,24 +58,23 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
               style={{ 
                 background: isActive ? '#1f242e' : '#161b22', 
                 border: isActive ? `2px solid ${conf.color}` : '1px solid #30363d', 
-                borderRadius: '12px', padding: '15px', 
+                borderRadius: '8px', padding: '10px 5px', 
                 textAlign: 'center', cursor: 'pointer',
                 transition: 'all 0.2s',
-                boxShadow: isActive ? `0 0 15px ${conf.color}33` : 'none'
               }}
             >
-              <div style={{ fontSize: '11px', color: isActive ? conf.color : '#8b949e', marginBottom: '4px', fontWeight:'bold' }}>
+              <div style={{ fontSize: '10px', color: isActive ? conf.color : '#8b949e', marginBottom: '2px', fontWeight:'bold', whiteSpace:'nowrap' }}>
                 {conf.label}
               </div>
-              <div style={{ fontSize: '20px', fontWeight: '800', color: conf.color }}>
-                {stats[f]}<span style={{fontSize:'12px', marginLeft:'2px', color:'#666'}}>{conf.unit}</span>
+              <div style={{ fontSize: '14px', fontWeight: '800', color: conf.color }}>
+                {val}<span style={{fontSize:'10px', marginLeft:'1px', color:'#666'}}>{conf.unit}</span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* 2. 슬라이더 패널 (선택 시 등장) */}
+      {/* 2. 슬라이더 패널 */}
       {activeField && currentConfig && (
         <div style={{ 
           background: '#1c1c1f', padding: '20px', borderRadius: '16px', 
@@ -90,27 +91,25 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
             </div>
           </div>
 
-          {/* 슬라이더 */}
           <input 
             type="range" 
             min={currentConfig.min} 
             max={currentMax} 
             step={currentStep}
-            value={currentStatValue} 
+            value={currentStatValue || 0} 
             onChange={e => onChange(activeField, Number(e.target.value))}
             style={{ width: '100%', accentColor: currentColor, height:'8px', cursor:'pointer', marginBottom:'15px' }}
           />
 
-          {/* 미세 조정 버튼 (+-1, +-10) */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'8px' }}>
-             <AdjustBtn onClick={() => onChange(activeField, Math.max(currentConfig.min, currentStatValue - 10))} label="-10" />
-             <AdjustBtn onClick={() => onChange(activeField, Math.max(currentConfig.min, currentStatValue - 1))} label="-1" />
-             <AdjustBtn onClick={() => onChange(activeField, Math.min(currentMax, currentStatValue + 1))} label="+1" />
-             <AdjustBtn onClick={() => onChange(activeField, Math.min(currentMax, currentStatValue + 10))} label="+10" />
+             <AdjustBtn onClick={() => onChange(activeField, Math.max(currentConfig.min, (currentStatValue||0) - (currentStep*10)))} label={`-${currentStep*10}`} />
+             <AdjustBtn onClick={() => onChange(activeField, Math.max(currentConfig.min, (currentStatValue||0) - currentStep))} label={`-${currentStep}`} />
+             <AdjustBtn onClick={() => onChange(activeField, Math.min(currentMax, (currentStatValue||0) + currentStep))} label={`+${currentStep}`} />
+             <AdjustBtn onClick={() => onChange(activeField, Math.min(currentMax, (currentStatValue||0) + (currentStep*10)))} label={`+${currentStep*10}`} />
           </div>
         </div>
       )}
-      
+
       <style>{`
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
@@ -118,7 +117,6 @@ export const StatEditor: React.FC<Props> = ({ fields, stats, onChange }) => {
   );
 };
 
-// 미세 조정 버튼 컴포넌트
 const AdjustBtn = ({ onClick, label }: any) => (
   <button 
     onClick={onClick} 
@@ -127,8 +125,6 @@ const AdjustBtn = ({ onClick, label }: any) => (
       padding:'12px 0', borderRadius:'8px', cursor:'pointer', fontWeight:'bold',
       fontSize:'14px', transition:'0.1s'
     }}
-    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#30363d'}
-    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#21262d'}
   >
     {label}
   </button>

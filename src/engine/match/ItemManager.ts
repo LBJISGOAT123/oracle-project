@@ -2,94 +2,189 @@
 // FILE PATH: /src/engine/match/ItemManager.ts
 // ==========================================
 
-import { Item, LivePlayer, Hero } from '../../types';
+import { Item, LivePlayer, Hero, Role } from '../../types';
 
-// [신규 기능] 아이템 판매 로직 (외부에서도 호출 가능하도록 export)
-// 인벤토리에서 특정 인덱스의 아이템을 제거하고 골드를 환불함 (70% 가격)
+// [1] 아이템 판매 로직
 export const sellItem = (player: LivePlayer, index: number) => {
   const itemToSell = player.items[index];
   if (!itemToSell) return 0;
 
-  // 판매 가격: 구매가의 70% (소수점 버림)
-  const refundGold = Math.floor(itemToSell.cost * 0.7);
-
+  const refundGold = Math.floor(itemToSell.cost * 0.8);
   player.gold += refundGold;
-  player.items.splice(index, 1); // 인벤토리에서 삭제
+  player.items.splice(index, 1);
 
   return refundGold;
 };
 
-// [업데이트] 스마트 아이템 구매 AI (중복 방지 포함)
-export const attemptBuyItem = (player: LivePlayer, shopItems: Item[], heroes: Hero[]) => {
+// [2] 직업별 기본 스탯 가중치 (Base Preference)
+const ROLE_WEIGHTS: Record<Role, any> = {
+  '집행관': { ad: 1.2, hp: 0.8, armor: 0.8, regen: 0.5, pen: 1.0, speed: 0.5, crit: 0.8 },
+  '추적자': { ad: 1.5, speed: 1.2, pen: 1.2, crit: 1.0, hp: 0.2 },
+  '선지자': { ap: 1.5, mp: 1.2, mpRegen: 1.2, pen: 0.8, hp: 0.3 },
+  '신살자': { ad: 1.5, crit: 1.5, speed: 1.0, pen: 1.2, hp: 0.1 },
+  '수호기사': { hp: 1.5, armor: 1.5, regen: 1.5, mp: 0.5, speed: 0.3 },
+};
+
+// [3] AI 아이템 구매 로직 (스마트 버전)
+export const attemptBuyItem = (
+  player: LivePlayer, 
+  shopItems: Item[], 
+  heroes: Hero[], 
+  enemies: LivePlayer[], // [추가] 적 팀 정보 분석용
+  gameTime: number       // [추가] 게임 시간 (초)
+) => {
   const hero = heroes.find(h => h.id === player.heroId);
   if (!hero) return;
 
-  const isAdChamp = hero.stats.ad > hero.stats.ap || hero.skills.q.adRatio > hero.skills.q.apRatio;
+  const role = hero.role;
+  // 가중치 복사 (원본 수정 방지)
+  const weights = { ...(ROLE_WEIGHTS[role] || { ad: 1, ap: 1, hp: 1 }) };
   const itemCount = player.items.length;
 
-  // 1. 구매 제한 (초반엔 싼거, 후반엔 비싼거)
-  let minPriceLimit = 0;
-  if (itemCount < 2) minPriceLimit = 0;
-  else if (itemCount < 4) minPriceLimit = 600;
-  else if (itemCount < 6) minPriceLimit = 1100;
-  else minPriceLimit = 2000; // 풀템일 때는 진짜 좋은거 아니면 안 봄
+  // -------------------------------------------------------
+  // [전략 1] 적 팀 분석 및 카운터 가중치 적용
+  // -------------------------------------------------------
+  let enemyAD = 0;
+  let enemyAP = 0;
+  let enemyArmor = 0;
 
-  // 2. 구매 가능한 아이템 필터링 및 점수 산정
-  // [핵심 수정] 여기서 '이미 가진 아이템'은 후보에서 제외 (중복 방지)
-  const candidates = shopItems.filter(item => {
-    // A. 이미 가지고 있는지 체크 (Unique Logic: 중복 구매 방지)
-    const hasItem = player.items.some(ownedItem => ownedItem.id === item.id);
-    if (hasItem) return false;
-
-    // B. 가격 필터 (현재 골드로 살 수 있거나, 템 하나 팔아서 살 수 있는 범위)
-    // 템을 팔았을 때(약 500~1000G 확보 가정) 살 수 있는 가능성까지 고려
-    const affordable = item.cost <= (player.gold + 1000); 
-
-    return affordable && item.cost >= minPriceLimit;
+  // 잘 큰 적(골드 상위권) 위주로 위협 분석
+  const threats = enemies.sort((a, b) => b.gold - a.gold).slice(0, 3);
+  threats.forEach(e => {
+    const eHero = heroes.find(h => h.id === e.heroId);
+    if (eHero) {
+      // 적의 스탯 추정 (기본 + 아이템)
+      enemyAD += eHero.stats.ad; // 단순화: 아이템 합산은 생략하고 영웅 특성만 봄
+      enemyAP += eHero.stats.ap;
+      enemyArmor += eHero.stats.armor;
+    }
   });
+
+  // A. 적이 물리 공격 위주라면 -> 방어력 가중치 증가
+  if (enemyAD > enemyAP * 1.5) {
+    weights.armor = (weights.armor || 0.5) * 1.5;
+    weights.hp = (weights.hp || 0.5) * 1.2;
+  }
+
+  // B. 적이 방어력을 많이 올렸다면 -> 관통력 가중치 대폭 증가
+  if (enemyArmor > 150) {
+    weights.pen = (weights.pen || 0.5) * 2.0;
+  }
+
+  // -------------------------------------------------------
+  // [전략 2] 생존 본능 (많이 죽었을 때)
+  // -------------------------------------------------------
+  const kdaRatio = player.deaths === 0 ? player.kills : player.kills / player.deaths;
+  if (player.deaths > 3 && kdaRatio < 0.5) {
+    // 너무 많이 죽고 있으면 생존템 선호
+    weights.hp = (weights.hp || 0.5) * 1.5;
+    weights.regen = (weights.regen || 0.5) * 1.5;
+  }
+
+  // -------------------------------------------------------
+  // [전략 3] 게임 흐름에 따른 구매 제한 (Scaling)
+  // -------------------------------------------------------
+  let minPriceLimit = 0;
+
+  if (gameTime < 600) { 
+    // 초반 (10분 미만): 가성비 좋은 하위템도 OK
+    minPriceLimit = 300; 
+  } else if (gameTime < 1200) {
+    // 중반 (20분 미만): 너무 싼 건 안 삼
+    minPriceLimit = 800;
+  } else {
+    // 후반 (20분 이후): 코어 아이템만 취급
+    minPriceLimit = 2000;
+  }
+
+  // 인벤토리가 꽉 찼으면 더 비싼 것만 봄
+  if (itemCount >= 6) minPriceLimit = 2500;
+
+
+  // -------------------------------------------------------
+  // [전략 4] 아이템 점수 산정 및 필터링
+  // -------------------------------------------------------
+  const hasBoots = player.items.some(i => i.type === 'BOOTS');
+  const existingPowerIdx = player.items.findIndex(i => i.type === 'POWER');
+  const hasPower = existingPowerIdx !== -1;
+
+  const candidates = shopItems
+    .filter(item => {
+      // 1. 중복 소유 방지
+      if (player.items.some(owned => owned.id === item.id)) return false;
+      // 2. 신발 중복 방지
+      if (item.type === 'BOOTS' && hasBoots) return false;
+      // 3. 권능 업그레이드 조건 (더 싼건 안 봄)
+      if (item.type === 'POWER' && hasPower) {
+         if (item.cost <= player.items[existingPowerIdx].cost) return false; 
+      }
+      // 4. 가격 필터 (현재 골드 + 템 판돈 800G 가정)
+      const affordable = item.cost <= (player.gold + 1200); 
+      return affordable && item.cost >= minPriceLimit;
+    })
+    .map(item => {
+      let score = 0;
+
+      // 스탯 점수 (동적으로 조정된 가중치 적용)
+      score += (item.ad || 0) * (weights.ad || 0.1);
+      score += (item.ap || 0) * (weights.ap || 0.1);
+      score += (item.hp || 0) * (weights.hp || 0.1) / 10;
+      score += (item.mp || 0) * (weights.mp || 0.1) / 10;
+      score += (item.armor || 0) * (weights.armor || 0.1);
+      score += (item.crit || 0) * (weights.crit || 0.1) * 2;
+      score += (item.pen || 0) * (weights.pen || 0.1) * 2;
+      score += (item.regen || 0) * (weights.regen || 0.1) * 5;
+      score += (item.mpRegen || 0) * (weights.mpRegen || 0.1) * 5;
+      score += (item.speed || 0) * (weights.speed || 0.5);
+
+      // 타입별 특수 보너스
+      if (role === '선지자' && item.type === 'ARTIFACT') score *= 1.2;
+      if (role === '수호기사' && item.type === 'ARMOR') score *= 1.2;
+      if (!hasBoots && item.type === 'BOOTS') score += 1000; // 신발 최우선
+
+      // 권능은 무조건 높은 점수 (졸업템)
+      if (item.type === 'POWER') score *= 10;
+
+      return { item, score };
+    });
 
   if (candidates.length === 0) return;
 
-  // 우선순위 정렬 (비싼거 + 내 직업에 맞는거)
-  candidates.sort((a, b) => {
-    let scoreA = a.cost;
-    let scoreB = b.cost;
-
-    // 성향 보정 (AD챔은 AD템, AP챔은 AP템 선호)
-    if (isAdChamp && a.ad > 0) scoreA *= 1.5;
-    if (!isAdChamp && a.ap > 0) scoreA *= 1.5;
-    if (isAdChamp && b.ad > 0) scoreB *= 1.5;
-    if (!isAdChamp && b.ap > 0) scoreB *= 1.5;
-
-    // 권능(POWER) 아이템은 최우선 순위
-    if (a.type === 'POWER') scoreA *= 10;
-    if (b.type === 'POWER') scoreB *= 10;
-
-    return scoreB - scoreA;
-  });
-
-  const bestTargetItem = candidates[0];
+  // 점수순 정렬
+  candidates.sort((a, b) => b.score - a.score);
+  const bestTarget = candidates[0].item;
 
   // -------------------------------------------------------
-  // [전략 3] 구매 및 교체 (Replacement)
+  // [구매 실행]
   // -------------------------------------------------------
 
-  // Case A: 인벤토리에 빈 자리가 있고, 돈이 충분할 때 -> 그냥 구매
+  // A. 권능 업그레이드 (교체)
+  if (bestTarget.type === 'POWER' && hasPower) {
+      const powerItem = player.items[existingPowerIdx];
+      const refund = Math.floor(powerItem.cost * 0.8);
+      if ((player.gold + refund) >= bestTarget.cost) {
+          sellItem(player, existingPowerIdx);
+          player.gold -= bestTarget.cost;
+          player.items.push(bestTarget);
+          return;
+      }
+  }
+
+  // B. 일반 구매 (빈 자리)
   if (itemCount < 6) {
-    if (player.gold >= bestTargetItem.cost) {
-      player.gold -= bestTargetItem.cost;
-      player.items.push(bestTargetItem);
+    if (player.gold >= bestTarget.cost) {
+      player.gold -= bestTarget.cost;
+      player.items.push(bestTarget);
     }
   } 
-  // Case B: 인벤토리가 꽉 찼거나 돈이 모자랄 때 -> 하위템 판매 후 교체 고려
+  // C. 교체 구매 (풀템일 때)
   else {
-    // 내 아이템 중 가장 싼 것(판매 대상) 찾기
-    // 단, 권능(POWER) 아이템은 절대 팔지 않음
     let cheapestIdx = -1;
     let minCost = 999999;
 
+    // 절대 팔면 안 되는 것들: 신발, 권능
     player.items.forEach((item, idx) => {
-      if (item.type !== 'POWER' && item.cost < minCost) {
+      if (item.type !== 'POWER' && item.type !== 'BOOTS' && item.cost < minCost) {
         minCost = item.cost;
         cheapestIdx = idx;
       }
@@ -97,33 +192,32 @@ export const attemptBuyItem = (player: LivePlayer, shopItems: Item[], heroes: He
 
     if (cheapestIdx !== -1) {
       const itemToSell = player.items[cheapestIdx];
-      const refund = Math.floor(itemToSell.cost * 0.7);
+      const refund = Math.floor(itemToSell.cost * 0.8);
 
-      // [핵심] 교체 조건:
-      // 1. (현재 골드 + 판 돈)으로 새 아이템을 살 수 있어야 함
-      // 2. 새 아이템이 팔려는 아이템보다 훨씬 좋아야 함 (가격 1.5배 이상)
-      if ((player.gold + refund) >= bestTargetItem.cost && bestTargetItem.cost > itemToSell.cost * 1.5) {
-        // 판매 실행 (모듈화된 함수 사용)
+      // 교체 조건: 돈이 되고, 스펙업이 확실할 때 (가격 1.5배 이상 차이)
+      if ((player.gold + refund) >= bestTarget.cost && bestTarget.cost > itemToSell.cost * 1.5) {
         sellItem(player, cheapestIdx);
-
-        // 구매 실행
-        player.gold -= bestTargetItem.cost;
-        player.items.push(bestTargetItem);
+        player.gold -= bestTarget.cost;
+        player.items.push(bestTarget);
       }
     }
   }
 };
 
-// [기존 유지] 스탯 계산 로직
+// [4] 통합 스탯 계산기 (변경 없음)
 export const calculateTotalStats = (hero: Hero, items: Item[]) => {
   let stats = { ...hero.stats }; 
   items.forEach(item => {
-    stats.ad += item.ad;
-    stats.ap += item.ap;
-    stats.hp += item.hp;
-    stats.armor += item.armor;
-    stats.crit += item.crit;
-    stats.speed += item.speed;
+    stats.ad += (item.ad || 0);
+    stats.ap += (item.ap || 0);
+    stats.hp += (item.hp || 0);
+    stats.mp += (item.mp || 0);
+    stats.armor += (item.armor || 0);
+    stats.crit += (item.crit || 0);
+    stats.speed += (item.speed || 0);
+    stats.regen += (item.regen || 0);
+    stats.mpRegen += (item.mpRegen || 0);
+    stats.pen += (item.pen || 0);
   });
   return stats;
 };

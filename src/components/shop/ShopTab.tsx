@@ -4,18 +4,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { Coins, Plus, Trash2, Shield, Sword, Zap, Briefcase, BarChart2, ShoppingCart, Edit2 } from 'lucide-react';
+import { 
+  Coins, Plus, Trash2, Shield, Sword, Zap, Briefcase, 
+  BarChart2, ShoppingCart, Search, ChevronRight, Footprints, Gem 
+} from 'lucide-react';
 import { ItemStatsView } from './ItemStatsView'; 
 import { ItemPatchModal } from './ItemPatchModal';
 import { Item } from '../../types';
+import { GameIcon } from '../common/GameIcon';
 
 export const ShopTab: React.FC = () => {
   const { shopItems, deleteItem } = useGameStore();
   const [mode, setMode] = useState<'MANAGE' | 'STATS'>('MANAGE');
   const [filter, setFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
 
@@ -25,16 +29,20 @@ export const ShopTab: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const filteredItems = filter === 'ALL' ? shopItems : shopItems.filter(i => i.type === filter);
+  const filteredItems = shopItems.filter(i => {
+    const matchFilter = filter === 'ALL' || i.type === filter;
+    const matchSearch = i.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchFilter && matchSearch;
+  });
 
-  const handleCreate = () => {
-    setEditingItem(null); 
-    setIsModalOpen(true);
-  };
+  // 가격순 정렬
+  filteredItems.sort((a, b) => a.cost - b.cost);
 
-  const handleEdit = (item: Item) => {
-    setEditingItem(item); 
-    setIsModalOpen(true);
+  const handleCreate = () => { setEditingItem(null); setIsModalOpen(true); };
+  const handleEdit = (item: Item) => { setEditingItem(item); setIsModalOpen(true); };
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if(confirm('삭제하시겠습니까?')) deleteItem(id);
   };
 
   const getTypeIcon = (type: string) => {
@@ -43,147 +51,147 @@ export const ShopTab: React.FC = () => {
       case 'ARMOR': return <Shield size={14} color="#2ecc71"/>;
       case 'ACCESSORY': return <Briefcase size={14} color="#f1c40f"/>;
       case 'POWER': return <Zap size={14} color="#9b59b6"/>;
-      default: return <Coins size={14}/>;
+      // [신규 아이콘 매핑]
+      case 'BOOTS': return <Footprints size={14} color="#00b894"/>;
+      case 'ARTIFACT': return <Gem size={14} color="#a29bfe"/>;
+      default: return <Coins size={14} color="#888"/>;
     }
   };
 
-  // 스탯 뱃지 컴포넌트
-  const StatBadge = ({ label, val, color }: { label: string, val: number, color: string }) => {
-    if (val <= 0) return null;
+  const StatBadge = ({ label, val, color }: { label: string, val?: number, color: string }) => {
+    if (!val || val === 0) return null;
     return (
       <span style={{ 
         fontSize: '10px', fontWeight: 'bold', color: color, 
-        background: `${color}11`, border: `1px solid ${color}33`, 
-        padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap'
+        background: `${color}11`, border: `1px solid ${color}44`, 
+        padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap',
+        display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace'
       }}>
         {label} +{val}
       </span>
     );
   };
 
+  const ItemStatsRenderer = ({ item }: { item: Item }) => (
+    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+      <StatBadge label="AD" val={item.ad} color="#e74c3c" />
+      <StatBadge label="AP" val={item.ap} color="#9b59b6" />
+      <StatBadge label="HP" val={item.hp} color="#2ecc71" />
+      <StatBadge label="DEF" val={item.armor} color="#3498db" />
+      <StatBadge label="CRI" val={item.crit} color="#e67e22" />
+      <StatBadge label="SPD" val={item.speed} color="#f1c40f" />
+
+      {/* [신규 스탯 표시] */}
+      <StatBadge label="MP" val={item.mp} color="#3498db" />
+      <StatBadge label="PEN" val={item.pen} color="#da3633" />
+      <StatBadge label="REG" val={item.regen} color="#27ae60" />
+      <StatBadge label="M.REG" val={item.mpRegen} color="#2980b9" />
+    </div>
+  );
+
+  const DesktopRow = ({ item, index }: { item: Item, index: number }) => (
+    <div 
+      onClick={() => handleEdit(item)}
+      style={{ 
+        display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr 80px', 
+        padding: '10px 15px', borderBottom: '1px solid #2c2c2f', 
+        alignItems: 'center', background: '#161b22', cursor: 'pointer',
+        transition: 'background 0.1s'
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = '#21262d'}
+      onMouseLeave={e => e.currentTarget.style.background = '#161b22'}
+    >
+      <div style={{ color: '#555', fontStyle: 'italic', fontWeight: 'bold', textAlign:'center' }}>{index + 1}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <GameIcon id={item.id} size={36} shape="rounded" border="1px solid #444" />
+        <div>
+          <div style={{ fontWeight: 'bold', color: item.type === 'POWER' ? '#9b59b6' : '#fff', fontSize: '13px' }}>{item.name}</div>
+          <div style={{ fontSize: '11px', color: '#666', display:'flex', alignItems:'center', gap:'4px' }}>
+            {getTypeIcon(item.type)} {item.type}
+          </div>
+        </div>
+      </div>
+      <div style={{ color: '#f1c40f', fontWeight: 'bold', fontSize: '13px', fontFamily: 'monospace' }}>
+        {item.cost.toLocaleString()} G
+      </div>
+      <div><ItemStatsRenderer item={item} /></div>
+      <div style={{ textAlign: 'right' }}>
+        <button onClick={(e) => handleDelete(e, item.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: '5px' }}>
+          <Trash2 size={14} className="hover-red" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const MobileRow = ({ item, index }: { item: Item, index: number }) => (
+    <div onClick={() => handleEdit(item)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderBottom: '1px solid #2c2c2f', background: '#161b22', cursor: 'pointer' }}>
+      <div style={{ fontSize: '12px', color: '#555', fontStyle: 'italic', width: '20px', textAlign:'center' }}>{index + 1}</div>
+      <GameIcon id={item.id} size={42} shape="rounded" border="1px solid #444" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>{item.name}</span>
+          <span style={{ color: '#f1c40f', fontWeight: 'bold', fontSize: '12px' }}>{item.cost.toLocaleString()}</span>
+        </div>
+        <ItemStatsRenderer item={item} />
+      </div>
+      <ChevronRight size={16} color="#444" />
+    </div>
+  );
+
   return (
-    <div style={{ paddingBottom: '80px' }}>
-
-      {/* 상단 헤더 */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px', background:'#21262d', padding:'10px 15px', borderRadius:'12px', border:'1px solid #30363d' }}>
-        <h2 style={{ margin:0, color:'#fff', display:'flex', alignItems:'center', gap:'10px', fontSize:'16px' }}>
-          <Coins color="#f1c40f" size={20}/> 
-          {isMobile ? '상점' : '아이템 상점'}
-        </h2>
-
-        <div style={{ display:'flex', background:'#0d1117', padding:'3px', borderRadius:'8px', border:'1px solid #30363d' }}>
-          <button 
-            onClick={() => setMode('MANAGE')}
-            style={{ 
-              display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize:'11px',
-              background: mode === 'MANAGE' ? '#58a6ff' : 'transparent', color: mode === 'MANAGE' ? '#000' : '#8b949e'
-            }}
-          >
-            <ShoppingCart size={14}/> 관리
-          </button>
-          <button 
-            onClick={() => setMode('STATS')}
-            style={{ 
-              display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize:'11px',
-              background: mode === 'STATS' ? '#58a6ff' : 'transparent', color: mode === 'STATS' ? '#000' : '#8b949e'
-            }}
-          >
-            <BarChart2 size={14}/> 통계
-          </button>
+    <div style={{ paddingBottom: '80px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ background:'#161b22', borderRadius:'12px', border:'1px solid #30363d', padding: '12px 15px', marginBottom: '10px', display:'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '10px' : '15px', justifyContent:'space-between', alignItems: isMobile ? 'stretch' : 'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <Coins color="#f1c40f" size={20}/>
+            <h2 style={{ margin:0, color:'#fff', fontSize: '16px', fontWeight:'800' }}>아이템 상점</h2>
+        </div>
+        <div style={{ display:'flex', background:'#0d1117', padding:'3px', borderRadius:'6px', border:'1px solid #30363d' }}>
+            <button onClick={() => setMode('MANAGE')} style={{ flex:1, padding:'6px 12px', borderRadius:'4px', border:'none', background: mode === 'MANAGE' ? '#58a6ff' : 'transparent', color: mode === 'MANAGE' ? '#000' : '#8b949e', fontWeight:'bold', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}><ShoppingCart size={14}/> 관리</button>
+            <button onClick={() => setMode('STATS')} style={{ flex:1, padding:'6px 12px', borderRadius:'4px', border:'none', background: mode === 'STATS' ? '#58a6ff' : 'transparent', color: mode === 'STATS' ? '#000' : '#8b949e', fontWeight:'bold', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}><BarChart2 size={14}/> 통계</button>
         </div>
       </div>
 
       {mode === 'STATS' && <ItemStatsView />}
 
       {mode === 'MANAGE' && (
-        <>
-          {/* 필터 버튼 */}
-          <div style={{ display:'flex', gap:'5px', marginBottom:'15px', overflowX:'auto', paddingBottom:'5px' }}>
-            {['ALL', 'WEAPON', 'ARMOR', 'ACCESSORY', 'POWER'].map(f => (
-              <button 
-                key={f} 
-                onClick={() => setFilter(f)}
-                style={{ 
-                  background: filter === f ? '#30363d' : '#161b22', border: '1px solid #30363d',
-                  color: filter === f ? '#fff' : '#888',
-                  padding: '6px 10px', borderRadius: '6px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', whiteSpace:'nowrap'
-                }}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-
-          {/* 아이템 리스트 (모바일 최적화 적용) */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-            {filteredItems.map(item => (
-              <div key={item.id} style={{ 
-                background:'#161b22', border:'1px solid #30363d', borderRadius:'10px', padding:'10px', 
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap:'10px'
-              }}>
-
-                {/* 1. 좌측: 아이콘 + 기본 정보 */}
-                <div style={{ display:'flex', alignItems:'center', gap:'10px', minWidth: isMobile ? '100px' : '150px' }}>
-                  <div style={{ width:'36px', height:'36px', background:'#0d1117', borderRadius:'8px', border:'1px solid #444', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    {getTypeIcon(item.type)}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight:'bold', color: item.type === 'POWER' ? '#9b59b6' : '#fff', fontSize:'13px', lineHeight:'1.2' }}>{item.name}</div>
-                    <div style={{ fontSize:'11px', color:'#f1c40f', fontWeight:'bold' }}>{item.cost.toLocaleString()} G</div>
-                  </div>
-                </div>
-
-                {/* 2. 중앙: 스탯 (모바일에서는 옆으로 배치) */}
-                <div style={{ 
-                  flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px', 
-                  justifyContent: isMobile ? 'flex-start' : 'center',
-                  alignContent: 'center'
-                }}>
-                  <StatBadge label="AD" val={item.ad} color="#e74c3c" />
-                  <StatBadge label="AP" val={item.ap} color="#9b59b6" />
-                  <StatBadge label="HP" val={item.hp} color="#2ecc71" />
-                  <StatBadge label="DEF" val={item.armor} color="#3498db" />
-                  <StatBadge label="CRI" val={item.crit} color="#e67e22" />
-                  <StatBadge label="SPD" val={item.speed} color="#fff" />
-                </div>
-
-                {/* 3. 우측: 버튼 */}
-                <div style={{ display:'flex', gap:'4px', flexShrink:0 }}>
-                  <button onClick={() => handleEdit(item)} style={{ background:'#21262d', border:'1px solid #333', color:'#ccc', cursor:'pointer', width:'28px', height:'28px', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Edit2 size={14}/>
-                  </button>
-                  <button onClick={() => deleteItem(item.id)} style={{ background:'#3f1515', border:'1px solid #5a1e1e', color:'#ff6b6b', cursor:'pointer', width:'28px', height:'28px', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Trash2 size={14}/>
-                  </button>
-                </div>
-
-              </div>
-            ))}
-
-            {/* 아이템 추가 버튼 (맨 아래) */}
-            <div onClick={handleCreate} style={{ 
-              border:'2px dashed #30363d', borderRadius:'10px', 
-              display:'flex', alignItems:'center', justifyContent:'center', 
-              padding:'12px', cursor:'pointer', color:'#555', transition:'0.2s', marginTop:'5px'
-            }}
-            onMouseEnter={e => {e.currentTarget.style.borderColor = '#58a6ff'; e.currentTarget.style.color = '#58a6ff'}}
-            onMouseLeave={e => {e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.color = '#555'}}
-            >
-              <div style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'13px', fontWeight:'bold' }}>
-                <Plus size={16}/> 아이템 추가
-              </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#1c1c1f', border: '1px solid #30363d', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 15px', borderBottom: '1px solid #30363d', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', background: '#252528' }}>
+            <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {/* [신규 탭 추가] */}
+              {['ALL', 'WEAPON', 'ARMOR', 'ARTIFACT', 'BOOTS', 'ACCESSORY', 'POWER'].map(f => (
+                <button key={f} onClick={() => setFilter(f)} style={{ background: filter === f ? '#30363d' : 'transparent', color: filter === f ? '#fff' : '#888', border: '1px solid', borderColor: filter === f ? '#555' : 'transparent', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px', whiteSpace: 'nowrap' }}>
+                  {f === 'ALL' ? '전체' : f}
+                </button>
+              ))}
             </div>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={14} color="#666" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input type="text" placeholder="아이템 검색..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', background: '#161b22', border: '1px solid #444', borderRadius: '4px', padding: '6px 10px 6px 30px', color: '#fff', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <button onClick={handleCreate} style={{ background: '#238636', border: '1px solid #2ea043', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', justifyContent:'center' }}><Plus size={14}/> 신규 등록</button>
           </div>
-        </>
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {!isMobile && (
+              <div style={{ display: 'grid', gridTemplateColumns: '50px 250px 100px 1fr 80px', padding: '10px 15px', borderBottom: '1px solid #30363d', background: '#161b22', fontSize: '11px', fontWeight: 'bold', color: '#8b949e', position: 'sticky', top: 0 }}>
+                <div style={{ textAlign:'center' }}>No.</div>
+                <div>아이템 정보</div>
+                <div>가격</div>
+                <div>능력치 (Stats)</div>
+                <div style={{ textAlign: 'right' }}>관리</div>
+              </div>
+            )}
+            {filteredItems.length > 0 ? (
+              filteredItems.map((item, idx) => (
+                isMobile ? <MobileRow key={item.id} item={item} index={idx} /> : <DesktopRow key={item.id} item={item} index={idx} />
+              ))
+            ) : <div style={{ padding: '40px', textAlign: 'center', color: '#555', fontSize: '13px' }}>검색된 아이템이 없습니다.</div>}
+          </div>
+        </div>
       )}
 
-      {/* 모달 렌더링 */}
-      {isModalOpen && (
-        <ItemPatchModal 
-          item={editingItem} 
-          onClose={() => setIsModalOpen(false)} 
-        />
-      )}
+      {isModalOpen && <ItemPatchModal item={editingItem} onClose={() => setIsModalOpen(false)} />}
+      <style>{` .hover-red:hover { color: #ff4d4d !important; } `}</style>
     </div>
   );
 };

@@ -45,12 +45,13 @@ const initialGameState: GameState = {
     economy: { minionGold: 14, minionXp: 30 }
   },
   fieldSettings: {
-    // [밸런스 패치] 포탑 내구도 대폭 상향 (3000 -> 10000, 방어 50 -> 150)
     tower: { hp: 10000, armor: 150, rewardGold: 150 },
     colossus: { hp: 8000, armor: 80, rewardGold: 100, attack: 50, respawnTime: 300 },
     watcher: { hp: 12000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, respawnTime: 420 },
-    jungle: JUNGLE_CONFIG.DEFAULT_SETTINGS
+    // [수정] 정글 초기값에 xp, gold 추가
+    jungle: { density: 50, yield: 50, attack: 30, defense: 20, threat: 0, xp: 160, gold: 80 }
   },
+
   roleSettings: {
     executor: { damage: 10, defense: 10 },
     tracker: { gold: 20, smiteChance: 1.5 },
