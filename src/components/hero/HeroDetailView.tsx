@@ -8,8 +8,8 @@ import { useGameStore } from '../../store/useGameStore';
 import { ROLE_DATA } from '../../data/roles';
 import { 
   X, Wrench, Edit, Swords, Shield, Zap, Target, Skull, Trophy, 
-  Activity, BarChart2, Clock, Search, Heart, Footprints, Crosshair, Droplets, Flame 
-} from 'lucide-react';
+  Activity, BarChart2, Clock, Search, Heart, Footprints, Crosshair, Droplets, Flame, Trash
+} from 'lucide-react'; // [수정] Trash 아이콘 추가
 import { GameIcon } from '../common/GameIcon';
 import { CustomizeHeroModal } from './CustomizeHeroModal';
 import { HeroVsModal } from './HeroVsModal';
@@ -21,7 +21,8 @@ interface Props {
 }
 
 export const HeroDetailView: React.FC<Props> = ({ hero, onBack, onPatch }) => {
-  const { heroes, gameState, shopItems } = useGameStore();
+  // [수정] deleteHero 추가
+  const { heroes, gameState, shopItems, deleteHero } = useGameStore();
   const [activeTab, setActiveTab] = useState<'SUMMARY' | 'COUNTER' | 'COMBAT' | 'BUILD'>('SUMMARY');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -39,14 +40,21 @@ export const HeroDetailView: React.FC<Props> = ({ hero, onBack, onPatch }) => {
   const bgId = `${hero.id}_bg`;
   const customBg = gameState.customImages?.[bgId];
 
-  // [핵심] 영웅 고유 대사 표시 (없으면 역할군 기본 설명)
+  // 영웅 고유 대사 표시
   const displayConcept = hero.concept || roleInfo.concept;
+
+  // [신규] 영웅 삭제 핸들러
+  const handleDelete = () => {
+    if (confirm(`정말 '${hero.name}' 영웅을 삭제하시겠습니까?\n삭제된 영웅은 복구할 수 없으며, 통계 데이터도 사라집니다.`)) {
+      deleteHero(hero.id);
+      onBack(); // 목록으로 돌아가기
+    }
+  };
 
   // --- [데이터 계산] ---
   const totalMatches = Math.max(1, hero.record.totalMatches);
   const winRate = (hero.record.totalWins / totalMatches) * 100;
 
-  // 문자열로 된 수치들 안전하게 파싱
   const parseStat = (val: string) => parseFloat(val.replace(/,/g, '')) || 0;
 
   const dpm = parseStat(hero.avgDpm);
@@ -226,12 +234,16 @@ export const HeroDetailView: React.FC<Props> = ({ hero, onBack, onPatch }) => {
                 "{displayConcept}"
               </p>
 
+              {/* [수정] 버튼 그룹 (삭제 버튼 포함) */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={onPatch} style={{ flex:1, background:'#238636', border:'none', color:'#fff', padding:'6px', borderRadius:'4px', fontWeight:'bold', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'4px' }}>
-                  <Wrench size={12}/> 밸런스 패치
+                  <Wrench size={12}/> 패치
                 </button>
                 <button onClick={() => setShowCustomize(true)} style={{ flex:1, background:'#1f6feb', border:'none', color:'#fff', padding:'6px', borderRadius:'4px', fontWeight:'bold', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'4px' }}>
                   <Edit size={12}/> 커스텀
+                </button>
+                <button onClick={handleDelete} style={{ flex:1, background:'#3f1515', border:'1px solid #5a1e1e', color:'#ff6b6b', padding:'6px', borderRadius:'4px', fontWeight:'bold', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'4px' }}>
+                  <Trash size={12}/> 삭제
                 </button>
               </div>
             </div>
