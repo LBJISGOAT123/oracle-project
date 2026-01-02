@@ -8,7 +8,7 @@ import { useGameStore } from '../../store/useGameStore';
 import { GameIcon } from '../common/GameIcon';
 import { LiveMatch, Hero } from '../../types';
 
-// [1] 안전장치
+// [1] 안전장치: 에러 바운더리
 class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, errorMsg: string }> {
   constructor(props: any) {
     super(props);
@@ -26,6 +26,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
         <div style={{ padding: '40px', color: '#ff6b6b', textAlign: 'center', background:'#111', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center' }}>
           <AlertTriangle size={40} style={{ marginBottom: '20px' }} />
           <h3>화면 로드 실패</h3>
+          <p style={{ fontSize: '12px', color: '#888', marginBottom:'20px', maxWidth:'80%' }}>{this.state.errorMsg}</p>
           <button onClick={() => window.location.reload()} style={{ padding:'10px 20px', background:'#333', color:'#fff', border:'1px solid #555', borderRadius:'4px', cursor:'pointer' }}>새로고침</button>
         </div>
       );
@@ -35,24 +36,28 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
 }
 
 // ----------------------------------------------------------------------
-// [2] 하위 컴포넌트들
+// [2] 하위 컴포넌트들 (Hooks 사용 금지 - 순수 UI만 담당)
 // ----------------------------------------------------------------------
 
 const SpeedButton = ({ label, speed, currentSpeed, setSpeed }: any) => (
-  <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px', minWidth:'30px' }}>{label}</button>
+  <button onClick={() => setSpeed(speed)} style={{ flex: 1, padding: '4px 0', background: currentSpeed === speed ? '#58a6ff' : '#1c1c1f', border: `1px solid ${currentSpeed === speed ? '#58a6ff' : '#333'}`, borderRadius: '4px', color: currentSpeed === speed ? '#000' : '#888', fontSize: '10px', fontWeight: '800', cursor: 'pointer', height: '24px', minWidth:'35px' }}>{label}</button>
 );
 
-const BanCard = ({ heroId, heroes, isActive }: any) => {
+const BanCard = ({ heroId, heroes, isActive, onClick }: any) => {
   const hero = heroes.find((h:Hero) => h.id === heroId);
   const name = hero ? hero.name : "금지";
 
   return (
-    <div style={{ 
-      display:'flex', flexDirection:'column', alignItems:'center', width:'36px', margin:'2px',
-      opacity: (isActive || heroId) ? 1 : 0.3,
-      transform: isActive ? 'scale(1.1)' : 'scale(1)',
-      transition: 'all 0.3s'
-    }}>
+    <div 
+      onClick={() => heroId && onClick && onClick(hero)}
+      style={{ 
+        display:'flex', flexDirection:'column', alignItems:'center', width:'36px', margin:'2px',
+        opacity: (isActive || heroId) ? 1 : 0.3,
+        transform: isActive ? 'scale(1.1)' : 'scale(1)',
+        transition: 'all 0.3s',
+        cursor: heroId ? 'pointer' : 'default'
+      }}
+    >
       <div style={{ 
         position: 'relative', width: '32px', height: '32px', borderRadius: '4px', overflow: 'hidden', 
         background:'#111', 
@@ -130,12 +135,100 @@ const NeutralObjBar = ({ obj, label, color, icon }: any) => {
   );
 };
 
+const UserDetailView = ({ player, heroName, viewingItem, setViewingItem }: any) => {
+  const hpPercent = (player.currentHp / player.maxHp) * 100;
+  const items = Array.isArray(player.items) ? player.items : [];
+  return (
+    <div style={{ padding:'20px', display:'flex', flexDirection:'column', alignItems:'center' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'15px', width:'100%', maxWidth:'450px', marginBottom:'20px' }}>
+        <GameIcon id={player.heroId} size={54} />
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:'bold', fontSize:'18px', color:'#fff' }}>{heroName}</div>
+          <div style={{ color:'#8b949e', fontSize:'12px' }}>{player.name} (Lv.{player.level})</div>
+        </div>
+        <div style={{ textAlign:'right', minWidth:'120px' }}>
+          <div style={{ fontSize:'10px', color:'#2ecc71', fontWeight:'900', marginBottom:'4px' }}>HEALTH</div>
+          <div style={{ width:'100%', height:'6px', background:'#1a1a1c', borderRadius:'3px', overflow:'hidden', border:'1px solid #333' }}>
+            <div style={{ width:`${hpPercent}%`, height:'100%', background: hpPercent < 30 ? '#da3633' : '#2ecc71' }} />
+          </div>
+          <div style={{ color:'#f1c40f', fontWeight:'bold', fontSize:'12px', marginTop:'6px' }}>💰 {Math.floor(player.gold).toLocaleString()} G</div>
+        </div>
+      </div>
+      {viewingItem && (
+        <div style={{ width:'100%', maxWidth:'450px', background:'#161b22', border:'1px solid #30363d', borderRadius:'8px', padding:'12px', marginBottom:'15px', position:'relative' }}>
+          <button onClick={() => setViewingItem(null)} style={{ position:'absolute', right:'8px', top:'8px', background:'none', border:'none', color:'#666', cursor:'pointer' }}><X size={14}/></button>
+          <div style={{ display:'flex', gap:'12px', alignItems:'center', marginBottom:'10px' }}>
+            <GameIcon id={viewingItem.id} size={36} shape="square" />
+            <div>
+              <div style={{ fontWeight:'bold', color:'#fff', fontSize:'14px' }}>{viewingItem.name}</div>
+              <div style={{ color:'#f1c40f', fontSize:'11px', fontWeight:'bold' }}>{viewingItem.cost} Gold</div>
+            </div>
+          </div>
+          <div style={{ fontSize:'11px', color:'#ccc' }}>{viewingItem.description || "설명이 없습니다."}</div>
+        </div>
+      )}
+      <div style={{ display:'flex', gap:'6px', justifyContent:'center', marginBottom:'20px' }}>
+        {([0,1,2,3,4,5]).map(i => (
+          <div key={i} onClick={() => items[i] && setViewingItem(items[i])} style={{ width:'42px', height:'42px', background:'#0d1117', border:'1px solid #333', borderRadius:'4px', cursor:'pointer', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            {items[i] ? <GameIcon id={items[i].id} size={40} shape="square" /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PersonalLogView = ({ logs, heroName, summonerName }: any) => {
+  const safeLogs = Array.isArray(logs) ? logs : [];
+  const filteredLogs = safeLogs.filter((log: any) => 
+    (log.message && (log.message.includes(heroName) || log.message.includes(summonerName)))
+  ).reverse().slice(0, 30);
+  return (
+    <div style={{ width: '100%', maxWidth: '450px', background: '#08080a', borderRadius: '8px', border: '1px solid #222', marginTop: '15px', overflow: 'hidden' }}>
+      <div style={{ padding: '8px 12px', background: '#121214', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Activity size={12} color="#58a6ff" />
+        <span style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>{heroName} 활동 내역</span>
+      </div>
+      <div style={{ height: '150px', overflowY: 'auto', padding: '8px' }}>
+        {filteredLogs.length > 0 ? filteredLogs.map((log: any, i: number) => (
+          <div key={i} style={{ fontSize: '11px', padding: '4px 0', borderBottom: '1px solid #1a1a1c', display: 'flex', gap: '8px' }}>
+            <span style={{ color: log.type === 'KILL' ? '#ff4d4d' : '#ccc', lineHeight: '1.4' }}>{log.message}</span>
+          </div>
+        )) : <div style={{ padding: '40px 0', textAlign: 'center', color: '#444', fontSize: '11px' }}>기록이 없습니다.</div>}
+      </div>
+    </div>
+  );
+};
+
+const GlobalLogPanel = ({ logs, formatTime }: any) => {
+  const visibleLogs = Array.isArray(logs) ? logs.slice().reverse().slice(0, 50) : [];
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '10px', background: '#050505', display:'flex', flexDirection:'column', gap:'6px' }}>
+      {visibleLogs.map((log: any, i: number) => {
+        let badgeColor = '#888'; let badgeText = 'INFO';
+        if (log.type === 'KILL') { badgeColor = '#ff4d4d'; badgeText = 'KILL'; }
+        else if (log.type === 'TOWER' || log.type === 'COLOSSUS' || log.type === 'WATCHER') { badgeColor = '#e89d40'; badgeText = 'OBJ'; }
+        else if (log.type === 'START') { badgeColor = '#f1c40f'; badgeText = 'SYS'; }
+        return (
+          <div key={i} style={{ display: 'flex', gap: '8px', padding: '2px 0', borderBottom: '1px solid #1a1a1c', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '10px', color: '#555', fontFamily: 'monospace', minWidth: '35px' }}>{formatTime(log.time)}</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '8px', fontWeight: '900', color: badgeColor, background: `${badgeColor}15`, padding: '0px 4px', borderRadius: '2px', border: `1px solid ${badgeColor}33`, minWidth:'28px', textAlign:'center' }}>{badgeText}</span>
+              <span style={{ fontSize: '11px', color: '#ccc', lineHeight: '1.4' }}>{log.message}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // ----------------------------------------------------------------------
-// [3] 화면 컴포넌트
+// [3] 화면 컴포넌트 (Hooks 제거, Props로만 렌더링)
 // ----------------------------------------------------------------------
 
 // [A] 드래프트 화면
-const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[], setSpeed: any, gameState: any }> = ({ match, onClose, heroes, setSpeed, gameState }) => {
+const DraftView: React.FC<any> = ({ match, onClose, heroes, setSpeed, gameState, onBanClick }) => {
   const { blueTeam, redTeam, draft, bans } = match;
   const timer = Math.ceil(draft?.timer || 0);
   const turn = draft?.turnIndex || 0;
@@ -164,22 +257,21 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
     activeSlot = order.slot;
   }
 
-  // 밴 턴 계산 (0~9)
   const activeBanSlot = isBanPhase ? Math.floor(turn / 2) : -1;
   const activeBanTeam = isBanPhase ? (turn % 2) : -1;
 
-  const getHeroName = (id: string) => heroes.find(h => h.id === id)?.name || '';
+  const getHeroName = (id: string) => heroes.find((h:Hero) => h.id === id)?.name || '';
 
   return (
     <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', background:'#0d1117', overflowY:'auto' }}>
       
-      {/* 상단바 (배속 버튼 추가) */}
+      {/* 상단바 (배속 버튼 수정) */}
       <div style={{ width:'100%', padding:'15px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:'6px' }}>
+        <div style={{ display:'flex', gap:'6px', width:'200px' }}>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="3x" speed={3} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="Max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="10x" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="20max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
         <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={28}/></button>
       </div>
@@ -190,31 +282,30 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
         <div style={{ fontSize:'36px', fontWeight:'900', color: timer <= 10 ? '#e74c3c' : '#fff' }}>{timer}</div>
       </div>
 
-      {/* 밴 현황 (모바일 줄바꿈 적용) */}
+      {/* 밴 현황 */}
       <div style={{ display:'flex', justifyContent:'space-between', width:'90%', maxWidth:'600px', marginBottom:'30px' }}>
         <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-start' }}>
           {blueBans.map((id, i) => (
-            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} />
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} onClick={onBanClick} />
           ))}
         </div>
         <div style={{ display:'flex', flexWrap:'wrap', gap:'4px', width:'48%', justifyContent:'flex-end' }}>
           {redBans.map((id, i) => (
-            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} />
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} onClick={onBanClick} />
           ))}
         </div>
       </div>
 
-      {/* 픽 현황 (이름 표시 & 주체 강조) */}
+      {/* 픽 현황 */}
       <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px', paddingBottom:'40px' }}>
         
-        {/* 블루팀 픽 */}
+        {/* 블루팀 */}
         <div style={{ width:'48%' }}>
           <h3 style={{ color:'#58a6ff', borderBottom:'2px solid #58a6ff', paddingBottom:'5px', fontSize:'16px' }}>BLUE TEAM</h3>
           {blueTeam.map((p:any, i:number) => {
             const isPicking = (!isBanPhase && activeTeam === 0 && activeSlot === i);
             const isBanning = (isBanPhase && activeBanTeam === 0 && activeBanSlot === i);
             const isActive = isPicking || isBanning;
-            
             const glowColor = isBanning ? 'rgba(255, 77, 77, 0.4)' : 'rgba(88, 166, 255, 0.4)';
             const borderColor = isActive ? (isBanning ? '#ff4d4d' : '#58a6ff') : 'transparent';
 
@@ -241,14 +332,13 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
           })}
         </div>
 
-        {/* 레드팀 픽 */}
+        {/* 레드팀 */}
         <div style={{ width:'48%' }}>
           <h3 style={{ color:'#e84057', borderBottom:'2px solid #e84057', paddingBottom:'5px', textAlign:'right', fontSize:'16px' }}>RED TEAM</h3>
           {redTeam.map((p:any, i:number) => {
             const isPicking = (!isBanPhase && activeTeam === 1 && activeSlot === i);
             const isBanning = (isBanPhase && activeBanTeam === 1 && activeBanSlot === i);
             const isActive = isPicking || isBanning;
-
             const glowColor = isBanning ? 'rgba(255, 77, 77, 0.4)' : 'rgba(232, 64, 87, 0.4)';
             const borderColor = isActive ? (isBanning ? '#ff4d4d' : '#e84057') : 'transparent';
 
@@ -279,12 +369,8 @@ const DraftView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[
   );
 };
 
-// [B] 게임 화면 (기존 유지)
-const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[], gameState: any, setSpeed: any, togglePlay: any }> = ({ match, onClose, heroes, gameState, setSpeed, togglePlay }) => {
-  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
-  const [viewingItem, setViewingItem] = useState<any | null>(null);
-  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
-
+// [B] 게임 화면 (Hooks 제거 - Props로 상태 전달받음)
+const GameView: React.FC<any> = ({ match, onClose, heroes, gameState, setSpeed, togglePlay, selectedHeroId, setSelectedHeroId, viewingItem, setViewingItem, viewingBanHero, setViewingBanHero }) => {
   const isGameEnded = match.currentDuration > match.duration || (match.stats?.blue?.nexusHp <= 0 || match.stats?.red?.nexusHp <= 0);
   const formatTime = (seconds: number) => {
     const m = Math.floor((seconds || 0) / 60); const s = Math.floor((seconds || 0) % 60);
@@ -318,19 +404,19 @@ const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[]
               {gameState.isPlaying ? <Pause size={14}/> : <Play size={14}/>}
            </button>
            <SpeedButton label="1x" speed={1} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="3x" speed={3} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
            <SpeedButton label="5x" speed={5} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
-           <SpeedButton label="Max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="10x" speed={10} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
+           <SpeedButton label="20max" speed={600} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />
         </div>
       </div>
 
       <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
          <div style={{ display: 'flex', gap: '5px' }}>
             <span style={{ fontSize:'9px', color:'#58a6ff', fontWeight:'bold', marginRight:'4px' }}>BAN</span>
-            {blueBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid:any) => setViewingBanHero(heroes.find((h:Hero)=>h.id===hid))} />)}
+            {blueBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(h:Hero) => setViewingBanHero(h)} />)}
          </div>
          <div style={{ display: 'flex', gap: '5px' }}>
-            {redBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(hid:any) => setViewingBanHero(heroes.find((h:Hero)=>h.id===hid))} />)}
+            {redBans.map((id: string, i: number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={(h:Hero) => setViewingBanHero(h)} />)}
             <span style={{ fontSize:'9px', color:'#e84057', fontWeight:'bold', marginLeft:'4px' }}>BAN</span>
          </div>
       </div>
@@ -380,29 +466,52 @@ const GameView: React.FC<{ match: LiveMatch, onClose: () => void, heroes: Hero[]
   );
 };
 
-export const SpectateModal: React.FC<any> = ({ match: initialMatch, onClose }) => {
+// [4] 메인 컨텐츠 (모든 상태를 여기서 관리)
+const SpectateContent: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
+  
+  // 상태 끌어올리기 (Lift State Up)
+  const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<any | null>(null);
+  const [viewingBanHero, setViewingBanHero] = useState<any>(null);
+
+  // 실시간 데이터 동기화
   const liveMatch = gameState.liveMatches.find(m => m.id === initialMatch.id);
   const match = liveMatch || initialMatch;
 
   if (!match) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000, display:'flex', justifyContent:'center', alignItems:'center', color:'#888' }}>
+      <div style={{ height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', color:'#888' }}>
         <p>게임을 찾을 수 없습니다.</p>
-        <button onClick={onClose} style={{ marginLeft:'10px', padding:'5px 10px' }}>닫기</button>
+        <button onClick={onClose} style={{ marginTop:'10px', padding:'5px 10px', border:'1px solid #555', background:'#333', color:'#fff', borderRadius:'4px' }}>닫기</button>
       </div>
     );
   }
 
-  // [핵심] key 속성 추가로 Error #310 완전 방지
+  // 밴 정보 클릭 핸들러 (드래프트 화면용)
+  const handleBanClick = (hero: Hero) => {
+    setViewingBanHero(hero);
+  };
+
+  // 밴픽/게임 화면 분기
+  if (match.status === 'DRAFTING') {
+    return <DraftView match={match} onClose={onClose} heroes={heroes} setSpeed={setSpeed} gameState={gameState} onBanClick={handleBanClick} />;
+  } else {
+    return <GameView 
+      match={match} onClose={onClose} heroes={heroes} gameState={gameState} setSpeed={setSpeed} togglePlay={togglePlay}
+      selectedHeroId={selectedHeroId} setSelectedHeroId={setSelectedHeroId}
+      viewingItem={viewingItem} setViewingItem={setViewingItem}
+      viewingBanHero={viewingBanHero} setViewingBanHero={setViewingBanHero}
+    />;
+  }
+};
+
+// [5] 최종 모달 (ErrorBoundary 감싸기)
+export const SpectateModal: React.FC<any> = (props) => {
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#050505', zIndex: 30000 }}>
       <ErrorBoundary>
-        {match.status === 'DRAFTING' ? (
-          <DraftView key="draft" match={match} onClose={onClose} heroes={heroes} setSpeed={setSpeed} gameState={gameState} />
-        ) : (
-          <GameView key="game" match={match} onClose={onClose} heroes={heroes} gameState={gameState} setSpeed={setSpeed} togglePlay={togglePlay} />
-        )}
+        <SpectateContent {...props} />
       </ErrorBoundary>
     </div>
   );
