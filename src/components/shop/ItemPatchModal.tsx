@@ -5,7 +5,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Item } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
-import { X, Save, Trash2, Sliders } from 'lucide-react';
+// [수정] Trash2 -> Trash 로 변경 (흰 화면 해결의 핵심)
+import { X, Save, Trash, Sliders } from 'lucide-react';
 import { GameIcon } from '../common/GameIcon';
 
 interface Props {
@@ -29,14 +30,14 @@ const ALL_STATS: Record<string, { label: string, color: string, max: number, ste
   speed: { label: '이동속도', color: '#f1c40f', max: 150, step: 1, unit: '' },
 };
 
-// [핵심] 분류별 허용 스탯 정의
+// 분류별 허용 스탯 정의
 const TYPE_ALLOWED_STATS: Record<string, string[]> = {
-  WEAPON: ['ad', 'crit', 'pen', 'speed', 'hp'], // 무기 (공격 + 약간의 체력)
-  ARMOR: ['hp', 'armor', 'regen', 'mp'],        // 방어구 (방어 + 재생 + 마나)
-  ARTIFACT: ['ap', 'mp', 'mpRegen', 'pen', 'hp'], // 마도구 (마법)
-  BOOTS: ['speed', 'armor', 'pen'],             // 신발 (이동 + 유틸)
-  ACCESSORY: Object.keys(ALL_STATS),            // 장신구 (전체 허용)
-  POWER: Object.keys(ALL_STATS),                // 권능 (전체 허용)
+  WEAPON: ['ad', 'crit', 'pen', 'speed', 'hp'], 
+  ARMOR: ['hp', 'armor', 'regen', 'mp'],        
+  ARTIFACT: ['ap', 'mp', 'mpRegen', 'pen', 'hp'], 
+  BOOTS: ['speed', 'armor', 'pen'],             
+  ACCESSORY: Object.keys(ALL_STATS),            
+  POWER: Object.keys(ALL_STATS),                
 };
 
 const DEFAULT_ITEM: Item = {
@@ -100,7 +101,12 @@ const StatEditor = ({
 };
 
 export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
-  const { addItem, updateItem, setCustomImage, removeCustomImage } = useGameStore();
+  // deleteItem을 안전하게 가져옵니다. (없으면 undefined)
+  const store = useGameStore();
+  const { addItem, updateItem, setCustomImage, removeCustomImage } = store;
+  // deleteItem이 없을 경우를 대비해 any로 처리하거나 방어 코드 작성
+  const deleteItem = (store as any).deleteItem;
+
   const [data, setData] = useState<Item>(DEFAULT_ITEM);
   const [activeStat, setActiveStat] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,9 +122,19 @@ export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
     onClose();
   };
 
+  const handleDelete = () => {
+    if (!item) return;
+    if (!deleteItem) {
+      alert("삭제 기능이 스토어에 연결되지 않았습니다. (store/itemSlice.ts 확인)");
+      return;
+    }
+    if (confirm(`정말 '${item.name}' 아이템을 삭제하시겠습니까?`)) {
+      deleteItem(item.id);
+      onClose();
+    }
+  };
+
   const handleChange = (field: keyof Item, value: any) => {
-    // [중요] 타입을 변경할 때, 해당 타입에서 쓸 수 없는 스탯은 0으로 초기화 (선택 사항)
-    // 여기서는 유저의 편의를 위해 값은 유지하되 UI에서만 숨기는 방식을 사용
     setData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -133,7 +149,6 @@ export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
     }
   };
 
-  // 현재 선택된 타입에 허용된 스탯 목록 가져오기
   const visibleStats = TYPE_ALLOWED_STATS[data.type] || Object.keys(ALL_STATS);
 
   return (
@@ -187,7 +202,7 @@ export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
           </div>
         </div>
 
-        {/* 2. 설명 및 스탯 그리드 (필터링 적용됨) */}
+        {/* 2. 스탯 에디터 */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
           <div style={{ marginBottom: '20px' }}>
             <textarea 
@@ -197,7 +212,6 @@ export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
             />
           </div>
 
-          {/* [핵심] 필터링된 스탯 목록만 렌더링 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {visibleStats.map(key => (
               <StatEditor key={key} statKey={key} data={data} activeStat={activeStat} setActiveStat={setActiveStat} handleChange={handleChange} />
@@ -206,17 +220,34 @@ export const ItemPatchModal: React.FC<Props> = ({ item, onClose }) => {
 
           <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
             <button onClick={() => removeCustomImage(data.id)} style={{ background: 'none', border: 'none', color: '#666', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Trash2 size={12}/> 사진 초기화
+                <Trash size={12}/> 사진 초기화
             </button>
           </div>
         </div>
 
-        {/* 3. 푸터 */}
-        <div style={{ padding: '15px 20px', borderTop: '1px solid #30363d', background: '#161b22', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #30363d', color: '#ccc', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>취소</button>
-          <button onClick={handleSave} style={{ padding: '10px 24px', background: '#238636', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Save size={16}/> {item ? '수정' : '생성'}
-          </button>
+        {/* 3. 푸터 (삭제 버튼 포함) */}
+        <div style={{ padding: '15px 20px', borderTop: '1px solid #30363d', background: '#161b22', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            {item && (
+              <button 
+                onClick={handleDelete}
+                style={{ 
+                  padding: '10px 16px', background: '#3f1515', border: '1px solid #5a1e1e', 
+                  color: '#ff6b6b', borderRadius: '8px', cursor: 'pointer', 
+                  fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' 
+                }}
+              >
+                <Trash size={16}/> 삭제
+              </button>
+            )}
+          </div>
+
+          <div style={{ display:'flex', gap:'10px' }}>
+            <button onClick={onClose} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid #30363d', color: '#ccc', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>취소</button>
+            <button onClick={handleSave} style={{ padding: '10px 24px', background: '#238636', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Save size={16}/> {item ? '수정' : '생성'}
+            </button>
+          </div>
         </div>
 
       </div>
