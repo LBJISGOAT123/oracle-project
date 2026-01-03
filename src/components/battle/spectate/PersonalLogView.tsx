@@ -1,4 +1,6 @@
-// src/components/battle/spectate/PersonalLogView.tsx
+// ==========================================
+// FILE PATH: /src/components/battle/spectate/PersonalLogView.tsx
+// ==========================================
 import React, { useMemo, useRef, useEffect } from 'react';
 import { Activity } from 'lucide-react';
 

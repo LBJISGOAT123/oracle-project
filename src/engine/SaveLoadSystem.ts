@@ -2,7 +2,8 @@
 // FILE PATH: /src/engine/SaveLoadSystem.ts
 // ==========================================
 
-import { userPool, UserAgent, initUserPool } from './UserManager';
+// [경로 수정됨] system 폴더 추가
+import { userPool, UserAgent, initUserPool } from './system/UserManager';
 import { useGameStore } from '../store/useGameStore';
 import { Hero } from '../types';
 
@@ -18,7 +19,7 @@ export interface SaveMeta {
   totalUsers: number;
 }
 
-// --- [헬퍼 함수] 깊은 병합 (Deep Merge) ---
+// 깊은 병합 함수
 function deepMerge(target: any, source: any): any {
   if (typeof target !== 'object' || target === null) {
     return source !== undefined ? source : target;
@@ -58,23 +59,17 @@ const deserializeUsers = (data: any[], heroes: Hero[]) => {
   });
 };
 
-// [Core] 슬롯에 저장하기
 export const saveToSlot = (slotId: string) => {
   const store = useGameStore.getState();
 
-  // 진행 중인 매치의 로그와 타임라인은 빈 배열로 저장 (용량 절약)
   const optimizedMatches = store.gameState.liveMatches.map(m => ({
-    ...m,
-    logs: [],
-    timeline: []
+    ...m, logs: [], timeline: []
   }));
 
   const saveData = {
     time: {
-      season: store.gameState.season,
-      day: store.gameState.day,
-      hour: store.gameState.hour,
-      minute: store.gameState.minute
+      season: store.gameState.season, day: store.gameState.day,
+      hour: store.gameState.hour, minute: store.gameState.minute
     },
     config: {
       battle: store.gameState.battleSettings,
@@ -84,15 +79,9 @@ export const saveToSlot = (slotId: string) => {
       ai: store.gameState.aiConfig
     },
     customImages: store.gameState.customImages,
-
     heroes: store.heroes.map(h => ({
-      id: h.id,
-      name: h.name, 
-      stats: h.stats,
-      skills: h.skills,
-      record: h.record
+      id: h.id, name: h.name, stats: h.stats, skills: h.skills, record: h.record
     })),
-
     users: serializeUsers(),
     itemStats: store.gameState.itemStats,
     shopItems: store.shopItems,
@@ -110,8 +99,6 @@ export const saveToSlot = (slotId: string) => {
       season: saveData.time.season, day: saveData.time.day, totalUsers: userPool.length
     };
     updateMeta(slotId, meta);
-
-    if (slotId !== 'auto') console.log(`✅ [Slot ${slotId}] 데이터 저장 완료`);
     return true;
   } catch (e) {
     console.error('❌ 저장 실패 (용량 초과 가능성):', e);
@@ -120,7 +107,6 @@ export const saveToSlot = (slotId: string) => {
   }
 };
 
-// [Core] 슬롯에서 불러오기
 export const loadFromSlot = (slotId: string, defaultHeroes: Hero[]) => {
   const json = localStorage.getItem(`${STORAGE_PREFIX}${slotId}`);
   if (!json) return false;
@@ -128,34 +114,20 @@ export const loadFromSlot = (slotId: string, defaultHeroes: Hero[]) => {
   try {
     const data = JSON.parse(json);
     const store = useGameStore.getState();
-
     const loadedTime = data.time || {};
-
-    const mergedBattle = deepMerge(store.gameState.battleSettings, data.config?.battle);
-    const mergedField = deepMerge(store.gameState.fieldSettings, data.config?.field);
-    const mergedRole = deepMerge(store.gameState.roleSettings, data.config?.role);
-    const mergedTier = deepMerge(store.gameState.tierConfig, data.config?.tier);
-    const mergedAI = deepMerge(store.gameState.aiConfig, data.config?.ai);
 
     const newGameState = {
       ...store.gameState,
-      season: loadedTime.season || 1,
-      day: loadedTime.day || 1,
-      hour: loadedTime.hour || 12,
-      minute: loadedTime.minute || 0,
-
-      battleSettings: mergedBattle,
-      fieldSettings: mergedField,
-      roleSettings: mergedRole,
-      tierConfig: mergedTier,
-      aiConfig: mergedAI,
-
+      season: loadedTime.season || 1, day: loadedTime.day || 1,
+      hour: loadedTime.hour || 12, minute: loadedTime.minute || 0,
+      battleSettings: deepMerge(store.gameState.battleSettings, data.config?.battle),
+      fieldSettings: deepMerge(store.gameState.fieldSettings, data.config?.field),
+      roleSettings: deepMerge(store.gameState.roleSettings, data.config?.role),
+      tierConfig: deepMerge(store.gameState.tierConfig, data.config?.tier),
+      aiConfig: deepMerge(store.gameState.aiConfig, data.config?.ai),
       itemStats: data.itemStats || {},
       godStats: data.godStats || store.gameState.godStats,
-
-      // ✅ [핵심 수정] 기존 이미지 설정과 불러온 이미지 설정을 병합
       customImages: { ...store.gameState.customImages, ...(data.customImages || {}) },
-
       liveMatches: data.liveMatches || [],
       isPlaying: false
     };
@@ -172,28 +144,20 @@ export const loadFromSlot = (slotId: string, defaultHeroes: Hero[]) => {
             stats: { ...codeHero.stats, ...savedHero.stats },
             skills: deepMerge(codeHero.skills, savedHero.skills),
             record: savedHero.record || codeHero.record,
-            tier: savedHero.tier || '3',
-            rank: savedHero.rank || 999,
+            tier: savedHero.tier || '3', rank: savedHero.rank || 999,
           };
         }
         return codeHero;
       });
     }
 
-    let loadedItems = store.shopItems;
-    if (data.shopItems && Array.isArray(data.shopItems)) {
-        loadedItems = data.shopItems;
-    }
-
     useGameStore.setState({ 
         gameState: newGameState, 
         heroes: loadedHeroes,
-        shopItems: loadedItems 
+        shopItems: data.shopItems || store.shopItems 
     });
 
     deserializeUsers(data.users || [], loadedHeroes);
-
-    console.log(`📂 [Slot ${slotId}] 로드 완료`);
     return true;
   } catch (e) {
     console.error('❌ 불러오기 실패:', e);
@@ -254,7 +218,7 @@ export const importSaveFile = (file: File, heroes: Hero[]) => {
 };
 
 export const initializeGame = (heroes: Hero[]) => {
-  console.log('🆕 게임 엔진 초기화 (새 게임)');
+  console.log('🆕 게임 엔진 초기화');
   if (userPool.length === 0) {
     initUserPool(heroes, 3000);
   }

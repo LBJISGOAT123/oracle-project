@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import { getUsersInTier } from '../../engine/UserManager';
+// [경로 수정됨] system 폴더 추가
+import { getUsersInTier } from '../../engine/system/UserManager';
 import { UserProfile } from '../../types';
 import { X, Trophy } from 'lucide-react';
 
@@ -51,7 +52,7 @@ export const TierUserListModal: React.FC<Props> = ({ tierName, onClose, onUserCl
         borderRadius: '16px', overflow: 'hidden',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
       }}>
-        
+
         {/* 헤더 */}
         <div style={{ 
           padding: '16px 20px', background: '#0d1117', borderBottom: '1px solid #30363d', 
@@ -68,12 +69,12 @@ export const TierUserListModal: React.FC<Props> = ({ tierName, onClose, onUserCl
           </button>
         </div>
 
-        {/* 유저 리스트 (Table 대신 Flex 사용) */}
+        {/* 유저 리스트 */}
         <div style={{ flex: 1, overflowY: 'auto', background: '#161b22' }}>
           {users.map((u, i) => {
             const rankStyle = getRankStyle(i);
             const isTop3 = i < 3;
-            
+
             return (
               <div 
                 key={u.id}
@@ -97,7 +98,7 @@ export const TierUserListModal: React.FC<Props> = ({ tierName, onClose, onUserCl
                   {i + 1}
                 </div>
 
-                {/* 2. 유저 정보 (이름 + LP) */}
+                {/* 2. 유저 정보 */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
                     {u.name}
@@ -109,7 +110,7 @@ export const TierUserListModal: React.FC<Props> = ({ tierName, onClose, onUserCl
                   </div>
                 </div>
 
-                {/* 3. 승률 및 전적 */}
+                {/* 3. 승률 */}
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ 
                     fontSize: '14px', fontWeight: 'bold', 

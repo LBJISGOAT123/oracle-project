@@ -2,7 +2,7 @@
 // FILE PATH: /src/engine/match/RoleManager.ts
 // ==========================================
 
-import { Role, LivePlayer, RoleSettings } from '../../types';
+import { Role, LivePlayer, RoleSettings } from '../../../types';
 
 // 기본값 (설정 로드 실패 시 안전장치)
 const DEFAULT_SETTINGS: RoleSettings = {

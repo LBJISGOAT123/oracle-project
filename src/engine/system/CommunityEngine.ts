@@ -1,9 +1,10 @@
 // ==========================================
-// FILE PATH: /src/engine/CommunityEngine.ts
+// FILE PATH: /src/engine/system/CommunityEngine.ts
 // ==========================================
 
-import { Hero, TierConfig, Post, Comment, AIConfig, BattleSettings, BattlefieldSettings } from '../types';
-import { fetchAIPost, fetchAIComment } from '../utils/AIService';
+import { Hero, TierConfig, Post, Comment, AIConfig, BattleSettings, BattlefieldSettings } from '../../types';
+// [경로 수정됨] ../ -> ../../
+import { fetchAIPost, fetchAIComment } from '../../utils/AIService';
 
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -23,21 +24,20 @@ const getRichTopicContext = (heroes: Hero[], userPool: any[], battleSettings: Ba
 
   // 1. 유저 저격 (5%) - 징징/잡담 카테고리
   if (rand < 0.05 && userPool.length > 0) {
-    // 성적이 안 좋은 유저나, 랭킹이 높은 유저를 타겟팅
     const targetUser = pick(userPool); 
     const isHighRank = targetUser.score > 3000;
     const isFeeder = targetUser.winRate < 45;
-    
+
     let tone = "비난";
     if (isHighRank) tone = "질투/의심 (대리, 버스 의심)";
     else if (isFeeder) tone = "극딜 (트롤 박제)";
-    
+
     return {
       type: 'SNIPING',
       text: `주제: 유저 '${targetUser.name}' 저격. (티어: ${targetUser.getTierName()}). ${tone}하는 내용.`
     };
   } 
-  
+
   // 2. 밸런스 토론 - 특정 영웅/스킬 (25%) - 분석/공략/징징
   else if (rand < 0.40) {
     const h = pick(heroes);
@@ -98,17 +98,15 @@ export async function generatePostAsync(
   const currentTierName = author.getTierName(tierConfig);
   const mostChamp = heroes.find(h => h.id === author.mainHeroId)?.name || '랜덤';
 
-  // [수정] 풍부한 주제 가져오기
   const contextObj = getRichTopicContext(heroes, userPool, battleSettings);
-  
+
   // 주제에 맞는 카테고리 자동 매핑
   let category = "잡담";
   if (contextObj.type === 'SNIPING') category = Math.random() < 0.5 ? '징징' : '잡담';
   else if (contextObj.type === 'BALANCE') category = Math.random() < 0.4 ? '분석' : '징징';
   else if (contextObj.type === 'NONSENSE') category = Math.random() < 0.6 ? '유머' : '잡담';
   else if (contextObj.type === 'SYSTEM') category = '징징';
-  
-  // 가끔 카테고리 꼬기 (뻘글인데 공략탭에 쓰는 등 리얼함 추가)
+
   if (Math.random() < 0.1) category = pick(['공략', '질문', '자랑']);
 
   const userContext = `[작성자 정보] 닉네임: ${author.name}, 티어: ${currentTierName}, 주챔: ${mostChamp}`;
@@ -120,10 +118,9 @@ export async function generatePostAsync(
   if (!aiResult) return null;
 
   let basePotential = 10;
-  const tierWeight = getTierWeight(currentTierName);
 
   if (category === '공략' || category === '분석') basePotential += 20;
-  if (category === '유머' || contextObj.type === 'SNIPING') basePotential += 30; // 저격/유머글은 어그로가 잘 끌림
+  if (category === '유머' || contextObj.type === 'SNIPING') basePotential += 30;
 
   return {
     id: uniqueId,
@@ -141,9 +138,6 @@ export async function generatePostAsync(
   };
 }
 
-// ... (나머지 generateCommentAsync, updatePostInteractions 함수는 기존 유지)
-// generateCommentAsync와 updatePostInteractions 코드가 없다면 
-// 이전 답변의 코드를 참고하여 아래에 붙여넣으세요.
 export async function generateCommentAsync(
   post: Post, 
   aiConfig: AIConfig, 

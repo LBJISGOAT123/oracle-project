@@ -2,7 +2,7 @@
 // FILE PATH: /src/engine/match/phases/CombatPhase.ts
 // ==========================================
 import { LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
-import { applyRoleBonus } from '../RoleManager';
+import { applyRoleBonus } from '../systems/RoleManager';
 
 export const processCombatPhase = (
   match: LiveMatch, 

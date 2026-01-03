@@ -5,7 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { Post, UserProfile } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
-import { findUserProfileByName } from '../../engine/UserManager';
+// [경로 수정됨] system 폴더 추가
+import { findUserProfileByName } from '../../engine/system/UserManager';
 import { X, MessageSquare, ThumbsUp, ThumbsDown, User, Clock, Eye } from 'lucide-react';
 
 interface Props {
@@ -14,16 +15,15 @@ interface Props {
   onUserClick: (user: UserProfile) => void;
 }
 
-// [신규] 티어별 색상 반환 함수
 const getTierColor = (tier: string) => {
-  if (tier.includes('천상계') || tier.includes('챌린저')) return '#00bfff'; // 하늘색
-  if (tier.includes('마스터')) return '#9b59b6'; // 보라색
-  if (tier.includes('에이스')) return '#e74c3c'; // 빨간색
-  if (tier.includes('조커')) return '#2ecc71';   // 초록색
-  if (tier.includes('골드')) return '#f1c40f';   // 금색
-  if (tier.includes('실버')) return '#95a5a6';   // 은색
-  if (tier.includes('브론즈')) return '#d35400'; // 동색
-  return '#7f8c8d'; // 아이언/기타 (회색)
+  if (tier.includes('천상계') || tier.includes('챌린저')) return '#00bfff';
+  if (tier.includes('마스터')) return '#9b59b6';
+  if (tier.includes('에이스')) return '#e74c3c';
+  if (tier.includes('조커')) return '#2ecc71';
+  if (tier.includes('골드')) return '#f1c40f';
+  if (tier.includes('실버')) return '#95a5a6';
+  if (tier.includes('브론즈')) return '#d35400';
+  return '#7f8c8d';
 };
 
 export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick }) => {
@@ -75,7 +75,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
   return (
     <div style={overlayStyle}>
       <div style={panelStyle}>
-
         {/* 헤더 */}
         <div style={{ 
           padding: '15px 20px', borderBottom: '1px solid #30363d', 
@@ -104,12 +103,10 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
               >
                 <User size={12} />
                 {post.author} 
-                {/* 작성자 티어 색상 적용 */}
                 <span style={{color: getTierColor(post.authorTier), fontWeight:'bold', fontSize:'11px'}}>
                   ({post.authorTier})
                 </span>
               </div>
-
               <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><Clock size={12}/> {post.displayTime}</span>
               <span style={{ display:'flex', alignItems:'center', gap:'4px' }}><Eye size={12}/> {post.views}</span>
             </div>
@@ -129,7 +126,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
           minHeight: '200px'
         }}>
           {post.content}
-
           <div style={{ marginTop:'50px', display:'flex', justifyContent:'center', gap:'15px' }}>
             <button style={{ 
               background:'#21262d', border:'1px solid #30363d', color:'#fff', 
@@ -140,7 +136,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
               <ThumbsUp size={18} color="#e89d40" /> 
               <span>{post.upvotes}</span>
             </button>
-
             <button style={{ 
               background:'#21262d', border:'1px solid #30363d', color:'#8b949e', 
               padding:'10px 20px', borderRadius:'30px', 
@@ -158,7 +153,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
           <div style={{ padding: '15px 20px', display:'flex', alignItems:'center', gap:'6px', color:'#fff', borderBottom:'1px solid #30363d', background:'#252528' }}>
             <MessageSquare size={16} /> 댓글 <span style={{color:'#58a6ff', fontWeight:'bold'}}>{post.commentList?.length || 0}</span>
           </div>
-
           <div style={{ 
             maxHeight: isMobile ? 'none' : '300px', 
             overflowY: isMobile ? 'visible' : 'auto',
@@ -170,16 +164,7 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px' }}>
                     <span style={{ fontWeight:'bold', fontSize:'13px', color:'#ccc', display:'flex', alignItems:'center', gap:'6px' }}>
                       {comment.author} 
-                      {/* 댓글 작성자 티어 색상 적용 */}
-                      <span style={{
-                        fontSize:'10px', 
-                        color: getTierColor(comment.authorTier), 
-                        background:'#0d1117', 
-                        padding:'1px 4px', 
-                        borderRadius:'3px', 
-                        border:'1px solid #333',
-                        fontWeight:'bold'
-                      }}>
+                      <span style={{ fontSize:'10px', color: getTierColor(comment.authorTier), background:'#0d1117', padding:'1px 4px', borderRadius:'3px', border:'1px solid #333', fontWeight:'bold' }}>
                         {comment.authorTier}
                       </span>
                     </span>
@@ -188,7 +173,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
                   <div style={{ fontSize:'13px', color:'#aaa', lineHeight:'1.4' }}>{comment.content}</div>
                 </div>
               ))}
-
               {(!post.commentList || post.commentList.length === 0) && (
                 <div style={{ color:'#555', fontSize:'13px', textAlign:'center', padding:'40px 20px' }}>
                   아직 작성된 댓글이 없습니다.
@@ -197,7 +181,6 @@ export const PostDetailModal: React.FC<Props> = ({ post, onClose, onUserClick })
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

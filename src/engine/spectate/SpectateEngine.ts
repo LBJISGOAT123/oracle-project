@@ -1,5 +1,7 @@
 // src/engine/SpectateEngine.ts
 
+import { LivePlayer } from '../../types';
+
 export const MAP = {
   BLUE_BASE: { x: 15, y: 85 },
   RED_BASE: { x: 85, y: 15 },

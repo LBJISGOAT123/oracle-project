@@ -1,5 +1,5 @@
 // src/engine/battle/SkillProcessor.ts
-import { SkillDetail, HeroStats } from '../../types';
+import { SkillDetail, HeroStats } from '../../../types';
 
 export const processSkillEffect = (skill: SkillDetail, attacker: any, target: any) => {
   let power = skill.val + (attacker.stats.ad * skill.adRatio) + (attacker.stats.ap * skill.apRatio);

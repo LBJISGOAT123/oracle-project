@@ -2,8 +2,12 @@
 // FILE PATH: /src/engine/match/MatchCreator.ts
 // ==========================================
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
-import { userPool, getTierNameHelper } from '../UserManager';
+// [경로 수정됨] ../UserManager -> ../system/UserManager
+import { userPool, getTierNameHelper } from '../system/UserManager';
 import { useGameStore } from '../../store/useGameStore';
+// [추가됨] 위치 초기화를 위한 MapData
+import { BASES } from '../data/MapData';
+
 
 export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: number, config: TierConfig): LiveMatch[] {
   const idleUsers = userPool.filter(u => u.status === 'IDLE');

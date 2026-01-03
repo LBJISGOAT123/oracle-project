@@ -2,7 +2,7 @@
 // FILE PATH: /src/engine/match/ItemManager.ts
 // ==========================================
 
-import { Item, LivePlayer, Hero, Role } from '../../types';
+import { Item, LivePlayer, Hero, Role } from '../../../types';
 
 // [1] 아이템 판매 로직
 export const sellItem = (player: LivePlayer, index: number) => {

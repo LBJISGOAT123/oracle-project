@@ -1,9 +1,10 @@
 // ==========================================
-// FILE PATH: /src/engine/UserManager.ts
+// FILE PATH: /src/engine/system/UserManager.ts
 // ==========================================
 
-import { Hero, UserProfile, MatchHistory, TierConfig, UserHeroStat } from '../types';
-import { generateUserName } from '../utils/nameGenerator';
+// [수정됨] 경로가 한 단계 더 깊어졌으므로 ../../ 로 변경
+import { Hero, UserProfile, MatchHistory, TierConfig, UserHeroStat } from '../../types';
+import { generateUserName } from '../../utils/nameGenerator';
 
 const registeredNames = new Set<string>();
 
@@ -33,7 +34,7 @@ export class UserAgent {
   draftIq: number;   // 뇌지컬 (Brain)
   mechanics: number; // 피지컬 (Mechanics)
 
-  // 호환성을 위한 getter
+  // 호환성을 위한 getter/setter
   get brain() { return this.draftIq; }
   set brain(val: number) { this.draftIq = val; }
 
@@ -58,42 +59,38 @@ export class UserAgent {
     registeredNames.add(tempName);
     this.name = tempName;
 
-    // MMR 생성 (1000 ~ 3000, 평균 2000 근처에 몰리게)
+    // MMR 생성 (1000 ~ 3000)
     this.hiddenMmr = 1000 + Math.floor(Math.random() * 1000) + Math.floor(Math.random() * 1000);
 
-    // ---------------------------------------------------------
-    // [핵심] 스탯 생성 로직 (평균 40~50, 고수 희귀하게)
-    // ---------------------------------------------------------
-    const mmrFactor = (this.hiddenMmr - 1000) / 2000; // 0.0 ~ 1.0
+    // 스탯 생성
+    const mmrFactor = (this.hiddenMmr - 1000) / 2000;
     const baseStat = 20 + (mmrFactor * 40) + (Math.random() * 20); 
 
-    // 타입 결정 (피지컬형 / 뇌지컬형 / 밸런스형)
     const typeRand = Math.random();
 
     if (typeRand < 0.2) { 
-        // [피지컬 괴물] (뇌 -20%, 손 +30%)
+        // 피지컬형
         this.draftIq = Math.floor(baseStat * 0.8);
         this.mechanics = Math.floor(baseStat * 1.3);
     } 
     else if (typeRand < 0.4) {
-        // [뇌지컬 천재] (뇌 +30%, 손 -20%)
+        // 뇌지컬형
         this.draftIq = Math.floor(baseStat * 1.3);
         this.mechanics = Math.floor(baseStat * 0.8);
     } 
     else {
-        // [밸런스형]
+        // 밸런스형
         this.draftIq = Math.floor(baseStat);
         this.mechanics = Math.floor(baseStat);
     }
 
-    // [슈퍼스타 생성] 1% 확률로 스탯 뻥튀기
+    // 슈퍼스타 보너스
     if (Math.random() < 0.01) {
         this.mechanics += 20;
         this.draftIq += 10;
         this.name = `[Pro] ${this.name}`;
     }
 
-    // 범위 제한 (10 ~ 100)
     this.draftIq = Math.min(100, Math.max(10, this.draftIq));
     this.mechanics = Math.min(100, Math.max(10, this.mechanics));
 
@@ -195,7 +192,6 @@ export function updateUserActivity(hour: number, heroes: Hero[]) {
   });
 }
 
-// [수정] 랭킹 정보에 뇌지컬/피지컬 포함
 export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[] {
   const sorted = [...userPool].sort((a, b) => b.score - a.score || a.id - b.id);
 

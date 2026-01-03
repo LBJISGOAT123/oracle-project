@@ -1,7 +1,49 @@
 // ==========================================
 // FILE PATH: /src/engine/match/phases/SiegePhase.ts
 // ==========================================
-import { LiveMatch, Hero, RoleSettings, BattlefieldSettings, BattleSettings } from '../../../types';
+import { LiveMatch, Hero, RoleSettings, BattlefieldSettings, BattleSettings, LivePlayer } from '../../../types';
+// [경로 수정됨] systems 폴더 참조
+import { applyRoleBonus } from '../systems/RoleManager';
+import { getDistance, BASES } from '../../data/MapData';
+
+// 타워의 대략적인 좌표를 계산하는 헬퍼 함수
+const getTowerPos = (lane: string, tier: number, isBlueSide: boolean) => {
+  // 맵 크기 100x100 기준
+  // tier 1: 전선 최전방, tier 3: 본진 입구
+
+  // 라인별 좌표 계수 설정
+  let start = isBlueSide ? { x: 5, y: 95 } : { x: 95, y: 5 }; // 본진
+  let end = isBlueSide ? { x: 95, y: 5 } : { x: 5, y: 95 };   // 적진
+
+  // 탑/봇은 꺾이는 지점 고려 (간단히 직선상의 지점으로 근사화하여 판정)
+  // 실제로는 MapData의 Path를 따라가야 정확하지만, 여기서는 공성 판정용 근사치 사용
+
+  let ratio = 0;
+  // 적 타워를 공격하는 것이므로, 내 진영에서 얼마나 먼지를 계산
+  // 1차 타워: 맵의 50% 지점 부근, 2차: 75%, 3차: 90% (본진 앞)
+  if (tier === 1) ratio = 0.5;
+  if (tier === 2) ratio = 0.75;
+  if (tier === 3) ratio = 0.9;
+
+  if (!isBlueSide) {
+      // 레드팀 입장에서 블루팀 타워 공격 시 비율 반전 아님 (출발점이 다르므로 로직 동일)
+      // 단, start/end가 바뀌었으므로 보간법만 적용하면 됨
+  }
+
+  // 탑/봇/미드에 따른 좌표 보정
+  let tx = start.x + (end.x - start.x) * ratio;
+  let ty = start.y + (end.y - start.y) * ratio;
+
+  if (lane === 'TOP') {
+      if (isBlueSide) ty = 10; // 위쪽 벽
+      else tx = 10;
+  } else if (lane === 'BOT') {
+      if (isBlueSide) tx = 90; // 오른쪽 벽
+      else ty = 90;
+  }
+
+  return { x: tx, y: ty };
+};
 
 export const processSiegePhase = (
   match: LiveMatch, 
@@ -11,96 +53,98 @@ export const processSiegePhase = (
   battleSettings: BattleSettings, 
   dt: number
 ) => {
-  // [신규] 포탑 설정값 로드
-  const towerHp = fieldSettings?.tower?.hp || 5000;
-  const towerArmor = fieldSettings?.tower?.armor || 50;
+  // 타워/넥서스 스탯 설정
+  const towerHp = fieldSettings.tower?.hp || 5000;
+  const towerGold = fieldSettings.tower?.rewardGold || 150;
 
-  // 포탑의 '유효 내구도(Effective HP)' 계산
-  const effectiveTowerHP = towerHp * (1 + towerArmor / 100);
+  // 모든 살아있는 플레이어에 대해 공성 판정
+  const allPlayers = [...match.blueTeam, ...match.redTeam];
 
-  // 기본 공성 확률
-  let pushChance = 0.005 + (match.currentDuration / 4500) * 0.04;
+  allPlayers.forEach(p => {
+    if (p.currentHp <= 0 || p.respawnTimer > 0) return;
 
-  // [핵심 수정 1] 포탑 내구도 반영 (내구도가 높을수록 파괴 확률 감소)
-  // 내구도 8000(기본)을 기준점(1.0)으로 잡음
-  const durabilityFactor = 8000 / Math.max(1, effectiveTowerHP);
-  pushChance *= durabilityFactor;
+    const isBlue = match.blueTeam.includes(p);
+    const enemyStats = isBlue ? match.stats.red : match.stats.blue;
+    const enemyBase = isBlue ? BASES.RED : BASES.BLUE;
+    const teamName = isBlue ? 'BLUE' : 'RED';
+    const enemyName = isBlue ? 'RED' : 'BLUE';
 
-  // 거신병 버프 시 공성 확률 대폭 증가
-  if (match.stats.blue.activeBuffs.siegeUnit || match.stats.red.activeBuffs.siegeUnit) {
-      pushChance *= 4.5;
-  }
+    const hero = heroes.find(h => h.id === p.heroId);
+    if (!hero) return;
 
-  if (Math.random() >= (pushChance * dt)) return; 
+    // 1. 넥서스 공성 (적 본진 근처인가?)
+    const distToNexus = getDistance(p, enemyBase);
 
-  const scoreDiff = match.score.blue - match.score.red;
-  let bluePushProb = 0.5 + (scoreDiff / 100); 
+    // 넥서스 공격 가능 범위 (사거리 + 5)
+    if (distToNexus <= (hero.stats.range / 100 * 2) + 5) {
+        // 모든 억제기(3차 타워)가 밀렸는지 체크 (간소화: 하나라도 밀리면 공격 가능)
+        const openLanes = ['top', 'mid', 'bot'].filter(l => (enemyStats.towers as any)[l] >= 3);
 
-  const isBluePush = Math.random() < bluePushProb;
-  const attackerName = isBluePush ? 'BLUE' : 'RED';
-  const defenderName = isBluePush ? '레드' : '블루';
-  const attackerTeam = isBluePush ? match.blueTeam : match.redTeam;
-  const defenderStats = isBluePush ? match.stats.red : match.stats.blue;
+        if (openLanes.length > 0) {
+            // [공격 실행]
+            const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
+            let dmg = hero.stats.ad * siegeMod * dt;
 
-  // [신규] 방어 측 타워 공격력 반영 (역관광 확률)
-  const defenderGod = isBluePush ? battleSettings.izman : battleSettings.dante;
-  const defenderTowerAtk = defenderGod.towerAtk || 100;
+            // 거신병 버프 있으면 2배
+            if ((isBlue ? match.stats.blue : match.stats.red).activeBuffs.siegeUnit) {
+                dmg *= 2.0;
+            }
 
-  // [핵심 수정 2] 타워 공격력이 높으면 공성 실패 확률 증가
-  // 타워 공격력 100 기준 저항력 0.66
-  const towerResistance = 100 / (50 + defenderTowerAtk);
-  // 저항력 수치가 낮을수록 공성 실패 확률 높음
-  if (Math.random() > towerResistance) return; 
+            enemyStats.nexusHp -= dmg;
 
-  // 신살자 생존 여부 체크
-  const hasAliveSlayer = attackerTeam.some(p => {
-      const h = heroes.find(x => x.id === p.heroId);
-      return h?.role === '신살자' && p.currentHp > 0;
+            // 가끔 로그 출력
+            if (Math.random() < 0.01) {
+                match.logs.push({
+                    time: Math.floor(match.currentDuration),
+                    message: `🏰 [${hero.name}] 넥서스 타격! (남은 HP: ${Math.floor(enemyStats.nexusHp)})`,
+                    type: 'TOWER',
+                    team: teamName as 'BLUE'|'RED'
+                });
+            }
+
+            // 게임 종료 조건은 MatchUpdater나 CoreEngine에서 체크함
+            return; 
+        }
+    }
+
+    // 2. 타워 공성 (현재 라인의 타워)
+    if (p.lane !== 'JUNGLE') {
+        const lane = p.lane.toLowerCase(); // top, mid, bot
+        const brokenCount = (enemyStats.towers as any)[lane];
+
+        // 아직 파괴되지 않은 다음 타워 (1~3차)
+        if (brokenCount < 3) {
+            const targetTier = brokenCount + 1;
+            const towerPos = getTowerPos(p.lane, targetTier, isBlue);
+            const distToTower = getDistance(p, towerPos);
+
+            // 타워 사거리 내 접근
+            if (distToTower <= 8) {
+                const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
+                let dmg = hero.stats.ad * siegeMod * dt;
+
+                // [중요] 타워 HP가 데이터 구조에 없으므로, 확률적 파괴 로직을 "데미지 누적"처럼 사용
+                // (데미지 / 타워총체력) 확률로 파괴 카운트 증가
+                // 예: 타워체력 5000, 데미지 500 -> 10% 확률로 파괴 (즉 10초 때리면 깨짐)
+                // 이를 통해 HP를 깎는 것과 통계적으로 동일한 효과를 냄.
+
+                const destroyChance = dmg / towerHp;
+
+                if (Math.random() < destroyChance) {
+                    (enemyStats.towers as any)[lane]++;
+
+                    // 보상 지급 (팀 전원)
+                    (isBlue ? match.blueTeam : match.redTeam).forEach(member => member.gold += towerGold);
+
+                    match.logs.push({
+                        time: Math.floor(match.currentDuration),
+                        message: `🔨 [${hero.name}] ${enemyName}팀의 ${lane.toUpperCase()} ${targetTier}차 포탑 파괴!`,
+                        type: 'TOWER',
+                        team: teamName as 'BLUE'|'RED'
+                    });
+                }
+            }
+        }
+    }
   });
-
-  const lanes = ['top', 'mid', 'bot'] as const;
-  const lane = lanes[Math.floor(Math.random() * 3)];
-  const laneName = lane === 'top' ? '탑' : lane === 'mid' ? '미드' : '바텀';
-
-  // --- [포탑 파괴 로직] ---
-  if (defenderStats.towers[lane] < 3) {
-      // 신살자 없으면 철거 힘듦
-      if (!hasAliveSlayer && Math.random() < 0.4) return;
-
-      defenderStats.towers[lane]++;
-      const tier = defenderStats.towers[lane];
-
-      // 포탑 파괴 보상 (설정값 반영)
-      const reward = (fieldSettings?.tower?.rewardGold || 150) + (tier * 50);
-      (isBluePush ? match.blueTeam : match.redTeam).forEach(p => p.gold += reward);
-
-      match.logs.push({
-          time: Math.floor(match.currentDuration),
-          message: `🔨 ${defenderName}팀의 [${laneName} ${tier}차 포탑] 파괴!`,
-          type: 'TOWER',
-          team: attackerName
-      });
-  } 
-  // --- [넥서스 파괴 로직] ---
-  else {
-      let damage = 50 + (match.currentDuration / 12);
-
-      if (hasAliveSlayer) {
-          const bonusRatio = 1 + (roleSettings.slayer.structureDamage / 100);
-          damage *= bonusRatio;
-      }
-
-      // 넥서스 체력 감소 (설정된 넥서스 HP가 많으면 더 오래 버팀)
-      defenderStats.nexusHp -= (damage * dt * 8);
-
-      if (defenderStats.nexusHp <= 0) {
-          defenderStats.nexusHp = 0;
-          match.logs.push({ 
-              time: Math.floor(match.currentDuration), 
-              message: `🏁 ${defenderName}팀의 수호자 파괴! 게임 종료!`, 
-              type: 'TOWER', 
-              team: attackerName 
-          });
-      }
-  }
 };

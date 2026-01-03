@@ -1,9 +1,11 @@
 // ==========================================
 // FILE PATH: /src/engine/match/calculators/PowerCalculator.ts
 // ==========================================
-import { Hero, LivePlayer, SkillDetail, RoleSettings, HeroStats, Item } from '../../../types';
-import { calculateTotalStats } from '../ItemManager';
-import { applyRoleBonus } from '../RoleManager';
+// [수정] 경로 ../../../types
+import { Hero, LivePlayer, RoleSettings, HeroStats } from '../../../types';
+// [수정] 같은 폴더(systems) 내 파일 참조
+import { calculateTotalStats } from './ItemManager';
+import { applyRoleBonus } from './RoleManager';
 
 export const getLevelScaledStats = (baseStats: HeroStats, level: number): HeroStats => {
   const scale = (val: number, rate: number) => Math.floor(val * (1 + (level - 1) * rate));

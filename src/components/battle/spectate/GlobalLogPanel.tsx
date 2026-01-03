@@ -1,10 +1,13 @@
-// src/components/battle/spectate/GlobalLogPanel.tsx
+// ==========================================
+// FILE PATH: /src/components/battle/spectate/GlobalLogPanel.tsx
+// ==========================================
 import React, { useMemo, useRef, useEffect } from 'react';
 
 export const GlobalLogPanel = ({ logs, gameSpeed, formatTime }: any) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const visibleLogs = useMemo(() => {
+    // 1배속일 때는 모든 로그 표시, 배속일 때는 중요 로그만 표시 (성능 최적화)
     const filtered = logs.filter((log: any) => {
       if (gameSpeed === 1) return true; 
       return log.type !== 'DEBUG';      
@@ -12,6 +15,7 @@ export const GlobalLogPanel = ({ logs, gameSpeed, formatTime }: any) => {
     return [...filtered].reverse().slice(0, 150); 
   }, [logs, gameSpeed]); 
 
+  // 새 로그 오면 스크롤 맨 위로
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [visibleLogs.length]); 

@@ -3,7 +3,8 @@
 // ==========================================
 
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
-import { userPool } from '../UserManager';
+// [경로 수정됨]
+import { userPool } from '../system/UserManager';
 
 // 다음 티어 정보 반환 (이름, 컷, 승급전 설정 키)
 const getNextTierInfo = (currentScore: number, config: TierConfig) => {
@@ -25,17 +26,8 @@ export function finishMatch(
   tierConfig: TierConfig
 ) {
 
-  // [수정 1] 밴 통계 집계 로직 추가 (여기가 핵심입니다!)
-  const allBans = [...(match.bans?.blue || []), ...(match.bans?.red || [])];
-  allBans.forEach(banId => {
-    const hero = heroes.find(h => h.id === banId);
-    if (hero) {
-      hero.record.totalBans++; // 밴 횟수 증가
-    }
-  });
-
-  // 승패 판정
   let isBlueWin = match.score.blue > match.score.red;
+  // 넥서스 파괴 여부로 승패 확정
   if (match.stats.red.nexusHp <= 0) isBlueWin = true;       
   else if (match.stats.blue.nexusHp <= 0) isBlueWin = false; 
 
@@ -57,7 +49,7 @@ export function finishMatch(
       const hero = heroes.find(h => h.id === player.heroId);
       const user = userPool.find(u => u.name === player.name) as any;
 
-      // 1. 영웅 통계 갱신
+      // 1. 영웅 통계 갱신 (누적)
       if (hero) {
         hero.record.totalMatches++; 
         hero.record.totalPicks++; 
@@ -67,12 +59,13 @@ export function finishMatch(
         hero.record.totalDeaths += player.deaths; 
         hero.record.totalAssists += player.assists; 
 
+        // 아이템 가치 합산
         const itemsValue = player.items.reduce((sum, item) => sum + item.cost, 0);
         hero.record.totalGold += (player.gold + itemsValue);
-        hero.record.totalDamage += player.totalDamageDealt; 
+        hero.record.totalDamage += player.totalDamageDealt || 0; 
         hero.record.totalCs += player.cs;
 
-        // 최근 전적 
+        // 최근 전적
         hero.record.recentResults.push(win); 
         if (hero.record.recentResults.length > 50) hero.record.recentResults.shift();
       }
@@ -88,28 +81,30 @@ export function finishMatch(
 
         // --- [A] 승급전 진행 중일 때 ---
         if (user.promoStatus) {
-            lpChange = 0; 
+            lpChange = 0; // 점수 변동 없음
 
             if (win) {
                 user.promoStatus.wins++;
                 historyMsg = 'PROMO WIN';
+                // 승급 성공 조건
                 if (user.promoStatus.wins >= user.promoStatus.targetWins) {
                     const nextTier = getNextTierInfo(user.score, tierConfig);
                     if (nextTier) {
-                        user.score = nextTier.cut + 50; 
+                        user.score = nextTier.cut + 50; // 승급 보너스
                         historyMsg = `🎉 승급! (${nextTier.name})`;
                     }
-                    user.promoStatus = null; 
+                    user.promoStatus = null;
                 }
             } else {
                 user.promoStatus.losses++;
                 historyMsg = 'PROMO LOSS';
 
+                // 탈락 조건
                 const totalGames = user.promoStatus.targetWins * 2 - 1;
                 const maxLosses = totalGames - user.promoStatus.targetWins + 1;
 
                 if (user.promoStatus.losses >= maxLosses) {
-                    user.score -= 40; 
+                    user.score -= 40; // 승급 실패 패널티
                     historyMsg = '❌ 승급 실패';
                     user.promoStatus = null;
                 }
@@ -120,10 +115,12 @@ export function finishMatch(
             const oldScore = user.score;
             user.score = Math.max(0, user.score + lpChange);
 
+            // 승급전 발동 체크
             const nextTier = getNextTierInfo(oldScore, tierConfig);
             if (nextTier && user.score >= nextTier.cut) {
-                user.score = nextTier.cut - 1; 
+                user.score = nextTier.cut - 1; // 점수 잠금
 
+                // 티어별 승급전 판수 적용 (기본 3판)
                 const promoMatches = tierConfig.promos ? (tierConfig.promos[nextTier.key as keyof typeof tierConfig.promos] || 3) : 3;
                 const targetWins = Math.ceil(promoMatches / 2);
 
@@ -147,6 +144,7 @@ export function finishMatch(
         });
         if (user.history.length > 20) user.history.pop();
 
+        // 모스트 챔피언 통계 갱신
         if (!user.heroStats[player.heroId]) user.heroStats[player.heroId] = { matches:0, wins:0, kills:0, deaths:0, assists:0 };
         const st = user.heroStats[player.heroId];
         st.matches++; if(win) st.wins++; st.kills+=player.kills; st.deaths+=player.deaths; st.assists+=player.assists;

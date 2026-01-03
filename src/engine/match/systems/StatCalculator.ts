@@ -1,5 +1,5 @@
 // src/engine/battle/StatCalculator.ts
-import { HeroStats, GodSettings } from '../../types';
+import { HeroStats, GodSettings } from '../../../types';
 
 export const calculateDamage = (
   attackerStats: HeroStats,

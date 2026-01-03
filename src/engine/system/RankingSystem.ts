@@ -1,7 +1,9 @@
 // ==========================================
-// FILE PATH: /src/engine/RankingSystem.ts
+// FILE PATH: /src/engine/system/RankingSystem.ts
 // ==========================================
-import { Hero, UserStatus, TierStat, TierConfig, Tier } from '../types';
+// [수정] ../types -> ../../types
+import { Hero, UserStatus, TierStat, TierConfig, Tier } from '../../types';
+// [수정] 같은 폴더 내에 있으므로 ./UserManager
 import { userPool } from './UserManager';
 
 const safeDiv = (num: number, den: number) => (den <= 0 ? 0 : num / den);
@@ -14,14 +16,13 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
     const r = h.record;
     const matches = Math.max(1, r.totalMatches);
 
-    // [밸런스] 베이지안 평활화: 표본 적을 때 승률 100% 방지 (기본 5승 5패 부여)
+    // 베이지안 평활화
     const winRate = ((r.totalWins + 5) / (matches + 10)) * 100;
 
     const k = safeDiv(r.totalKills, matches);
     const d = safeDiv(r.totalDeaths, matches);
     const a = safeDiv(r.totalAssists, matches);
 
-    // [밸런스] 분당 지표 환산 (LoL 스타일 데이터 가공)
     const avgDpm = (r.totalDamage / matches) / 25; 
     const avgDpg = (r.totalDamageTaken / matches) / 25;
     const avgCs = r.totalCs / matches;
@@ -58,7 +59,6 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
   });
 }
 
-// [기능 유지] 유저 생태계 계산 함수
 export function calculateUserEcosystem(ccu: number, totalUsers: number, config: TierConfig): UserStatus {
   const playingUsers = userPool.filter(u => u.status === 'INGAME').length;
   const queuingUsers = userPool.filter(u => u.status === 'QUEUE' || u.status === 'IDLE').length;

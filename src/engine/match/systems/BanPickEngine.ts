@@ -2,7 +2,7 @@
 // FILE PATH: /src/engine/match/BanPickEngine.ts
 // ==========================================
 
-import { Hero, LiveMatch } from '../../types';
+import { Hero, LiveMatch } from '../../../types';
 
 // 영웅 분석 헬퍼 (안전장치 포함)
 const analyzeHeroTags = (h: Hero) => {
