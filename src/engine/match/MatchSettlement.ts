@@ -3,7 +3,6 @@
 // ==========================================
 
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
-// [경로 수정됨]
 import { userPool } from '../system/UserManager';
 
 // 다음 티어 정보 반환 (이름, 컷, 승급전 설정 키)
@@ -44,6 +43,19 @@ export function finishMatch(
     }
   });
 
+  // =========================================================
+  // [누락되었던 부분 추가] 밴 통계 업데이트
+  // =========================================================
+  const allBans = [...match.bans.blue, ...match.bans.red];
+  allBans.forEach(banId => {
+    if (banId) {
+        const hero = heroes.find(h => h.id === banId);
+        if (hero) {
+            hero.record.totalBans++; // 밴 횟수 증가
+        }
+    }
+  });
+
   const processTeam = (team: LivePlayer[], win: boolean) => {
     team.forEach(player => {
       const hero = heroes.find(h => h.id === player.heroId);
@@ -67,7 +79,9 @@ export function finishMatch(
 
         // 최근 전적
         hero.record.recentResults.push(win); 
-        if (hero.record.recentResults.length > 50) hero.record.recentResults.shift();
+        if (hero.record.recentResults.length > 1000) {
+            hero.record.recentResults.shift();
+        }
       }
 
       // 2. 유저 점수 및 승급전 처리

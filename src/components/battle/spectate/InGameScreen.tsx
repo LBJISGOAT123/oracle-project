@@ -31,6 +31,13 @@ export const InGameScreen: React.FC<any> = ({ match, onClose }) => {
 
   const getHeroName = (id: string) => heroes.find((h:any) => h.id === id)?.name || id;
 
+  // [수정] 밴 리스트를 항상 5칸으로 채워주기
+  const fillBans = (arr: string[]) => {
+    const res = [...(arr || [])];
+    while(res.length < 5) res.push(''); // 빈 문자열로 채움
+    return res.slice(0, 5); // 5개만 반환
+  };
+
   // 선택된 플레이어 객체 찾기
   const selectedPlayer = selectedHeroId 
     ? [...match.blueTeam, ...match.redTeam].find(p => p.heroId === selectedHeroId) 
@@ -62,10 +69,10 @@ export const InGameScreen: React.FC<any> = ({ match, onClose }) => {
       {/* 2. 메인 컨텐츠 영역 (스크롤 가능) */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom:'20px' }}>
 
-        {/* (A) 밴 목록 */}
+        {/* (A) 밴 목록 [수정: fillBans 적용] */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: '#0a0a0c', borderBottom: '1px solid #222' }}>
-           <div style={{ display: 'flex', gap: '5px' }}>{match.bans.blue.map((id:string, i:number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={setViewingBanHero} />)}</div>
-           <div style={{ display: 'flex', gap: '5px' }}>{match.bans.red.map((id:string, i:number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={setViewingBanHero} />)}</div>
+           <div style={{ display: 'flex', gap: '5px' }}>{fillBans(match.bans.blue).map((id:string, i:number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={setViewingBanHero} />)}</div>
+           <div style={{ display: 'flex', gap: '5px' }}>{fillBans(match.bans.red).map((id:string, i:number) => <BanCard key={i} heroId={id} heroes={heroes} onClick={setViewingBanHero} />)}</div>
         </div>
 
         {/* (B) 플레이어 목록 (5vs5) */}
@@ -84,7 +91,7 @@ export const InGameScreen: React.FC<any> = ({ match, onClose }) => {
            <ObjectStatBox stats={match.stats.red} color="#e84057" side="RED" />
         </div>
 
-        {/* (D) 중립 오브젝트 (거신병/주시자) - 복구됨 */}
+        {/* (D) 중립 오브젝트 (거신병/주시자) */}
         <NeutralObjPanel 
           colossus={match.objectives?.colossus} 
           watcher={match.objectives?.watcher} 

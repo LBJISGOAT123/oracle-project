@@ -12,8 +12,8 @@ export const getLevelScaledStats = (baseStats: HeroStats, level: number): HeroSt
   return {
     ...baseStats,
     hp: scale(baseStats.hp, 0.05),        
-    ad: scale(baseStats.ad, 0.06),        
-    ap: scale(baseStats.ap, 0.06),        
+    ad: scale(baseStats.ad, 0.15),        
+    ap: scale(baseStats.ap, 0.15),        
     armor: scale(baseStats.armor, 0.03),  
     baseAtk: scale(baseStats.baseAtk, 0.04),
     regen: scale(baseStats.regen, 0.02),

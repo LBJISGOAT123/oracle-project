@@ -19,11 +19,14 @@ export const moveUnit = (p: LivePlayer, target: Vector2, dt: number, speedVal: n
   // speedVal(이속)이 보통 300~400 정도이므로 1/100 정도로 줄여서 이동
   const speed = (speedVal / 100) * dt * 0.8; 
 
-  const dx = (target.x - p.x) / dist;
-  const dy = (target.y - p.y) / dist;
+  // [수정] 거리가 너무 가까우면(0에 수렴하면) 나누기 0 에러 발생 가능하므로 방어
+  if (dist > 0.001) {
+      const dx = (target.x - p.x) / dist;
+      const dy = (target.y - p.y) / dist;
 
-  p.x += dx * speed;
-  p.y += dy * speed;
+      p.x += dx * speed;
+      p.y += dy * speed;
+  }
 
   // 맵 밖으로 나가지 않게 제한 (0~100)
   p.x = Math.max(0, Math.min(100, p.x));
@@ -53,6 +56,9 @@ export const findTarget = (me: LivePlayer, enemies: LivePlayer[], range: number)
 };
 
 // --- [공격 실행 로직] ---
+// *Note: 실제 데미지 계산은 CombatPhase.ts에서 통합 처리하므로, 여기서는 스킬 사용 텍스트 처리 등만 담당할 수도 있음
+// 하지만 현재 구조상 이 함수는 PlayerSystem 등에서 직접 호출되지 않고 CombatPhase로 대체되었습니다.
+// 하위 호환성을 위해 함수 형태만 유지하거나, 특정 상황(반격 등)에서 쓸 수 있도록 남겨둡니다.
 export const executeAttack = (
   attacker: LivePlayer, 
   target: LivePlayer, 
@@ -61,52 +67,6 @@ export const executeAttack = (
   logs: any[],
   time: number
 ) => {
-  // 마나 체크 (스킬 사용 조건)
-  // 확률적으로 스킬 사용 (마나 50 이상일 때 30% 확률)
-  const isSkill = attacker.currentMp > 50 && Math.random() < 0.3;
-  let damage = 0;
-  let logMsg = '';
-
-  if (isSkill) {
-    // 스킬 사용 (Q,W,E,R 중 랜덤)
-    const skills = [hero.skills.q, hero.skills.w, hero.skills.e, hero.skills.r];
-    const skill = skills[Math.floor(Math.random() * skills.length)];
-
-    // 데미지 계산식 (기본뎀 + 계수)
-    damage = skill.val + (hero.stats.ad * skill.adRatio) + (hero.stats.ap * skill.apRatio);
-    attacker.currentMp -= 30; // 마나 소모
-    logMsg = `✨ ${hero.name}의 ${skill.name}!`;
-  } else {
-    // 평타
-    damage = hero.stats.ad;
-    logMsg = `⚔️ ${hero.name}의 공격`;
-  }
-
-  // 방어력 계산 (간단한 감소 공식: 100 / (100 + 방어력))
-  // target.heroId로 영웅 정보 찾기는 복잡하므로 기본 방어력 30 가정하거나, items에서 계산해야 함.
-  // 여기서는 약식으로 처리
-  const def = 100 / (100 + 30); 
-  const finalDmg = Math.floor(damage * def);
-
-  target.currentHp -= finalDmg;
-  attacker.totalDamageDealt += finalDmg;
-
-  // 킬 처리
-  if (target.currentHp <= 0) {
-    target.currentHp = 0;
-    // 부활 타이머 설정 (기본 10초 + 레벨당 2초)
-    target.respawnTimer = 10 + (attacker.level * 2);
-
-    attacker.kills++;
-    target.deaths++;
-    attacker.gold += 300;
-
-    // 로그 기록
-    logs.push({
-      time: Math.floor(time),
-      message: `💀 [${hero.name}]가 [${target.name}] 처치!`,
-      type: 'KILL',
-      team: attacker.x < 50 ? 'BLUE' : 'RED' // 위치 기반 팀 추정 (정확히 하려면 인자로 받아야 함)
-    });
-  }
+  // CombatPhase.ts 에서 처리되므로 여기 로직은 비워두거나 단순화 가능
+  // (현재 시뮬레이션 구조에서는 CombatPhase가 메인이므로 이 함수는 사용되지 않을 수 있음)
 };
