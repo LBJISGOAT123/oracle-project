@@ -14,11 +14,11 @@ interface Props {
 export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
   const { gameState, togglePlay, setSpeed } = useGameStore();
 
-  // [수정] 시간을 00:00:00 형태로 깔끔하게 포맷팅
+  // 시간 포맷팅 (00:00:00)
   const formatTime = (h: number, m: number, s: number) => 
     `${String(h || 0).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}:${String(Math.floor(s || 0)).padStart(2, '0')}`;
 
-  // 배속 버튼 스타일
+  // 버튼 스타일 헬퍼
   const getBtnStyle = (speed: number) => ({
     padding: '6px 10px', 
     background: gameState.gameSpeed === speed ? '#58a6ff' : '#30363d',
@@ -38,6 +38,7 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
       marginBottom: '20px', background: '#161b22', padding: '15px', 
       borderRadius: '12px', border: '1px solid #30363d', gap: isMobile ? '15px' : '0' 
     }}>
+      {/* 1. 왼쪽 섹션: 제목 및 시간 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '20px', color: '#fff' }}>
@@ -47,7 +48,6 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
             <span>📅 S{gameState.season || 1}</span>
             <span>D{gameState.day || 1}</span>
             <span style={{ color: '#fff', fontWeight: 'bold', fontFamily: 'monospace' }}>
-              {/* [수정] 여기서 Math.floor를 적용하여 소수점을 제거합니다 */}
               ⏰ {formatTime(gameState.hour, gameState.minute, gameState.second)}
             </span>
           </div>
@@ -59,6 +59,7 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
         )}
       </div>
 
+      {/* 2. 오른쪽 섹션: 배속 및 저장 컨트롤 */}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
           {!isMobile && (
@@ -67,11 +68,15 @@ export const Header: React.FC<Props> = ({ isMobile, onOpenSystemMenu }) => {
             </button>
           )}
 
-          <button style={getBtnStyle(1)} onClick={() => setSpeed(1)}>1초</button>
+          {/* 배속 버튼들 */}
+          <button style={getBtnStyle(1)} onClick={() => setSpeed(1)}>1배</button>
+          <button style={getBtnStyle(3)} onClick={() => setSpeed(3)}>3배</button>
           <button style={getBtnStyle(60)} onClick={() => setSpeed(60)}>1분</button>
           <button style={getBtnStyle(600)} onClick={() => setSpeed(600)}>10분</button>
+          <button style={getBtnStyle(3600)} onClick={() => setSpeed(3600)}>1시간</button>
         </div>
 
+        {/* 재생/정지 버튼 */}
         <button className="btn" onClick={togglePlay} style={{ background: gameState.isPlaying ? '#da3633' : '#238636', width: '80px', color:'white', fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
           {gameState.isPlaying ? <><Pause size={16}/> 정지</> : <><Play size={16}/> 재생</>}
         </button>

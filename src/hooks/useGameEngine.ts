@@ -1,7 +1,3 @@
-// ==========================================
-// FILE PATH: /src/hooks/useGameEngine.ts
-// ==========================================
-
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import { saveToSlot, initializeGame } from '../engine/SaveLoadSystem';
@@ -9,23 +5,25 @@ import { saveToSlot, initializeGame } from '../engine/SaveLoadSystem';
 export const useGameEngine = () => {
   const store = useGameStore();
   const { gameState, tick, heroes } = store;
+  
+  const { isPlaying, gameSpeed } = gameState;
+
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // 시간 및 루프 관리를 위한 Refs
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
+  
+  const gameSpeedRef = useRef(gameSpeed || 1);
+  const pendingTimeRef = useRef(0);
 
-  // [핵심] gameSpeed를 Ref로 관리하여 useEffect 재실행 방지
-  const gameSpeedRef = useRef(gameState.gameSpeed);
-
-  // gameSpeed가 바뀌면 Ref만 업데이트 (루프는 끊기지 않음)
+  // gameSpeed가 변경될 때 ref도 즉시 업데이트
   useEffect(() => {
-    gameSpeedRef.current = gameState.gameSpeed;
-  }, [gameState.gameSpeed]);
+    gameSpeedRef.current = gameSpeed || 1;
+  }, [gameSpeed]);
 
   useEffect(() => {
     initializeGame(heroes);
-  }, []); // 마운트 시 1회만 실행
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -33,30 +31,62 @@ export const useGameEngine = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // [안정적인 게임 루프]
+  // [메인 게임 루프 - 최적화 적용됨]
   useEffect(() => {
-    if (!gameState.isPlaying) {
+    if (!isPlaying) {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      previousTimeRef.current = undefined; // 정지 시 시간 초기화
+      previousTimeRef.current = undefined; 
+      pendingTimeRef.current = 0;
       return;
     }
 
     const loop = (time: number) => {
       if (previousTimeRef.current !== undefined) {
-        // 1. 실제 경과 시간 계산 (초 단위)
-        const realDelta = (time - previousTimeRef.current) / 1000;
+        // 1. 실제 경과 시간 (최대 0.1초 제한으로 탭 전환 시 폭주 방지)
+        const realDelta = Math.min((time - previousTimeRef.current) / 1000, 0.1);
+        
+        // 2. 게임 내 흘러야 할 시간 누적
+        pendingTimeRef.current += realDelta * (gameSpeedRef.current || 1);
 
-        // 2. [중요] 탭 전환 등으로 인한 급격한 시간 점프 방지 (최대 0.1초로 제한)
-        // 렉이 걸려도 한 번에 0.1초 이상은 계산하지 않음 -> 부드러움 유지
-        const safeDelta = Math.min(realDelta, 0.1); 
+        // 3. [최적화] 배속에 따른 stepSize 동적 할당
+        // 배속이 높을수록 한 번에 크게 계산하여 연산 횟수(렉)를 줄임
+        let stepSize = 1.0;
+        
+        if (gameSpeedRef.current >= 3000) {
+            stepSize = 20.0; // 1시간 배속 등: 20초 단위 점프 (연산량 95% 감소)
+        } else if (gameSpeedRef.current >= 600) {
+            stepSize = 10.0; // 10분 배속: 10초 단위
+        } else if (gameSpeedRef.current >= 60) {
+            stepSize = 3.0;  // 1분 배속: 3초 단위
+        } else if (gameSpeedRef.current >= 3) {
+            stepSize = 1.0;  // 3배속
+        } else {
+            stepSize = 0.5;  // 1배속 (0.5초 단위로 부드럽게)
+        }
 
-        // 3. 배속 적용 (Ref 값 사용)
-        const gameDelta = safeDelta * gameSpeedRef.current;
+        // 4. [안전장치] "시간 부채" 탕감 (Lag Cap)
+        // CPU가 밀려서 처리해야 할 시간이 너무 많이(5스텝 이상) 쌓이면, 
+        // 억지로 다 계산하려다 멈추지 말고 최대치로 제한하여 렉을 방지함.
+        if (pendingTimeRef.current > stepSize * 5) {
+            pendingTimeRef.current = stepSize * 5;
+        }
 
-        // 4. 틱 실행
-        // (gameDelta가 0보다 클 때만 실행하여 불필요한 연산 방지)
-        if (gameDelta > 0) {
-            tick(gameDelta);
+        // 5. 프레임 버젯 (12ms) - 한 프레임에 너무 많은 연산 방지
+        const frameStart = performance.now();
+
+        while (pendingTimeRef.current >= stepSize) {
+          try {
+            tick(stepSize); // 틱 실행
+            pendingTimeRef.current -= stepSize;
+          } catch (e) {
+            console.error("Tick Error:", e);
+            pendingTimeRef.current = 0; // 에러 시 남은 시간 버림
+          }
+
+          // 시간이 너무 오래 걸리면 루프 중단 (UI 반응성 확보)
+          if (performance.now() - frameStart > 12) {
+            break;
+          }
         }
       }
 
@@ -69,15 +99,15 @@ export const useGameEngine = () => {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [gameState.isPlaying]); // 의존성에서 gameSpeed 제거! (Ref 사용)
+  }, [isPlaying]); // gameSpeed는 ref로 관리하므로 의존성 배열에서 제외 가능
 
   // 자동 저장 (1분 간격)
   useEffect(() => {
     const autoSaveInterval = setInterval(() => { 
-      if (gameState.isPlaying) saveToSlot('auto'); 
+      if (isPlaying) saveToSlot('auto'); 
     }, 60000);
     return () => clearInterval(autoSaveInterval);
-  }, [gameState.isPlaying]);
+  }, [isPlaying]);
 
   return { isMobile, store };
 };

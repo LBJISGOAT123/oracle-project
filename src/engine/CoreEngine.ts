@@ -120,7 +120,8 @@ export class CoreEngine {
     let nextTopRankers = state.topRankers;
     let nextSentiment = state.userSentiment;
 
-    if (isNewMinute) {
+//매 분마다 하지 않고, 5분에 한 번만 무거운 계산(랭킹/티어)을 수행합니다.
+    if (isNewMinute && Math.floor(minute) % 5 === 0) { 
         finalHeroes = analyzeHeroMeta(nextHeroes);
         nextUserStatus = calculateUserEcosystem(onlineUsers, nextTotalUsers, tierConfig);
 

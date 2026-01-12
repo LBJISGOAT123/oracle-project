@@ -10,15 +10,17 @@ import {
 } from '../../engine/SaveLoadSystem';
 import { 
   Save, Disc, AlertTriangle, X, Bot, Key, CheckCircle, 
-  Download, Upload, Trash2, RefreshCw, Share2, FileJson 
+  Download, Upload, Trash2, RefreshCw, Share2, FileJson,
+  Map as MapIcon, Image as ImageIcon
 } from 'lucide-react';
 
 interface Props { onClose: () => void; }
 
 export const SystemMenu: React.FC<Props> = ({ onClose }) => {
   const { 
-    heroes, gameState, shopItems, // MOD 내보내기용 데이터
-    updateAIConfig, resetHeroStats, hardReset, loadModData // 액션들
+    heroes, gameState, shopItems,
+    updateAIConfig, resetHeroStats, hardReset, loadModData,
+    setCustomImage, removeCustomImage 
   } = useGameStore();
 
   const [activeTab, setActiveTab] = useState<'SAVE' | 'LOAD' | 'OPTION'>('SAVE');
@@ -30,6 +32,7 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
   // 파일 입력 참조
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modInputRef = useRef<HTMLInputElement>(null);
+  const mapInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSlots(getSlotsMeta());
@@ -83,7 +86,6 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  // --- [신규] MOD 데이터 핸들러 ---
   const handleExportMod = () => {
     const modData = {
       version: 1,
@@ -92,7 +94,8 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
       settings: {
         battle: gameState.battleSettings,
         field: gameState.fieldSettings,
-        role: gameState.roleSettings
+        role: gameState.roleSettings,
+        tier: gameState.tierConfig
       },
       images: gameState.customImages
     };
@@ -111,7 +114,7 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!confirm('이 MOD 파일(영웅/아이템/설정/사진)을 적용하시겠습니까?\n\n* 주의: 현재 진행 중인 랭킹이나 승률 데이터는 유지되지만, 영웅의 이름이나 능력치는 변경됩니다.')) {
+    if (!confirm('이 MOD 파일을 적용하시겠습니까?')) {
       e.target.value = '';
       return;
     }
@@ -122,7 +125,7 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
         const json = JSON.parse(ev.target?.result as string);
         if (json.heroes && json.settings) {
           loadModData(json);
-          alert('✅ MOD 데이터 적용 완료!\n게임 설정이 변경되었습니다.');
+          alert('✅ MOD 데이터 적용 완료!');
         } else {
           alert('❌ 올바르지 않은 MOD 파일 형식입니다.');
         }
@@ -132,7 +135,29 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // 초기화
+    e.target.value = '';
+  };
+
+  // [신규] 맵 이미지 업로드
+  const handleMapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if(file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if(typeof reader.result === 'string') {
+          setCustomImage('map_bg', reader.result);
+          alert("✅ 전장 맵 스킨이 적용되었습니다!");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleMapReset = () => {
+    if(confirm("맵 스킨을 기본값으로 되돌리시겠습니까?")) {
+      removeCustomImage('map_bg');
+    }
   };
 
   // --- UI 컴포넌트 ---
@@ -151,7 +176,6 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
           cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: '0.2s',
           opacity: (activeTab === 'LOAD' && isEmpty) ? 0.5 : 1, pointerEvents: (activeTab === 'LOAD' && isEmpty) ? 'none' : 'auto'
         }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = '#58a6ff'} onMouseLeave={e => e.currentTarget.style.borderColor = '#444'}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isAuto ? '#e89d40' : '#58a6ff', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{isAuto ? 'A' : id}</div>
@@ -207,6 +231,29 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
 
           {activeTab === 'OPTION' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+               
+               {/* 0. [신규] 맵 스킨 설정 */}
+               <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
+                  <h4 style={{ margin:'0 0 10px 0', color:'#2ecc71', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
+                    <MapIcon size={16}/> 전장(Map) 스킨 설정
+                  </h4>
+                  <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
+                    관전 배경에 사용할 이미지를 업로드하세요.<br/>
+                    (권장 비율: 1:1 정사각형)
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => mapInputRef.current?.click()} className="btn" style={{ flex: 2, background: '#238636', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
+                      <ImageIcon size={14}/> 맵 업로드
+                    </button>
+                    <button onClick={handleMapReset} className="btn" style={{ flex: 1, background: '#3f1515', color: '#ff6b6b', border:'1px solid #5a1e1e', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
+                      <Trash2 size={14}/> 초기화
+                    </button>
+                    <input type="file" ref={mapInputRef} onChange={handleMapUpload} style={{ display: 'none' }} accept="image/*" />
+                  </div>
+               </div>
+
+               <div style={{ borderTop: '1px solid #333', margin: '5px 0' }}></div>
+
                {/* 1. AI 설정 */}
                <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
                   <h4 style={{ margin:'0 0 15px 0', color:'#58a6ff', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}><Bot size={16}/> 커뮤니티 AI 설정</h4>
@@ -240,33 +287,30 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
                {/* 2. 파일 관리 */}
                <h4 style={{ margin:'0 0 10px 0', color:'#ccc' }}>파일 관리</h4>
 
-               {/* [신규] MOD 데이터 공유 섹션 */}
                <div style={{ background: '#21262d', padding: '15px', borderRadius: '8px', border: '1px dashed #58a6ff', marginBottom: '10px' }}>
                  <div style={{ fontSize: '13px', color: '#58a6ff', fontWeight: 'bold', marginBottom: '5px', display:'flex', alignItems:'center', gap:'6px' }}>
                    <Share2 size={14}/> 게임 설정(MOD) 공유
                  </div>
                  <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
-                   내가 만든 영웅, 아이템, 밸런스 설정, 사진을<br/>파일로 저장하여 친구에게 공유할 수 있습니다.<br/>
-                   <span style={{color:'#ccc'}}>(랭킹/전적 등 진행 상황은 포함되지 않습니다.)</span>
+                   영웅/아이템/밸런스 설정/사진을 파일로 내보냅니다.
                  </div>
                  <div style={{ display: 'flex', gap: '10px' }}>
                    <button onClick={handleExportMod} className="btn" style={{ flex: 1, background: '#1f6feb', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
-                     <Download size={14}/> 설정 내보내기
+                     <Download size={14}/> 내보내기
                    </button>
                    <button onClick={() => modInputRef.current?.click()} className="btn" style={{ flex: 1, background: '#238636', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
-                     <FileJson size={14}/> 설정 적용하기
+                     <FileJson size={14}/> 불러오기
                    </button>
                    <input type="file" ref={modInputRef} onChange={handleImportMod} style={{ display: 'none' }} accept=".json" />
                  </div>
                </div>
 
-               {/* 전체 세이브 백업 */}
                <div style={{ display: 'flex', gap: '10px' }}>
                  <button onClick={exportSaveFile} className="btn" style={{ flex:1, background: '#30363d', border:'1px solid #444', color: '#ccc', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize:'12px' }}>
-                   <Download size={14} /> 전체 세이브 백업
+                   <Download size={14} /> 세이브 백업
                  </button>
                  <button onClick={() => fileInputRef.current?.click()} className="btn" style={{ flex:1, background: '#30363d', border:'1px solid #444', color: '#ccc', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize:'12px' }}>
-                   <Upload size={14} /> 전체 세이브 복구
+                   <Upload size={14} /> 세이브 복구
                  </button>
                  <input type="file" ref={fileInputRef} onChange={async (e) => {
                    const file = e.target.files?.[0];
@@ -279,22 +323,13 @@ export const SystemMenu: React.FC<Props> = ({ onClose }) => {
                <div style={{ borderTop: '1px solid #333', margin: '10px 0' }}></div>
 
                {/* 3. 초기화 */}
-               <h4 style={{ margin:'0 0 10px 0', color:'#da3633' }}>게임 초기화</h4>
-               <div style={{ background: '#251010', padding: '15px', borderRadius: '8px', border: '1px solid #4a1e1e', marginBottom: '10px' }}>
-                 <div style={{ fontSize: '12px', color: '#ff7b72', marginBottom: '10px', lineHeight: '1.4' }}>
-                   <b>현재 진행 중인 게임</b>만 Day 1로 되돌립니다.<br/>
-                   <span style={{ color:'#fff', opacity:0.7 }}>* 저장된 슬롯과 AI 설정은 삭제되지 않습니다.</span>
-                 </div>
-                 <button onClick={handleSafeReset} className="btn" style={{ background: '#da3633', color: '#fff', width: '100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-                   <Trash2 size={16} /> 현재 게임 재시작 (Day 1)
+               <h4 style={{ margin:'0 0 10px 0', color:'#da3633' }}>위험 구역</h4>
+               <div style={{ display:'flex', gap:'10px' }}>
+                 <button onClick={handleSafeReset} className="btn" style={{ flex:1, background: '#da3633', color: '#fff', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
+                   <Trash2 size={16} /> 게임 재시작
                  </button>
-               </div>
-               <div style={{ background: '#2d1b08', padding: '15px', borderRadius: '8px', border: '1px solid #633c0d' }}>
-                 <div style={{ fontSize: '12px', color: '#e89d40', marginBottom: '10px' }}>
-                   현재 진행 상황은 유지하고 통계만 0으로 만듭니다.
-                 </div>
-                 <button onClick={handleStatReset} className="btn" style={{ background: '#d29922', color: '#000', width: '100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontWeight:'bold' }}>
-                   <RefreshCw size={16} /> 통계만 초기화
+                 <button onClick={handleStatReset} className="btn" style={{ flex:1, background: '#d29922', color: '#000', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontWeight:'bold' }}>
+                   <RefreshCw size={16} /> 통계 초기화
                  </button>
                </div>
             </div>

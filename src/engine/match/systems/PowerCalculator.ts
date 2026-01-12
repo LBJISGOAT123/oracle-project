@@ -1,25 +1,10 @@
-// ==========================================
-// FILE PATH: /src/engine/match/calculators/PowerCalculator.ts
-// ==========================================
-// [수정] 경로 ../../../types
 import { Hero, LivePlayer, RoleSettings, HeroStats } from '../../../types';
-// [수정] 같은 폴더(systems) 내 파일 참조
-import { calculateTotalStats } from './ItemManager';
+// [수정] 순환 참조 제거 (StatUtils 사용)
+import { getLevelScaledStats, calculateTotalStats } from '../utils/StatUtils';
 import { applyRoleBonus } from './RoleManager';
 
-export const getLevelScaledStats = (baseStats: HeroStats, level: number): HeroStats => {
-  const scale = (val: number, rate: number) => Math.floor(val * (1 + (level - 1) * rate));
-  return {
-    ...baseStats,
-    hp: scale(baseStats.hp, 0.05),        
-    ad: scale(baseStats.ad, 0.06),        
-    ap: scale(baseStats.ap, 0.06),        
-    armor: scale(baseStats.armor, 0.03),  
-    baseAtk: scale(baseStats.baseAtk, 0.04),
-    regen: scale(baseStats.regen, 0.02),
-    pen: scale(baseStats.pen, 0.03),      
-  };
-};
+// getLevelScaledStats는 StatUtils로 이동했으므로 export만 다시 해줍니다 (하위 호환성)
+export { getLevelScaledStats } from '../utils/StatUtils';
 
 export const calculateHeroPower = (
   heroId: string, 
@@ -36,14 +21,11 @@ export const calculateHeroPower = (
   const { damageMod, defenseMod } = applyRoleBonus(player, hero.role, isSiege, allies, roleSettings);
   const currentTotalStats = calculateTotalStats({ ...hero, stats: scaledBaseStats }, player.items);
 
-  // 전투력 공식 정밀 조정
   const hpScore = currentTotalStats.hp / 12;
   const atkScore = (currentTotalStats.ad + currentTotalStats.ap) * 2.5;
   const utilScore = currentTotalStats.speed / 6;
 
   let basePower = (hpScore + atkScore + utilScore) * damageMod * defenseMod;
-
-  // MMR 및 피지컬 보정 (기존 로직 유지)
   const skillMultiplier = 0.85 + (player.mmr / 15000) + (player.stats.mechanics / 1000); 
 
   return basePower * skillMultiplier;

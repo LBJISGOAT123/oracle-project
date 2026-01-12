@@ -1,8 +1,5 @@
-// ==========================================
-// FILE PATH: /src/components/battle/spectate/DraftScreen.tsx
-// ==========================================
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, Shield, Swords, Zap, Crosshair, Skull } from 'lucide-react';
 import { GameIcon } from '../../common/GameIcon';
 import { SpeedButton, BanCard } from './SpectateUI';
 
@@ -12,7 +9,7 @@ export const DraftScreen: React.FC<any> = ({ match, heroes, onClose, setSpeed, g
   const turn = draft?.turnIndex || 0;
   const isBanPhase = turn < 10;
 
-  // 밴 목록 채우기 (빈칸 포함 5개)
+  // 밴 목록 채우기
   const fillBans = (arr: string[]) => {
     const res = [...(arr || [])];
     while(res.length < 5) res.push('');
@@ -41,69 +38,120 @@ export const DraftScreen: React.FC<any> = ({ match, heroes, onClose, setSpeed, g
   const activeBanTeam = isBanPhase ? (turn % 2) : -1;
   const getHeroName = (id: string) => heroes.find((h: any) => h.id === id)?.name || '';
 
-  const TeamPickColumn = ({ team, side, players }: any) => (
-    <div style={{ width:'48%' }}>
-      <h3 style={{ color: side === 'BLUE' ? '#58a6ff' : '#e84057', borderBottom:`2px solid ${side === 'BLUE' ? '#58a6ff' : '#e84057'}`, paddingBottom:'5px', textAlign: side==='RED'?'right':'left', fontSize:'16px' }}>
-        {side} TEAM
-      </h3>
-      {players.map((p:any, i:number) => {
-        const teamIdx = side === 'BLUE' ? 0 : 1;
-        const isPicking = (!isBanPhase && activeTeam === teamIdx && activeSlot === i);
-        const isBanning = (isBanPhase && activeBanTeam === teamIdx && activeBanSlot === i);
-        const isActive = isPicking || isBanning;
-        const glowColor = isBanning ? 'rgba(255, 77, 77, 0.4)' : (side==='BLUE' ? 'rgba(88, 166, 255, 0.4)' : 'rgba(232, 64, 87, 0.4)');
+  // [핵심] 게임 컨셉에 맞는 포지션 명칭 및 아이콘 변환
+  const getRoleDisplay = (lane: string) => {
+    switch(lane) {
+      case 'TOP': return { label: '집행관', icon: <Shield size={10}/>, color: '#e74c3c' };
+      case 'JUNGLE': return { label: '추적자', icon: <Swords size={10}/>, color: '#2ecc71' };
+      case 'MID': return { label: '선지자', icon: <Zap size={10}/>, color: '#3498db' };
+      case 'BOT': return { label: '신살자', icon: <Crosshair size={10}/>, color: '#f1c40f' };
+      default: return { label: '수호기사', icon: <Skull size={10}/>, color: '#9b59b6' };
+    }
+  };
 
-        return (
-          <div key={i} style={{ 
-            marginBottom:'8px', display:'flex', flexDirection: side==='RED'?'row-reverse':'row', alignItems:'center', gap:'10px', 
-            background: isActive ? `linear-gradient(${side==='BLUE'?'90deg':'-90deg'}, ${glowColor}, transparent)` : '#161b22', 
-            border: isActive ? `1px solid ${side==='BLUE'?'#58a6ff':'#e84057'}` : '1px solid transparent',
-            padding:'8px', borderRadius:'6px', transition: 'all 0.3s', transform: isActive ? 'scale(1.02)' : 'scale(1)'
-          }}>
-            <GameIcon id={p.heroId} size={40} shape="square" />
-            <div style={{ textAlign: side==='RED'?'right':'left', color: p.heroId ? '#fff' : '#555' }}>
-              <div style={{ fontSize:'12px', fontWeight:'bold' }}>{p.name}</div>
-              <div style={{ fontSize:'10px', color:'#888' }}>{p.lane}</div>
-              {p.heroId && <div style={{ fontSize:'11px', color: side==='BLUE'?'#58a6ff':'#e84057', fontWeight:'bold', marginTop:'2px' }}>{getHeroName(p.heroId)}</div>}
-              {isBanning && <div style={{ fontSize:'9px', color:'#ff4d4d', fontWeight:'bold' }}>금지 중...</div>}
-              {isPicking && <div style={{ fontSize:'9px', color:'#fff', fontWeight:'bold' }}>선택 중...</div>}
-            </div>
+  // 모바일 최적화 픽 슬롯
+  const PickSlot = ({ player, side, isActive }: any) => {
+    const roleInfo = getRoleDisplay(player.lane);
+    const borderColor = side === 'BLUE' ? '#58a6ff' : '#e84057';
+    
+    return (
+      <div style={{ 
+        display:'flex', alignItems:'center', gap:'8px', 
+        background: isActive ? '#1f242e' : '#161b22', 
+        border: isActive ? `1px solid ${borderColor}` : '1px solid #333',
+        padding:'6px', borderRadius:'6px', 
+        height: '48px', overflow:'hidden', position:'relative',
+        marginBottom: '6px'
+      }}>
+        {/* 영웅 아이콘 */}
+        <div style={{ position:'relative', width:'36px', height:'36px', flexShrink:0 }}>
+          {player.heroId ? (
+            <GameIcon id={player.heroId} size={36} shape="rounded" />
+          ) : (
+            <div style={{ width:'100%', height:'100%', background:'#222', borderRadius:'8px', border:'1px dashed #444' }} />
+          )}
+          {isActive && (
+            <div style={{ position:'absolute', inset:0, border:`2px solid ${borderColor}`, borderRadius:'8px', animation:'pulse 1s infinite' }} />
+          )}
+        </div>
+
+        {/* 정보 텍스트 */}
+        <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', justifyContent:'center' }}>
+          {/* 영웅 이름 / 상태 */}
+          <div style={{ fontSize:'12px', fontWeight:'bold', color: player.heroId ? '#fff' : '#666', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {player.heroId ? getHeroName(player.heroId) : (isActive ? '선택 중...' : '대기 중')}
           </div>
-        );
-      })}
-    </div>
-  );
+          
+          {/* 유저 닉네임 (요청하신 부분) */}
+          <div style={{ fontSize:'10px', color:'#ccc', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:'1px' }}>
+            {player.name}
+          </div>
+
+          {/* 포지션 (게임 컨셉 적용) */}
+          <div style={{ fontSize:'9px', color: roleInfo.color, display:'flex', alignItems:'center', gap:'3px', marginTop:'2px', fontWeight:'bold' }}>
+            {roleInfo.icon} {roleInfo.label}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', background:'#0d1117', overflowY:'auto' }}>
-      <div style={{ width:'100%', padding:'15px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', gap:'6px', width:'200px' }}>
-           {[1, 5, 10, 15].map(s => <SpeedButton key={s} label={`${s}x`} speed={s} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />)}
-        </div>
-        <button onClick={onClose} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}><X size={28}/></button>
-      </div>
-
-      <div style={{ textAlign:'center', marginBottom:'20px' }}>
-        <h2 style={{ color:'#fff', fontSize:'24px', margin:'0 0 10px 0' }}>DRAFT PHASE</h2>
-        <div style={{ color: isBanPhase ? '#e84057' : '#fff', fontSize:'14px', marginBottom:'5px' }}>
-            {isBanPhase ? '챔피언 금지 진행 중...' : '챔피언 선택 진행 중...'}
-        </div>
-        <div style={{ fontSize:'36px', fontWeight:'900', color: timer <= 10 ? '#e74c3c' : '#fff' }}>{timer}</div>
-      </div>
-
-      <div style={{ display:'flex', justifyContent:'space-between', width:'90%', maxWidth:'600px', marginBottom:'30px' }}>
+    <div style={{ 
+      position: 'fixed', inset: 0, background: '#0f0f0f', zIndex: 10000,
+      display: 'flex', flexDirection: 'column'
+    }}>
+      
+      {/* 1. 상단 컨트롤 & 타이머 */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px', background:'#1a1a1a', borderBottom:'1px solid #333' }}>
         <div style={{ display:'flex', gap:'4px' }}>
-          {blueBans.map((id, i) => <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} onClick={onBanClick} />)}
+           {[1, 10, 60].map(s => <SpeedButton key={s} label={`${s}x`} speed={s} currentSpeed={gameState.gameSpeed} setSpeed={setSpeed} />)}
+        </div>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:'24px', fontWeight:'900', color: timer <= 5 ? '#da3633' : '#fff' }}>{timer}</div>
+          <div style={{ fontSize:'10px', color: isBanPhase ? '#e84057' : '#58a6ff', fontWeight:'bold' }}>
+            {isBanPhase ? '금지 단계 (BAN)' : '선택 단계 (PICK)'}
+          </div>
+        </div>
+        <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer' }}><X size={24}/></button>
+      </div>
+
+      {/* 2. 밴 카드 영역 */}
+      <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 15px', background:'#1a1a1a', borderBottom:'1px solid #333' }}>
+        <div style={{ display:'flex', gap:'4px' }}>
+          {blueBans.map((id, i) => (
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 0 && activeBanSlot === i} onClick={onBanClick} />
+          ))}
         </div>
         <div style={{ display:'flex', gap:'4px' }}>
-          {redBans.map((id, i) => <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} onClick={onBanClick} />)}
+          {redBans.map((id, i) => (
+            <BanCard key={i} heroId={id} heroes={heroes} isActive={isBanPhase && activeBanTeam === 1 && activeBanSlot === i} onClick={onBanClick} />
+          ))}
         </div>
       </div>
 
-      <div style={{ display:'flex', width:'100%', maxWidth:'800px', justifyContent:'space-between', padding:'0 20px', paddingBottom:'40px' }}>
-        <TeamPickColumn team={0} side="BLUE" players={blueTeam} />
-        <TeamPickColumn team={1} side="RED" players={redTeam} />
+      {/* 3. 픽 리스트 (좌우 2분할, 스크롤 가능) */}
+      <div style={{ flex: 1, overflowY:'auto', padding:'10px', display:'flex', gap:'10px' }}>
+        {/* BLUE TEAM */}
+        <div style={{ flex: 1, display:'flex', flexDirection:'column' }}>
+          <div style={{ textAlign:'center', fontSize:'12px', fontWeight:'bold', color:'#58a6ff', marginBottom:'8px', borderBottom:'2px solid #58a6ff', paddingBottom:'4px' }}>BLUE TEAM</div>
+          {blueTeam.map((p:any, i:number) => (
+            <PickSlot key={i} player={p} side="BLUE" isActive={!isBanPhase && activeTeam === 0 && activeSlot === i} />
+          ))}
+        </div>
+
+        {/* RED TEAM */}
+        <div style={{ flex: 1, display:'flex', flexDirection:'column' }}>
+          <div style={{ textAlign:'center', fontSize:'12px', fontWeight:'bold', color:'#e84057', marginBottom:'8px', borderBottom:'2px solid #e84057', paddingBottom:'4px' }}>RED TEAM</div>
+          {redTeam.map((p:any, i:number) => (
+            <PickSlot key={i} player={p} side="RED" isActive={!isBanPhase && activeTeam === 1 && activeSlot === i} />
+          ))}
+        </div>
       </div>
+
+      <style>{`
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+      `}</style>
     </div>
   );
 };

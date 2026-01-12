@@ -2,12 +2,10 @@
 // FILE PATH: /src/engine/match/MatchCreator.ts
 // ==========================================
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
-// [경로 수정됨] ../UserManager -> ../system/UserManager
+// [수정됨] ./UserManager -> ../system/UserManager
 import { userPool, getTierNameHelper } from '../system/UserManager';
 import { useGameStore } from '../../store/useGameStore';
-// [추가됨] 위치 초기화를 위한 MapData
 import { BASES } from '../data/MapData';
-
 
 export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: number, config: TierConfig): LiveMatch[] {
   const idleUsers = userPool.filter(u => u.status === 'IDLE');
@@ -29,29 +27,21 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       const lanes = ['TOP', 'JUNGLE', 'MID', 'BOT', 'BOT']; 
       const lane = lanes[idx] as any;
 
-      // 영웅 데이터를 미리 찾아 기초 스탯 반영 (없으면 기본값)
-      // 실제로는 MatchUpdater에서 start 시점에 다시 maxHp 등을 맞추지만, 여기서도 초기화 해둠.
       return {
         name: user.name, 
         heroId: '', 
         kills: 0, deaths: 0, assists: 0, gold: 500, cs: 0,
-        totalDamageDealt: 0,
+        totalDamageDealt: 0, 
+        
         currentHp: 1000, maxHp: 1000, 
-
-        // [신규] 마나 스탯 초기화 (기본값)
         currentMp: 300, maxMp: 300, mpRegen: 5,
 
-        level: 1, 
-        exp: 0, 
-        items: [], 
+        level: 1, exp: 0, items: [], 
         x: 50, y: 50, 
         lane: lane, 
         buffs: [], 
         mmr: user.hiddenMmr,
-
-        // 부활 대기 시간 (0: 생존)
         respawnTimer: 0,
-
         stats: {
             brain: user.brain,
             mechanics: user.mechanics
@@ -74,14 +64,15 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       draft: {
         isBlueTurn: true,
         turnIndex: 0,
-        timer: 30, 
-        decisionTime: 3 + Math.random() * 25, 
+        timer: 10, 
+        decisionTime: 2 + Math.random() * 8, 
         phase: 'BAN'
       },
-
+      bans: { blue: [], red: [] }, 
+      
       blueTeam: blueUsers.map((u, i) => createPlayer(u, i, 'BLUE')),
       redTeam: redUsers.map((u, i) => createPlayer(u, i, 'RED')),
-      bans: { blue: [], red: [] },
+      
       startTime: currentTime, 
       duration: 3600, 
       currentDuration: 0, 

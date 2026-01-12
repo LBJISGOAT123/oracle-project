@@ -1,17 +1,12 @@
-// ==========================================
-// FILE PATH: /src/data/initialImages.ts
-// ==========================================
-
 export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
-  // ==============================================
-  // 1. 신 (GODS)
-  // ==============================================
+  // [전장 맵]
+  'map_bg': '/images/map.png',
+
+  // [신 (GODS)]
   'god_izman': '/images/gods/god_izman.png',
   'god_dante': '/images/gods/god_dante.png',
 
-  // ==============================================
-  // 2. 역할군 (ROLES)
-  // ==============================================
+  // [역할군 (ROLES)]
   'role_executor': '/images/roles/role_executor.png',
   'role_tracker': '/images/roles/role_tracker.png',
   'role_prophet': '/images/roles/role_prophet.png',
@@ -24,18 +19,15 @@ export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
   'role_slayer_bg': '/images/roles/role_slayer_bg.png',
   'role_guardian_bg': '/images/roles/role_guardian_bg.png',
 
-  // ==============================================
-  // 3. 아이템 (ITEMS) - [신규 추가됨]
-  // ==============================================
-
-  // [신발]
+  // [아이템 (ITEMS)] - 누락된 것들 전부 추가
+  // 1. 신발
   'i_boots_1': '/images/items/i_boots_1.png',
   'i_boots_2': '/images/items/i_boots_2.png',
   'i_boots_3': '/images/items/i_boots_3.png',
   'i_boots_4': '/images/items/i_boots_4.png',
   'i_boots_5': '/images/items/i_boots_5.png',
 
-  // [무기]
+  // 2. 무기
   'i_wep_1': '/images/items/i_wep_1.png',
   'i_wep_2': '/images/items/i_wep_2.png',
   'i_wep_3': '/images/items/i_wep_3.png',
@@ -47,7 +39,7 @@ export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
   'i_wep_9': '/images/items/i_wep_9.png',
   'i_wep_10': '/images/items/i_wep_10.png',
 
-  // [마도구]
+  // 3. 마도구
   'i_art_1': '/images/items/i_art_1.png',
   'i_art_2': '/images/items/i_art_2.png',
   'i_art_3': '/images/items/i_art_3.png',
@@ -59,7 +51,7 @@ export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
   'i_art_9': '/images/items/i_art_9.png',
   'i_art_10': '/images/items/i_art_10.png',
 
-  // [방어구]
+  // 4. 방어구
   'i_armor_1': '/images/items/i_armor_1.png',
   'i_armor_2': '/images/items/i_armor_2.png',
   'i_armor_3': '/images/items/i_armor_3.png',
@@ -71,14 +63,14 @@ export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
   'i_armor_9': '/images/items/i_armor_9.png',
   'i_armor_10': '/images/items/i_armor_10.png',
 
-  // [장신구]
+  // 5. 장신구
   'i_acc_1': '/images/items/i_acc_1.png',
   'i_acc_2': '/images/items/i_acc_2.png',
   'i_acc_3': '/images/items/i_acc_3.png',
   'i_acc_4': '/images/items/i_acc_4.png',
   'i_acc_5': '/images/items/i_acc_5.png',
 
-  // [권능]
+  // 6. 권능 (Power)
   'p_izman_low': '/images/items/p_izman_low.png',
   'p_izman_mid': '/images/items/p_izman_mid.png',
   'p_izman_high': '/images/items/p_izman_high.png',
@@ -86,9 +78,7 @@ export const INITIAL_CUSTOM_IMAGES: Record<string, string> = {
   'p_dante_mid': '/images/items/p_dante_mid.png',
   'p_dante_high': '/images/items/p_dante_high.png',
 
-  // ==============================================
-  // 4. 영웅 (HEROES) - 기존 데이터 유지
-  // ==============================================
+  // [영웅 (HEROES)]
   'h_ragna': '/images/heroes/h_ragna.png',
   'h_kensei': '/images/heroes/h_kensei.png',
   'h_baldur': '/images/heroes/h_baldur.png',

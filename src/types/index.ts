@@ -43,6 +43,8 @@ export interface SkillDetail {
 
 // 3. LivePlayer 수정
 export interface LivePlayer { 
+  name: string; 
+  heroId: string; 
   // ... 기존 필드들
   currentHp: number; 
   maxHp: number; 
@@ -50,6 +52,7 @@ export interface LivePlayer {
   currentMp: number; // [신규] 현재 마나
   maxMp: number;     // [신규] 최대 마나 (아이템/레벨 포함)
   mpRegen: number;   // [신규] 마나젠
+  actionState: 'FARMING' | 'FIGHTING' | 'ROAMING' | 'BACKING';
 
 export interface HeroSkillSet {
   passive: SkillDetail; q: SkillDetail; w: SkillDetail; e: SkillDetail; r: SkillDetail;
@@ -105,6 +108,10 @@ export interface HeroRecord {
     regen?: number;    // 체력 재생
     mpRegen?: number;  // 마나 재생
     pen?: number;      // 관통력
+    
+    // [추가] 실시간 변동 스탯 (아이템/버프 포함된 최종값)
+  moveSpeed?: number;  // 이동 속도
+  hpRegen?: number;    // 체력 재생
 
     // [타입 확장] WEAPON, ARMOR, ACCESSORY, POWER + BOOTS, ARTIFACT
     type: 'WEAPON' | 'ARMOR' | 'ACCESSORY' | 'POWER' | 'BOOTS' | 'ARTIFACT'; 
