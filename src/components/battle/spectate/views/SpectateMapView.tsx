@@ -28,13 +28,13 @@ export const SpectateMapView: React.FC<Props> = ({
 
   useEffect(() => {
     const animate = () => {
-      // 1. 영웅 이동 (빠른 반응속도)
+      // 1. 영웅 이동 보간
       const allPlayers = [...match.blueTeam, ...match.redTeam];
       allPlayers.forEach(p => {
         updateElementPos(`unit-${p.heroId}`, p.x, p.y, 'HERO'); 
       });
 
-      // 2. 미니언 이동 (느긋하고 부드럽게)
+      // 2. 미니언 이동 보간
       if (match.minions) {
         match.minions.forEach(m => {
           updateElementPos(`minion-${m.id}`, m.x, m.y, 'MINION');
@@ -44,10 +44,6 @@ export const SpectateMapView: React.FC<Props> = ({
       requestRef.current = requestAnimationFrame(animate);
     };
 
-    /**
-     * [이동 로직 튜닝]
-     * 유닛 타입에 따라 속도 계수를 다르게 적용하여 끊김 현상 제거
-     */
     const updateElementPos = (elementId: string, targetX: number, targetY: number, type: 'HERO' | 'MINION') => {
       const el = document.getElementById(elementId);
       if (!el) return;
@@ -62,32 +58,16 @@ export const SpectateMapView: React.FC<Props> = ({
       const dy = targetY - current.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
 
-      // 1. 순간이동 처리 (화면 밖으로 나갈 정도면 즉시 이동)
       if (dist > 20) {
         current.x = targetX;
         current.y = targetY;
-      } 
-      // 2. 이동 처리
-      else if (dist > 0.01) {
-        let speed = 0;
-
-        if (type === 'HERO') {
-            // [영웅] 반응성이 중요하므로 기본 속도를 어느 정도 확보
-            // 거리의 10%만큼 이동하되, 최소 0.05 속도 보장
-            speed = Math.max(0.05, dist * 0.1);
-        } else {
-            // [미니언] 끊김 방지가 최우선
-            // 거리가 짧으므로 속도를 대폭 낮춰서(0.025) 천천히 도달하게 함
-            // 이렇게 해야 1초 동안 멈추지 않고 꾸준히 걸어감
-            speed = Math.max(0.025, dist * 0.05); 
-        }
-
-        // 목적지 도착 판정 (속도보다 거리가 짧으면 도착)
+      } else if (dist > 0.01) {
+        // 이동 속도 조절
+        let speed = type === 'HERO' ? Math.max(0.05, dist * 0.1) : Math.max(0.025, dist * 0.05);
         if (dist <= speed) {
             current.x = targetX;
             current.y = targetY;
         } else {
-            // 정규화 벡터 * 속도
             current.x += (dx / dist) * speed;
             current.y += (dy / dist) * speed;
         }
@@ -102,42 +82,71 @@ export const SpectateMapView: React.FC<Props> = ({
     return () => { if(requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [match]); 
 
+  // 모바일에서 탭이 MAP이 아니면 렌더링 안함 (성능 최적화)
+  if (isMobile && mobileTab !== 'MAP') return null;
+
   return (
     <div style={{ 
-        height: '100%', position: 'relative', overflow: 'hidden', background: '#000',
-        display: (isMobile && mobileTab !== 'MAP') ? 'none' : 'block'
+        width: '100%',
+        height: '100%',
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: '#050505',
+        overflow: 'hidden',
+        position: 'relative' // 부모 기준
     }}>
-      <SpectateMap />
-      
-      <JungleRender mobs={match.jungleMobs} />
+      {/* 
+         [문제 1 해결] 
+         aspectRatio: '1 / 1' -> 정사각형 비율 고정
+         maxHeight: '100%' -> 높이가 화면을 넘어가지 않음
+         maxWidth: '100%' -> 가로가 화면을 넘어가지 않음
+         이 조합으로 항상 화면 내 최대 크기의 정사각형이 됨
+      */}
+      <div style={{ 
+          position: 'relative', 
+          aspectRatio: '1 / 1',
+          height: 'auto',
+          width: 'auto',
+          maxHeight: '100%',
+          maxWidth: '100%',
+          background: '#161b22',
+          overflow: 'hidden',
+          border: '1px solid #333',
+          boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+      }}>
+        <SpectateMap />
+        
+        <JungleRender mobs={match.jungleMobs} />
 
-      {['TOP', 'MID', 'BOT'].map(lane => (
-        [1, 2, 3].map(tier => (
-          <React.Fragment key={`${lane}-${tier}`}>
-            <TowerRender side="BLUE" lane={lane} tier={tier} stats={match.stats} />
-            <TowerRender side="RED" lane={lane} tier={tier} stats={match.stats} />
-          </React.Fragment>
-        ))
-      ))}
-      <NexusRender side="BLUE" stats={match.stats} />
-      <NexusRender side="RED" stats={match.stats} />
-      
-      <MonsterRender type="colossus" objectives={match.objectives} />
-      <MonsterRender type="watcher" objectives={match.objectives} />
+        {['TOP', 'MID', 'BOT'].map(lane => (
+          [1, 2, 3].map(tier => (
+            <React.Fragment key={`${lane}-${tier}`}>
+              <TowerRender side="BLUE" lane={lane} tier={tier} stats={match.stats} />
+              <TowerRender side="RED" lane={lane} tier={tier} stats={match.stats} />
+            </React.Fragment>
+          ))
+        ))}
+        <NexusRender side="BLUE" stats={match.stats} />
+        <NexusRender side="RED" stats={match.stats} />
+        
+        <MonsterRender type="colossus" objectives={match.objectives} />
+        <MonsterRender type="watcher" objectives={match.objectives} />
 
-      <MinionRender minions={match.minions} />
+        <MinionRender minions={match.minions} />
 
-      {[...match.blueTeam, ...match.redTeam].map(p => (
-        <UnitRender 
-          key={p.heroId} 
-          player={p} 
-          isBlue={match.blueTeam.includes(p)} 
-          isSelected={selectedHeroId === p.heroId} 
-          onClick={() => { onSelectHero(p.heroId); if(isMobile) setMobileTab('LIST'); }} 
-        />
-      ))}
+        {[...match.blueTeam, ...match.redTeam].map(p => (
+          <UnitRender 
+            key={p.heroId} 
+            player={p} 
+            isBlue={match.blueTeam.includes(p)} 
+            isSelected={selectedHeroId === p.heroId} 
+            onClick={() => { onSelectHero(p.heroId); if(isMobile) setMobileTab('LIST'); }} 
+          />
+        ))}
 
-      <ProjectileRender projectiles={match.projectiles} />
+        <ProjectileRender projectiles={match.projectiles} />
+      </div>
     </div>
   );
 };

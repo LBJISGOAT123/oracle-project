@@ -36,18 +36,24 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   };
 
   return matches.map(m => {
-    // [CRITICAL SAFETY] 필수 배열 강제 초기화
-    // 로드 직후 undefined 상태인 배열들을 빈 배열로 만들어 루프 에러 방지
-    if (!m.minions) m.minions = [];
-    if (!m.projectiles) m.projectiles = [];
-    if (!m.jungleMobs) m.jungleMobs = [];
-    if (!m.logs) m.logs = [];
+    // [안전장치 1] 필수 배열이 undefined 상태면 강제 할당
+    if (!Array.isArray(m.minions)) m.minions = [];
+    if (!Array.isArray(m.projectiles)) m.projectiles = [];
+    if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
+    if (!Array.isArray(m.logs)) m.logs = [];
+
+    // [안전장치 2] 체력 수치 숫자 변환 (가끔 문자열로 로드되는 경우 방지)
+    if (typeof m.stats.blue.nexusHp !== 'number') m.stats.blue.nexusHp = Number(m.stats.blue.nexusHp);
+    if (typeof m.stats.red.nexusHp !== 'number') m.stats.red.nexusHp = Number(m.stats.red.nexusHp);
 
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    // =============================================
-    // PHASE 1: 밴픽 (Draft)
-    // =============================================
+    // [게임 종료 체크] 넥서스가 파괴되었으면 업데이트 중단
+    if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
+        return match;
+    }
+
+    // [단계 1] 밴픽 진행 중
     if (match.status === 'DRAFTING') {
        if (!match.draft) return match;
        match.draft.timer -= delta;
@@ -88,18 +94,13 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                match.minions = [];
                match.projectiles = [];
                match.jungleMobs = [];
-               
                break; 
            }
        }
        return match;
     }
 
-    // =============================================
-    // PHASE 2: 인게임 시뮬레이션 (Playing)
-    // =============================================
-    if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return match;
-
+    // [단계 2] 인게임 플레이 중
     match.currentDuration += delta;
 
     processGrowthPhase(match, battleSettings, safeField, heroes, delta);
@@ -122,7 +123,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         delta
     );
 
-    // [신규 시스템 업데이트]
+    // 하위 시스템 업데이트 (여기서 배열이 없으면 위에서 초기화됨)
     MinionSystem.update(match, delta);
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);
