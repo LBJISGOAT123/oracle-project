@@ -1,7 +1,17 @@
+// ==========================================
+// FILE PATH: /src/components/battle/dashboard/GlobalBattleStats.tsx
+// ==========================================
 import React from 'react';
 import { Activity } from 'lucide-react';
 
-export const GlobalBattleStats = ({ stats }: any) => {
+const StatBox = ({ label, value, color, align }: any) => (
+  <div style={{ textAlign: align || 'left' }}>
+    <div style={{ fontSize: '10px', color: '#8b949e', marginBottom: '2px' }}>{label}</div>
+    <div style={{ fontSize: '16px', fontWeight: 'bold', color: color || '#fff', fontFamily: 'JetBrains Mono' }}>{value}</div>
+  </div>
+);
+
+export const GlobalBattleStats = ({ stats, isMobile }: any) => {
   const total = stats.totalMatches || 1;
   const redWinRate = ((stats.izmanWins / total) * 100).toFixed(1);
   const blueWinRate = ((stats.danteWins / total) * 100).toFixed(1);
@@ -17,7 +27,7 @@ export const GlobalBattleStats = ({ stats }: any) => {
         <span style={{ color: '#4d94ff', fontWeight: '900', fontSize: '18px' }}>{blueWinRate}%</span>
       </div>
       <div style={{ width: '100%', height: '12px', background: '#21262d', borderRadius: '6px', overflow: 'hidden', display: 'flex', marginBottom:'20px' }}>
-        <div style={{ width: \`\${redWinRate}%\`, background: 'linear-gradient(90deg, #8a1c1c, #ff4d4d)', height: '100%' }}></div>
+        <div style={{ width: `${redWinRate}%`, background: 'linear-gradient(90deg, #8a1c1c, #ff4d4d)', height: '100%' }}></div>
         <div style={{ width: '2px', background: '#000' }}></div>
         <div style={{ flex: 1, background: 'linear-gradient(90deg, #4d94ff, #1c4b8a)', height: '100%' }}></div>
       </div>
@@ -35,10 +45,3 @@ export const GlobalBattleStats = ({ stats }: any) => {
     </div>
   );
 };
-
-const StatBox = ({ label, value, color, align }: any) => (
-  <div style={{ textAlign: align || 'left' }}>
-    <div style={{ fontSize: '10px', color: '#8b949e', marginBottom: '2px' }}>{label}</div>
-    <div style={{ fontSize: '16px', fontWeight: 'bold', color: color || '#fff', fontFamily: 'JetBrains Mono' }}>{value}</div>
-  </div>
-);

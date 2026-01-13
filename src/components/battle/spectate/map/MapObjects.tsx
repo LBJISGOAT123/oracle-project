@@ -13,6 +13,15 @@ export const TowerRender = ({ side, lane, tier, stats }: any) => {
   const brokenCount = teamStats.towers[lane.toLowerCase()];
   const isBroken = brokenCount >= tier;
 
+  // [UI 추가] 현재 활성 타워인 경우 체력바 표시
+  const isActive = brokenCount === tier - 1;
+  const currentHp = teamStats.laneHealth ? teamStats.laneHealth[lane.toLowerCase()] : 0;
+  
+  // 최대 체력은 fieldSettings에서 가져와야 정확하지만, 일단 Tier별 추정치 사용
+  const maxHpMap = { 1: 10000, 2: 15000, 3: 20000 };
+  const maxHp = (maxHpMap as any)[tier] || 10000;
+  const hpPercent = isActive ? (currentHp / maxHp) * 100 : 0;
+
   const laneCoords = isBlue ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
   const pos = (laneCoords as any)[lane][tier - 1];
   const color = isBlue ? '#58a6ff' : '#e84057';
@@ -44,9 +53,13 @@ export const TowerRender = ({ side, lane, tier, stats }: any) => {
       }}>
         <Shield size={10} color={color} fill={color} />
       </div>
-      <div style={{ width: '24px', height: '3px', background: '#000', marginTop: '2px', borderRadius: '2px', overflow: 'hidden' }}>
-        <div style={{ width: '100%', height: '100%', background: color }} />
-      </div>
+      
+      {/* 체력바 (활성 타워만 표시) */}
+      {isActive && (
+        <div style={{ width: '24px', height: '3px', background: '#000', marginTop: '2px', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.max(0, hpPercent)}%`, height: '100%', background: hpPercent < 30 ? '#da3633' : color, transition:'width 0.2s' }} />
+        </div>
+      )}
     </div>
   );
 };
@@ -95,12 +108,10 @@ export const MonsterRender = ({ type, objectives }: { type: 'colossus' | 'watche
   if (!objectives || !objectives[type]) return null;
   const obj = objectives[type];
   
-  // [수정] ALIVE 상태가 아니면 렌더링 안 함
   if (obj.status !== 'ALIVE') return null;
 
-  // MapData.ts에서 수정한 좌표를 사용
   const pos = type === 'colossus' ? POI.BARON : POI.DRAGON;
-  const color = type === 'colossus' ? '#a658ff' : '#e67e22'; // 거신병(보라), 주시자(주황)
+  const color = type === 'colossus' ? '#a658ff' : '#e67e22'; 
   const icon = type === 'colossus' ? <Skull size={16} color="#fff"/> : <Zap size={16} color="#fff"/>;
   const hpPercent = (obj.hp / obj.maxHp) * 100;
 

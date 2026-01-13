@@ -1,15 +1,47 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { exportSaveFile, importSaveFile } from '../../engine/SaveLoadSystem';
-import { Bot, Key, CheckCircle, Download, Upload, Trash2, RefreshCw, Share2, FileJson, Map as MapIcon, Image as ImageIcon } from 'lucide-react';
+// [신규] 다운로더 임포트
+import { downloadAllResources, checkCachedStatus } from '../../utils/ResourceDownloader';
+import { 
+  Bot, Key, CheckCircle, Download, Upload, Trash2, RefreshCw, 
+  Map as MapIcon, Image as ImageIcon, Database, CloudLightning, Loader2 
+} from 'lucide-react';
 
 export const OptionTab: React.FC = () => {
   const { gameState, heroes, shopItems, updateAIConfig, resetHeroStats, hardReset, loadModData, setCustomImage, removeCustomImage } = useGameStore();
   const [aiSettings, setAiSettings] = useState(gameState.aiConfig);
   
+  // [신규] 다운로드 상태 관리
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [cachedCount, setCachedCount] = useState(0);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modInputRef = useRef<HTMLInputElement>(null);
-  const mapInputRef = useRef<HTMLInputElement>(null); // 맵 업로드용 ref
+  const mapInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    checkCachedStatus().then(setCachedCount);
+  }, []);
+
+  const handleDownloadResources = async () => {
+    if (isDownloading) return;
+    if (!confirm("게임에 필요한 모든 이미지를 다운로드하시겠습니까?\n(약 5~10MB 소요)")) return;
+
+    setIsDownloading(true);
+    setProgress(0);
+
+    const success = await downloadAllResources((current, total) => {
+      setProgress((current / total) * 100);
+    });
+
+    if (success) {
+      alert("✅ 모든 리소스 다운로드 완료!\n이제 로딩 없이 쾌적하게 플레이할 수 있습니다.");
+      checkCachedStatus().then(setCachedCount);
+    }
+    setIsDownloading(false);
+  };
 
   const saveAISettings = () => {
     updateAIConfig(aiSettings);
@@ -30,6 +62,7 @@ export const OptionTab: React.FC = () => {
     }
   };
 
+  // 기존 함수들 유지
   const handleExportMod = () => {
     const cleanHeroes = heroes.map(h => ({
       id: h.id, name: h.name, role: h.role, concept: h.concept, stats: h.stats, skills: h.skills
@@ -65,14 +98,13 @@ export const OptionTab: React.FC = () => {
     reader.readAsText(file); e.target.value = '';
   };
 
-  // [신규] 맵 이미지 업로드 핸들러
   const handleMapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if(file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         if(typeof reader.result === 'string') {
-          setCustomImage('map_bg', reader.result); // 'map_bg' 키로 저장
+          setCustomImage('map_bg', reader.result); 
           alert("✅ 전장 맵 스킨이 적용되었습니다!");
         }
       };
@@ -82,7 +114,7 @@ export const OptionTab: React.FC = () => {
   };
 
   const handleMapReset = () => {
-    if(confirm("맵 스킨을 기본값(검은 배경)으로 되돌리시겠습니까?")) {
+    if(confirm("맵 스킨을 기본값으로 되돌리시겠습니까?")) {
       removeCustomImage('map_bg');
     }
   };
@@ -90,14 +122,46 @@ export const OptionTab: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
-      {/* 1. 커스텀 맵 설정 (신규 추가) */}
+      {/* 1. [신규] 리소스 다운로드 섹션 */}
+      <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
+        <h4 style={{ margin:'0 0 10px 0', color:'#f1c40f', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
+          <CloudLightning size={16}/> 게임 리소스 최적화
+        </h4>
+        <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
+          이미지가 느리게 뜬다면 리소스를 미리 다운로드하세요.<br/>
+          현재 저장된 리소스: <span style={{color:'#fff', fontWeight:'bold'}}>{cachedCount}개</span>
+        </div>
+        
+        {isDownloading ? (
+          <div style={{ background:'#0d1117', borderRadius:'6px', padding:'10px', border:'1px solid #30363d' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'6px', fontSize:'12px', color:'#fff' }}>
+              <span>Downloading...</span>
+              <span>{progress.toFixed(0)}%</span>
+            </div>
+            <div style={{ width:'100%', height:'6px', background:'#333', borderRadius:'3px', overflow:'hidden' }}>
+              <div style={{ width:`${progress}%`, height:'100%', background:'#f1c40f', transition:'width 0.1s' }}></div>
+            </div>
+          </div>
+        ) : (
+          <button 
+            onClick={handleDownloadResources} 
+            className="btn" 
+            style={{ width:'100%', background: '#d29922', color: '#000', border:'none', fontSize:'13px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', padding:'10px' }}
+          >
+            <Database size={16}/> 리소스 전체 다운로드 (Fast Load)
+          </button>
+        )}
+      </div>
+
+      <div style={{ borderTop: '1px solid #333', margin: '5px 0' }}></div>
+
+      {/* 2. 맵 스킨 설정 */}
       <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
         <h4 style={{ margin:'0 0 10px 0', color:'#2ecc71', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
           <MapIcon size={16}/> 전장(Map) 스킨 설정
         </h4>
         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
-          AI로 생성한 맵 이미지를 업로드하면 관전 배경에 적용됩니다.<br/>
-          (권장 비율: 1:1 정사각형)
+          AI로 생성한 맵 이미지를 업로드하면 관전 배경에 적용됩니다.
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => mapInputRef.current?.click()} className="btn" style={{ flex: 2, background: '#238636', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
@@ -112,12 +176,11 @@ export const OptionTab: React.FC = () => {
 
       <div style={{ borderTop: '1px solid #333', margin: '5px 0' }}></div>
 
-      {/* 2. AI 설정 */}
+      {/* 3. AI 설정 */}
       <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
         <h4 style={{ margin:'0 0 15px 0', color:'#58a6ff', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
           <Bot size={16}/> 커뮤니티 AI 설정
         </h4>
-        {/* ... (AI 설정 내부 UI 생략, 기능은 유지됨) ... */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
           <span style={{ fontSize:'13px', color:'#fff' }}>AI 글작성 활성화</span>
           <input type="checkbox" checked={aiSettings.enabled} onChange={e => setAiSettings({...aiSettings, enabled: e.target.checked})} style={{ transform:'scale(1.2)', cursor:'pointer' }}/>
@@ -133,7 +196,7 @@ export const OptionTab: React.FC = () => {
 
       <div style={{ borderTop: '1px solid #333', margin: '5px 0' }}></div>
 
-      {/* 3. 파일 관리 */}
+      {/* 4. 파일 관리 */}
       <h4 style={{ margin:'0 0 10px 0', color:'#ccc' }}>파일 관리</h4>
       <div style={{ display: 'flex', gap: '10px', marginBottom:'10px' }}>
         <button onClick={handleExportMod} className="btn" style={{ flex: 1, background: '#30363d', color: '#ccc', border:'1px solid #444', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
@@ -159,7 +222,7 @@ export const OptionTab: React.FC = () => {
 
       <div style={{ borderTop: '1px solid #333', margin: '10px 0' }}></div>
 
-      {/* 4. 초기화 */}
+      {/* 5. 초기화 */}
       <h4 style={{ margin:'0 0 10px 0', color:'#da3633' }}>위험 구역</h4>
       <div style={{ display:'flex', gap:'10px' }}>
         <button onClick={handleSafeReset} className="btn" style={{ flex:1, background: '#da3633', color: '#fff', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>

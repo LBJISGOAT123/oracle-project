@@ -3,18 +3,13 @@
 // ==========================================
 import { LiveMatch, JungleMob } from '../../../types';
 import { Collision } from '../utils/Collision';
-
-// 정글 캠프 위치 (대칭)
-const CAMPS = [
-  { id: 1, x: 25, y: 75, type: 'WOLF' }, // 블루팀 늑대
-  { id: 2, x: 35, y: 65, type: 'GOLEM' }, // 블루팀 골렘
-  { id: 3, x: 75, y: 25, type: 'WOLF' }, // 레드팀 늑대
-  { id: 4, x: 65, y: 35, type: 'GOLEM' }, // 레드팀 골렘
-] as const;
+import { useGameStore } from '../../../store/useGameStore';
+import { DEFAULT_JUNGLE_CONFIG } from '../../../data/jungle/jungleDefaults';
+import { JungleCampType } from '../../../types/jungle';
 
 export class JungleSystem {
   static update(match: LiveMatch, dt: number) {
-    if (!match.jungleMobs) {
+    if (!match.jungleMobs || match.jungleMobs.length === 0) {
         match.jungleMobs = this.initJungle();
     }
 
@@ -28,51 +23,104 @@ export class JungleSystem {
         return;
       }
 
-      // 전투 로직: 근처에 영웅이 있으면 피가 깎임
       const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(
         h => h.currentHp > 0 && Collision.inRange(h, mob, 10)
       );
 
       if (nearbyHeroes.length > 0) {
-        // 영웅들이 몹을 때림
-        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 10), 0);
+        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 20) + (h.items.length * 15), 0);
         mob.hp -= dps * dt;
-
-        // 몹도 영웅을 때림 (반격)
-        nearbyHeroes.forEach(h => {
-            h.currentHp -= mob.atk * dt * 0.5; // 여러명이면 분산되겠지만 단순화
-        });
+        nearbyHeroes.forEach(h => { h.currentHp -= (mob.atk * dt) / nearbyHeroes.length; });
 
         if (mob.hp <= 0) {
           mob.isAlive = false;
-          mob.respawnTimer = 60; // 1분 뒤 리젠
+          mob.respawnTimer = (mob as any).configRespawnTime || 60; 
           
-          // 막타 보상 (가장 가까운 영웅)
           const killer = Collision.findNearest(mob, nearbyHeroes);
           if (killer) {
-             killer.gold += 80;
-             (killer as any).exp += 120;
-             // 로그는 너무 많아질 수 있으니 생략
+             const bonus = killer.lane === 'JUNGLE' ? 1.2 : 1.0;
+             killer.gold += Math.floor(((mob as any).rewardGold || 50) * bonus);
+             (killer as any).exp = ((killer as any).exp || 0) + Math.floor(((mob as any).rewardXp || 80) * bonus);
+             
+             if ((mob as any).isBuffMob && (mob as any).buffs) {
+                const buffs = (mob as any).buffs as { type: string, value: number }[];
+                const buffMsg = buffs.map(b => `${b.type} +${b.value}`).join(', ');
+                buffs.forEach(b => {
+                    if(!killer.buffs) killer.buffs = [];
+                    killer.buffs.push(`${b.type}:${b.value}`);
+                });
+                match.logs.push({
+                    time: Math.floor(match.currentDuration),
+                    type: 'KILL',
+                    message: `Buff: ${killer.name} -> [${buffMsg}] 획득!`
+                });
+             }
           }
         }
       } else {
-        // 전투 중이 아니면 체력 회복
         if (mob.hp < mob.maxHp) mob.hp += mob.maxHp * 0.2 * dt;
       }
     });
   }
 
+  // [핵심 수정] 하드코딩 좌표 제거 -> 스토어의 positions 참조
   private static initJungle(): JungleMob[] {
-    return CAMPS.map(c => ({
-      id: `jungle_${c.id}`,
-      campId: c.id,
-      type: c.type,
-      x: c.x, y: c.y,
-      hp: c.type === 'GOLEM' ? 1200 : 800,
-      maxHp: c.type === 'GOLEM' ? 1200 : 800,
-      atk: c.type === 'GOLEM' ? 60 : 40,
-      respawnTimer: 0,
-      isAlive: true
-    }));
+    const state = useGameStore.getState().gameState;
+    
+    // 1. 몬스터 스펙 (HP, 골드 등)
+    const settings = state.fieldSettings.jungle as any;
+    const camps = settings?.camps || DEFAULT_JUNGLE_CONFIG.camps;
+    
+    // 2. 캠프 위치 좌표 (fieldSettings.positions에서 가져옴)
+    const positions = state.fieldSettings.positions;
+    
+    // positions.jungle 배열은 [BlueTop, BlueBot, RedTop, RedBot] 순서
+    // [중요] gameSlice.ts에서 업데이트한 값을 여기서 끌어다 씀
+    const CAMP_POSITIONS: Record<JungleCampType, {x:number, y:number}> = {
+        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, // Blue Top (좌측 벽)
+        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, // Blue Bot (우측 하단)
+        TOP_RED:  positions.jungle[2] || { x: 58, y: 22 },
+        BOT_RED:  positions.jungle[3] || { x: 82, y: 55 }
+    };
+
+    const mobs: JungleMob[] = [];
+
+    (Object.keys(camps) as JungleCampType[]).forEach(campKey => {
+        const campConfig = camps[campKey];
+        const basePos = CAMP_POSITIONS[campKey];
+
+        campConfig.monsters.forEach((m: any, idx: number) => {
+            // 상대 좌표(0~100)를 절대 월드 좌표로 변환 (스케일 0.12)
+            const worldX = basePos.x + (m.x - 50) * 0.12; 
+            const worldY = basePos.y + (m.y - 50) * 0.12;
+
+            mobs.push({
+                id: `j_${campKey}_${m.spotId}`,
+                campId: idx,
+                type: m.stats.isBuffMob ? 'GOLEM' : 'WOLF',
+                x: worldX,
+                y: worldY,
+                hp: m.stats.hp,
+                maxHp: m.stats.hp,
+                atk: m.stats.atk,
+                respawnTimer: 0,
+                isAlive: true,
+                // @ts-ignore
+                rewardGold: m.stats.gold,
+                // @ts-ignore
+                rewardXp: m.stats.xp,
+                // @ts-ignore
+                configRespawnTime: m.stats.respawnTime,
+                // @ts-ignore
+                isBuffMob: m.stats.isBuffMob,
+                // @ts-ignore
+                buffs: m.stats.buffs, 
+                // @ts-ignore
+                name: m.stats.name
+            });
+        });
+    });
+
+    return mobs;
   }
 }

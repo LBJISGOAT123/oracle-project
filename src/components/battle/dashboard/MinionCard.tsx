@@ -1,5 +1,15 @@
+// ==========================================
+// FILE PATH: /src/components/battle/dashboard/MinionCard.tsx
+// ==========================================
 import React from 'react';
 import { Sword, Shield, Heart, Zap, Crosshair, Coins } from 'lucide-react';
+
+const MiniInput = ({ label, icon, value, onChange }: any) => (
+  <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#888' }}>{icon} {label}</div>
+    <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ width: '40px', background: 'transparent', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', outline: 'none', padding: 0 }} />
+  </div>
+);
 
 export const MinionCard = ({ type, data, onChange, color }: any) => {
   let typeIcon = <Sword size={14} />;
@@ -8,8 +18,8 @@ export const MinionCard = ({ type, data, onChange, color }: any) => {
   if (type === 'siege') { typeIcon = <Shield size={14}/>; typeLabel = "공성"; }
 
   return (
-    <div style={{ background: 'rgba(0,0,0,0.3)', border: \`1px solid \${color}33\`, borderRadius: '8px', padding: '10px', marginBottom: '10px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom:\`1px dashed \${color}33\`, paddingBottom:'5px' }}>
+    <div style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${color}33`, borderRadius: '8px', padding: '10px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom:`1px dashed ${color}33`, paddingBottom:'5px' }}>
         <div style={{ fontWeight: 'bold', color: color, fontSize: '13px', display:'flex', alignItems:'center', gap:'6px' }}>{typeIcon} {data.label}</div>
         <span style={{ fontSize: '10px', color: '#666', background:'rgba(255,255,255,0.05)', padding:'2px 6px', borderRadius:'4px' }}>{typeLabel} TYPE</span>
       </div>
@@ -25,10 +35,3 @@ export const MinionCard = ({ type, data, onChange, color }: any) => {
     </div>
   );
 };
-
-const MiniInput = ({ label, icon, value, onChange }: any) => (
-  <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: '4px', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#888' }}>{icon} {label}</div>
-    <input type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ width: '40px', background: 'transparent', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 'bold', textAlign: 'right', outline: 'none', padding: 0 }} />
-  </div>
-);

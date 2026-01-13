@@ -28,13 +28,13 @@ export const SpectateMapView: React.FC<Props> = ({
 
   useEffect(() => {
     const animate = () => {
-      // 1. 영웅 이동 보간
+      // 영웅 이동 보간
       const allPlayers = [...match.blueTeam, ...match.redTeam];
       allPlayers.forEach(p => {
         updateElementPos(`unit-${p.heroId}`, p.x, p.y, 'HERO'); 
       });
 
-      // 2. 미니언 이동 보간
+      // 미니언 이동 보간
       if (match.minions) {
         match.minions.forEach(m => {
           updateElementPos(`minion-${m.id}`, m.x, m.y, 'MINION');
@@ -62,7 +62,6 @@ export const SpectateMapView: React.FC<Props> = ({
         current.x = targetX;
         current.y = targetY;
       } else if (dist > 0.01) {
-        // 이동 속도 조절
         let speed = type === 'HERO' ? Math.max(0.05, dist * 0.1) : Math.max(0.025, dist * 0.05);
         if (dist <= speed) {
             current.x = targetX;
@@ -82,7 +81,7 @@ export const SpectateMapView: React.FC<Props> = ({
     return () => { if(requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [match]); 
 
-  // 모바일에서 탭이 MAP이 아니면 렌더링 안함 (성능 최적화)
+  // 모바일 탭 제어 (리스트 보기일 땐 숨김)
   if (isMobile && mobileTab !== 'MAP') return null;
 
   return (
@@ -94,58 +93,65 @@ export const SpectateMapView: React.FC<Props> = ({
         justifyContent: 'center',
         background: '#050505',
         overflow: 'hidden',
-        position: 'relative' // 부모 기준
+        position: 'relative'
     }}>
       {/* 
-         [문제 1 해결] 
-         aspectRatio: '1 / 1' -> 정사각형 비율 고정
-         maxHeight: '100%' -> 높이가 화면을 넘어가지 않음
-         maxWidth: '100%' -> 가로가 화면을 넘어가지 않음
-         이 조합으로 항상 화면 내 최대 크기의 정사각형이 됨
+         [크기 고정 래퍼]
+         모바일 세로: 가로 100% 채움
+         PC/가로모드: 높이 100% 채우고 가로 비율 맞춤
       */}
-      <div style={{ 
-          position: 'relative', 
-          aspectRatio: '1 / 1',
-          height: 'auto',
-          width: 'auto',
-          maxHeight: '100%',
-          maxWidth: '100%',
-          background: '#161b22',
-          overflow: 'hidden',
-          border: '1px solid #333',
-          boxShadow: '0 0 50px rgba(0,0,0,0.5)'
+      <div style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '100vh', // 가로가 너무 길어지는 것 방지 (정사각형 유지)
+          aspectRatio: '1/1', // 최신 브라우저 지원
+          margin: '0 auto'
       }}>
-        <SpectateMap />
-        
-        <JungleRender mobs={match.jungleMobs} />
+        {/* [호환성 래퍼] aspectRatio 미지원 브라우저 대비 및 레이아웃 강제 */}
+        <div style={{
+            width: '100%',
+            paddingBottom: '100%', // 1:1 비율 강제 (Width 기준 Height 설정)
+            position: 'relative',
+            background: '#161b22',
+            border: '1px solid #333',
+            boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+            overflow: 'hidden' // 맵 밖으로 나가는 유닛 숨김
+        }}>
+            {/* 실제 맵 컨텐츠 (Absolute로 꽉 채움) */}
+            <div style={{ position: 'absolute', inset: 0 }}>
+                <SpectateMap />
+                
+                <JungleRender mobs={match.jungleMobs} />
 
-        {['TOP', 'MID', 'BOT'].map(lane => (
-          [1, 2, 3].map(tier => (
-            <React.Fragment key={`${lane}-${tier}`}>
-              <TowerRender side="BLUE" lane={lane} tier={tier} stats={match.stats} />
-              <TowerRender side="RED" lane={lane} tier={tier} stats={match.stats} />
-            </React.Fragment>
-          ))
-        ))}
-        <NexusRender side="BLUE" stats={match.stats} />
-        <NexusRender side="RED" stats={match.stats} />
-        
-        <MonsterRender type="colossus" objectives={match.objectives} />
-        <MonsterRender type="watcher" objectives={match.objectives} />
+                {['TOP', 'MID', 'BOT'].map(lane => (
+                [1, 2, 3].map(tier => (
+                    <React.Fragment key={`${lane}-${tier}`}>
+                    <TowerRender side="BLUE" lane={lane} tier={tier} stats={match.stats} />
+                    <TowerRender side="RED" lane={lane} tier={tier} stats={match.stats} />
+                    </React.Fragment>
+                ))
+                ))}
+                <NexusRender side="BLUE" stats={match.stats} />
+                <NexusRender side="RED" stats={match.stats} />
+                
+                <MonsterRender type="colossus" objectives={match.objectives} />
+                <MonsterRender type="watcher" objectives={match.objectives} />
 
-        <MinionRender minions={match.minions} />
+                <MinionRender minions={match.minions} />
 
-        {[...match.blueTeam, ...match.redTeam].map(p => (
-          <UnitRender 
-            key={p.heroId} 
-            player={p} 
-            isBlue={match.blueTeam.includes(p)} 
-            isSelected={selectedHeroId === p.heroId} 
-            onClick={() => { onSelectHero(p.heroId); if(isMobile) setMobileTab('LIST'); }} 
-          />
-        ))}
+                {[...match.blueTeam, ...match.redTeam].map(p => (
+                <UnitRender 
+                    key={p.heroId} 
+                    player={p} 
+                    isBlue={match.blueTeam.includes(p)} 
+                    isSelected={selectedHeroId === p.heroId} 
+                    onClick={() => { onSelectHero(p.heroId); if(isMobile) setMobileTab('LIST'); }} 
+                />
+                ))}
 
-        <ProjectileRender projectiles={match.projectiles} />
+                <ProjectileRender projectiles={match.projectiles} />
+            </div>
+        </div>
       </div>
     </div>
   );

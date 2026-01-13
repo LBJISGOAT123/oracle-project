@@ -5,35 +5,27 @@ import { LiveMatch } from '../../../types';
 import { useGameStore } from '../../../store/useGameStore';
 import { POI, getDistance, BASES } from '../../data/MapData';
 
-/**
- * 1. 거신병 처치 보상:
- * - 버프 활성화
- * - [신규] 아군 본진에서 강력한 '공성 거신' 소환 (미드 라인)
- */
 export function applyColossusReward(match: LiveMatch, isBlueTeam: boolean) {
   const teamName = isBlueTeam ? '단테' : '이즈마한';
   const teamColor = isBlueTeam ? 'BLUE' : 'RED';
   const stats = isBlueTeam ? match.stats.blue : match.stats.red;
 
-  // 1. 버프 부여
   stats.activeBuffs.siegeUnit = true;
 
-  // 2. [신규] 거신병 유닛 소환
   if (!match.minions) match.minions = [];
   
   const startPos = isBlueTeam ? BASES.BLUE : BASES.RED;
   
-  // 거신병 스펙 (보스급)
   match.minions.push({
     id: `summoned_colossus_${Date.now()}`,
     type: 'SUMMONED_COLOSSUS',
     team: teamColor,
-    lane: 'MID', // 미드로 달림
+    lane: 'MID', 
     x: startPos.x, 
     y: startPos.y,
-    hp: 8000, 
-    maxHp: 8000, 
-    atk: 250,
+    hp: 15000, 
+    maxHp: 15000, 
+    atk: 300,
     pathIdx: 0
   });
 
@@ -62,10 +54,6 @@ export function applyWatcherReward(match: LiveMatch, isBlueTeam: boolean) {
     type: 'WATCHER',
     team: teamColor
   });
-}
-
-export function processSiegeUnit(match: LiveMatch) {
-  // SiegePhase.ts에서 처리
 }
 
 export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt: number) => {

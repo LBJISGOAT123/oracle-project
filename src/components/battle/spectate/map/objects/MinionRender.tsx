@@ -14,8 +14,9 @@ export const MinionRender = ({ minions }: { minions?: Minion[] }) => {
         const isBlue = m.team === 'BLUE';
         const color = isBlue ? '#58a6ff' : '#e84057';
         
-        // [신규] 소환된 거신병 스타일
+        // [수정] 거신병 렌더링 (체력바 추가)
         if (m.type === 'SUMMONED_COLOSSUS') {
+            const hpPercent = (m.hp / m.maxHp) * 100;
             return (
                 <div
                     key={m.id}
@@ -24,25 +25,36 @@ export const MinionRender = ({ minions }: { minions?: Minion[] }) => {
                         position: 'absolute',
                         left: `${m.x}%`,
                         top: `${m.y}%`,
-                        width: '24px',
-                        height: '24px',
-                        backgroundColor: isBlue ? '#a658ff' : '#ff5858', // 보라/빨강
-                        borderRadius: '50%',
-                        border: '2px solid #fff',
                         transform: 'translate(-50%, -50%)',
                         zIndex: 15,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 0 10px #a658ff',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center',
                         transition: 'none'
                     }}
                 >
-                    <Skull size={14} color="#fff" />
+                    {/* 체력바 */}
+                    <div style={{ width: '40px', height: '6px', background: '#000', borderRadius: '3px', marginBottom: '4px', border: '1px solid #fff', overflow:'hidden' }}>
+                        <div style={{ width: `${hpPercent}%`, height: '100%', background: '#a658ff', transition: 'width 0.2s' }} />
+                    </div>
+
+                    {/* 본체 아이콘 */}
+                    <div style={{
+                        width: '28px',
+                        height: '28px',
+                        backgroundColor: isBlue ? '#a658ff' : '#ff5858', 
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 0 15px #a658ff'
+                    }}>
+                        <Skull size={18} color="#fff" />
+                    </div>
                 </div>
             );
         }
 
+        // 일반 미니언
         const size = m.type === 'SIEGE' ? 14 : (m.type === 'MELEE' ? 10 : 8);
         const shape = m.type === 'RANGED' ? '50%' : '3px';
         const border = m.type === 'SIEGE' ? '2px solid #fff' : '1px solid #000';

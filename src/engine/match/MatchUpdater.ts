@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/engine/match/MatchUpdater.ts
+// ==========================================
 import { Hero, LiveMatch } from '../../types';
 import { useGameStore } from '../../store/useGameStore';
 
@@ -13,6 +16,8 @@ import { BASES } from '../data/MapData';
 import { MinionSystem } from './systems/MinionSystem';
 import { JungleSystem } from './systems/JungleSystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
+// [추가] 거신병 로직 임포트
+import { ColossusLogic } from './logics/ColossusLogic';
 
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
   const state = useGameStore.getState();
@@ -36,24 +41,20 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   };
 
   return matches.map(m => {
-    // [안전장치 1] 필수 배열이 undefined 상태면 강제 할당
     if (!Array.isArray(m.minions)) m.minions = [];
     if (!Array.isArray(m.projectiles)) m.projectiles = [];
     if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
     if (!Array.isArray(m.logs)) m.logs = [];
 
-    // [안전장치 2] 체력 수치 숫자 변환 (가끔 문자열로 로드되는 경우 방지)
     if (typeof m.stats.blue.nexusHp !== 'number') m.stats.blue.nexusHp = Number(m.stats.blue.nexusHp);
     if (typeof m.stats.red.nexusHp !== 'number') m.stats.red.nexusHp = Number(m.stats.red.nexusHp);
 
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
-    // [게임 종료 체크] 넥서스가 파괴되었으면 업데이트 중단
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
         return match;
     }
 
-    // [단계 1] 밴픽 진행 중
     if (match.status === 'DRAFTING') {
        if (!match.draft) return match;
        match.draft.timer -= delta;
@@ -90,7 +91,6 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                match.blueTeam.forEach(p => initPlayer(p, true));
                match.redTeam.forEach(p => initPlayer(p, false));
                
-               // 게임 시작 시 배열 확실하게 초기화
                match.minions = [];
                match.projectiles = [];
                match.jungleMobs = [];
@@ -100,7 +100,6 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
        return match;
     }
 
-    // [단계 2] 인게임 플레이 중
     match.currentDuration += delta;
 
     processGrowthPhase(match, battleSettings, safeField, heroes, delta);
@@ -123,8 +122,19 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         delta
     );
 
-    // 하위 시스템 업데이트 (여기서 배열이 없으면 위에서 초기화됨)
-    MinionSystem.update(match, delta);
+    // [핵심] 미니언 업데이트 전에 거신병만 따로 업데이트
+    // 거신병은 minions 배열에 들어있지만, 별도 로직으로 처리해야 함
+    if (match.minions) {
+        match.minions.forEach(m => {
+            if (m.type === 'SUMMONED_COLOSSUS') {
+                ColossusLogic.update(m, match, battleSettings, delta);
+            }
+        });
+    }
+
+    // 일반 미니언 업데이트 (MinionSystem 내부에서 거신병은 건너뛰도록 수정해둠)
+    MinionSystem.update(match, battleSettings, delta);
+    
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);
 

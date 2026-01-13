@@ -1,8 +1,42 @@
+// ==========================================
+// FILE PATH: /src/components/battle/dashboard/GodPanel.tsx
+// ==========================================
 import React, { useState } from 'react';
 import { useGameStore } from '../../../store/useGameStore';
 import { GameIcon } from '../../common/GameIcon';
 import { Crown, Camera, Crosshair, Shield, Heart, Monitor, Users } from 'lucide-react';
 import { MinionCard } from './MinionCard';
+
+const CustomSlider = ({ label, icon, value, min, max, step, onChange, color, suffix }: any) => (
+  <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ccc', fontSize: '12px', fontWeight:'bold' }}>{icon} {label}</div>
+      <span style={{ color: color, fontFamily: 'JetBrains Mono', fontWeight: '800', fontSize: '14px', background:`${color}11`, padding:'2px 6px', borderRadius:'4px' }}>
+        {suffix === 'x' ? 'x' : ''}{value.toLocaleString()}{suffix !== 'x' ? suffix : ''}
+      </span>
+    </div>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e)=>onChange(parseFloat(e.target.value))} style={{ width: '100%', accentColor: color, height: '6px', cursor: 'pointer', background: '#1c1c1f', borderRadius: '3px', outline: 'none' }} />
+    </div>
+  </div>
+);
+
+const SectionLabel = ({ icon, label, color }: any) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: '800', color: color, letterSpacing: '1px' }}>
+    {icon} {label}
+  </div>
+);
+
+const TechInput = ({ label, value, onChange, icon, unit }: any) => (
+  <div style={{ background: '#0d1117', borderRadius: '12px', border: '1px solid #30363d', padding: '12px 15px', display: 'flex', flexDirection: 'column', gap: '6px', transition: 'all 0.2s' }}
+  onMouseEnter={e => e.currentTarget.style.borderColor = '#58a6ff'} onMouseLeave={e => e.currentTarget.style.borderColor = '#30363d'}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#8b949e', fontWeight:'600' }}>{icon} {label}</div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <input type="number" value={value} onChange={(e)=>onChange(Number(e.target.value))} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '18px', fontWeight: '800', outline: 'none', width: '100%', fontFamily: 'JetBrains Mono' }} />
+      {unit && <span style={{ fontSize: '10px', color: '#555', fontWeight: 'bold' }}>{unit}</span>}
+    </div>
+  </div>
+);
 
 export const GodPanel = ({ side, settings, color, glowColor, onChange, icon }: any) => {
   const isRed = side === 'RED';
@@ -20,11 +54,11 @@ export const GodPanel = ({ side, settings, color, glowColor, onChange, icon }: a
   };
 
   return (
-    <div style={{ background: 'linear-gradient(145deg, #121418 0%, #0d1117 100%)', borderRadius: '24px', border: \`1px solid \${isRed ? '#4a1e1e' : '#1e3a5f'}\`, boxShadow: \`0 20px 40px rgba(0,0,0,0.3), inset 0 0 60px \${glowColor}\`, overflow: 'hidden' }}>
-      <div style={{ padding: '25px', borderBottom: \`1px solid \${color}22\`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: \`linear-gradient(90deg, \${color}11, transparent)\` }}>
+    <div style={{ background: 'linear-gradient(145deg, #121418 0%, #0d1117 100%)', borderRadius: '24px', border: `1px solid ${isRed ? '#4a1e1e' : '#1e3a5f'}`, boxShadow: `0 20px 40px rgba(0,0,0,0.3), inset 0 0 60px ${glowColor}`, overflow: 'hidden' }}>
+      <div style={{ padding: '25px', borderBottom: `1px solid ${color}22`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `linear-gradient(90deg, ${color}11, transparent)` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ position: 'relative' }}>
-            <GameIcon id={godId} size={64} fallback={icon} border={\`2px solid \${color}44\`} shape="rounded" />
+            <GameIcon id={godId} size={64} fallback={icon} border={`2px solid ${color}44`} shape="rounded" />
           </div>
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px' }}>
@@ -37,9 +71,9 @@ export const GodPanel = ({ side, settings, color, glowColor, onChange, icon }: a
         </div>
         <div onMouseEnter={() => setIsCrownHover(true)} onMouseLeave={() => setIsCrownHover(false)} style={{ position: 'relative' }}>
           <label style={{ cursor: 'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            {isCrownHover && <span style={{ position: 'absolute', right: '45px', fontSize: '11px', color: color, fontWeight: 'bold', whiteSpace: 'nowrap', background: '#161b22', padding: '4px 8px', borderRadius: '4px', border: \`1px solid \${color}44\` }}>사진 변경</span>}
+            {isCrownHover && <span style={{ position: 'absolute', right: '45px', fontSize: '11px', color: color, fontWeight: 'bold', whiteSpace: 'nowrap', background: '#161b22', padding: '4px 8px', borderRadius: '4px', border: `1px solid ${color}44` }}>사진 변경</span>}
             <Crown size={32} color={color} style={{ opacity: isCrownHover ? 1 : 0.3, transform: isCrownHover ? 'scale(1.1) rotate(15deg)' : 'rotate(15deg)', transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} />
-            <div style={{ position: 'absolute', bottom: -2, right: -2, background: '#161b22', borderRadius: '50%', padding: '3px', border: \`1px solid \${color}44\`, opacity: isCrownHover ? 1 : 0.5 }}><Camera size={10} color={color}/></div>
+            <div style={{ position: 'absolute', bottom: -2, right: -2, background: '#161b22', borderRadius: '50%', padding: '3px', border: `1px solid ${color}44`, opacity: isCrownHover ? 1 : 0.5 }}><Camera size={10} color={color}/></div>
             <input type="file" style={{display:'none'}} accept="image/*" onChange={handleUpload}/>
           </label>
         </div>
@@ -74,34 +108,3 @@ export const GodPanel = ({ side, settings, color, glowColor, onChange, icon }: a
     </div>
   );
 };
-
-const CustomSlider = ({ label, icon, value, min, max, step, onChange, color, suffix }: any) => (
-  <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ccc', fontSize: '12px', fontWeight:'bold' }}>{icon} {label}</div>
-      <span style={{ color: color, fontFamily: 'JetBrains Mono', fontWeight: '800', fontSize: '14px', background:\`\${color}11\`, padding:'2px 6px', borderRadius:'4px' }}>
-        {suffix === 'x' ? 'x' : ''}{value.toLocaleString()}{suffix !== 'x' ? suffix : ''}
-      </span>
-    </div>
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e)=>onChange(parseFloat(e.target.value))} style={{ width: '100%', accentColor: color, height: '6px', cursor: 'pointer', background: '#1c1c1f', borderRadius: '3px', outline: 'none' }} />
-    </div>
-  </div>
-);
-
-const SectionLabel = ({ icon, label, color }: any) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: '800', color: color, letterSpacing: '1px' }}>
-    {icon} {label}
-  </div>
-);
-
-const TechInput = ({ label, value, onChange, icon, unit }: any) => (
-  <div style={{ background: '#0d1117', borderRadius: '12px', border: '1px solid #30363d', padding: '12px 15px', display: 'flex', flexDirection: 'column', gap: '6px', transition: 'all 0.2s' }}
-  onMouseEnter={e => e.currentTarget.style.borderColor = '#58a6ff'} onMouseLeave={e => e.currentTarget.style.borderColor = '#30363d'}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#8b949e', fontWeight:'600' }}>{icon} {label}</div>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <input type="number" value={value} onChange={(e)=>onChange(Number(e.target.value))} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '18px', fontWeight: '800', outline: 'none', width: '100%', fontFamily: 'JetBrains Mono' }} />
-      {unit && <span style={{ fontSize: '10px', color: '#555', fontWeight: 'bold' }}>{unit}</span>}
-    </div>
-  </div>
-);
