@@ -6,12 +6,10 @@ import { GameStore, GameSlice } from '../types';
 import { INITIAL_CUSTOM_IMAGES } from '../../data/initialImages';
 import { GameState } from '../../types';
 import { CoreEngine } from '../../engine/CoreEngine';
-// [경로 수정됨] engine/UserManager -> engine/system/UserManager
 import { userPool } from '../../engine/system/UserManager'; 
 import { INITIAL_HEROES } from '../../data/heroes';
 import { INITIAL_ITEMS } from '../../data/items';
 
-// 로컬 스토리지에서 AI 설정 불러오기
 const loadSavedAIConfig = () => {
   try {
     const saved = localStorage.getItem('GW_AI_CONFIG');
@@ -62,19 +60,25 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
 
   setSpeed: (s) => set((state) => ({ gameState: { ...state.gameState, gameSpeed: s } })),
   togglePlay: () => set((state) => ({ gameState: { ...state.gameState, isPlaying: !state.gameState.isPlaying } })),
-  setGameState: (updates) => set((state) => ({ gameState: { ...state.gameState, ...updates } })),
+  
+  // [수정] 상태 전체 업데이트 시 customImages 보존
+  setGameState: (updates) => set((state) => {
+    // updates에 customImages가 있으면 그걸 쓰고, 없으면 기존거 유지 (날아가지 않게)
+    const newImages = updates.customImages || state.gameState.customImages;
+    return { 
+        gameState: { ...state.gameState, ...updates, customImages: newImages } 
+    };
+  }),
 
   tick: (deltaSeconds: number) => {
     const state = get();
     if (!state.gameState || !state.gameState.isPlaying) return;
 
-    // 엔진에게 계산 위임 (매 프레임 호출)
     CoreEngine.processTick(
       state.gameState,
       state.heroes,
       state.communityPosts,
       deltaSeconds,
-      // 콜백: 엔진이 계산을 마치면 이 함수를 통해 스토어를 업데이트함
       (updates, newHeroes, newPosts) => {
         set((current) => ({
           gameState: { ...current.gameState, ...updates },

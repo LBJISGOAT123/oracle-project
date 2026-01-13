@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/engine/match/ai/evaluators/GankEvaluator.ts
+// ==========================================
 import { LivePlayer, LiveMatch, Hero } from '../../../../types';
 import { AIUtils } from '../AIUtils';
 import { BASES } from '../../constants/MapConstants';
@@ -5,18 +8,14 @@ import { BASES } from '../../constants/MapConstants';
 export class GankEvaluator {
   /**
    * 갱킹/로밍을 갈만한 최적의 타겟을 반환합니다.
-   * 없으면 null 반환.
+   * [수정] 갱킹 점수 허들을 낮추고, 거리 가중치를 조절하여 더 자주 갱킹을 가게 함
    */
   static evaluate(player: LivePlayer, match: LiveMatch, hero: Hero): LivePlayer | null {
-    // 1. 자격 요건 심사
-    // - 정글러는 언제든 가능
-    // - 미드 라이너는 라인을 밀었거나(라인 압박 없음), 텔레포트(가정) 상황일 때 가능
-    // - 탑/봇은 잘 안 움직임 (보수적)
     const isJungler = player.lane === 'JUNGLE';
     const isMid = player.lane === 'MID';
     
-    // 정글이나 미드가 아니면 로밍 빈도 낮음 (뇌지컬 높으면 가능)
-    if (!isJungler && !isMid && player.stats.brain < 80) return null;
+    // 로밍 조건 완화: 뇌지컬 60 이상이면 서폿/탑도 가끔 로밍 고려
+    if (!isJungler && !isMid && player.stats.brain < 60) return null;
 
     const isBlue = match.blueTeam.includes(player);
     const enemies = isBlue ? match.redTeam : match.blueTeam;
@@ -27,39 +26,38 @@ export class GankEvaluator {
 
     for (const enemy of enemies) {
       if (enemy.currentHp <= 0 || enemy.respawnTimer > 0) continue;
-      
-      // 정글러끼리는 갱킹 대상에서 제외 (카정은 별도 로직 필요)
-      if (enemy.lane === 'JUNGLE') continue; 
+      if (enemy.lane === 'JUNGLE') continue; // 카정은 별도 로직
 
-      // 점수 계산 (Gank Score)
       let score = 0;
 
-      // A. 거리 점수: 너무 멀면 감점 (동선 낭비)
+      // A. 거리 점수
       const dist = AIUtils.dist(player, enemy);
-      if (dist > 60) continue; // 너무 멀면 포기
-      score += (60 - dist); // 가까울수록 점수
+      if (dist > 70) continue; // 너무 멀면 포기 (기존 60 -> 70 확장)
+      score += (70 - dist) * 1.5; // 가까울수록 점수 가중치 증가
 
-      // B. 체력 점수: 적 체력이 낮으면 킬각 (가중치 높음)
+      // B. 체력 점수 (딸피 사냥)
       const hpPer = AIUtils.hpPercent(enemy);
-      if (hpPer < 0.5) score += (1 - hpPer) * 100;
+      if (hpPer < 0.5) score += (1 - hpPer) * 150; // 가중치 상향
 
-      // C. 라인 상황 점수 (Overextension Check)
-      // 적이 우리 타워 쪽으로 얼마나 깊숙이 들어왔는가?
-      // 적 본진과의 거리가 멀수록(즉, 우리 진영에 가까울수록) 갱킹 성공률 높음
-      const distFromSafety = AIUtils.dist(enemy, enemyBase);
-      // 맵 중앙(50)보다 더 들어왔으면 가산점
-      if (distFromSafety > 50) {
-        score += (distFromSafety - 50) * 2;
+      // C. 라인 상황 (Overextension)
+      // 적이 우리 진영 깊숙이 들어와 있으면 맛집
+      const distFromEnemyBase = AIUtils.dist(enemy, enemyBase);
+      
+      // 맵 중앙(50) 기준
+      if (distFromEnemyBase > 40) { // 조금만 나와도 점수 부여
+        score += (distFromEnemyBase - 40) * 3; // 가중치 대폭 상향
       } else {
-        // 안전지대에 있으면 감점 (타워 다이브 위험)
-        score -= 50; 
+        score -= 30; // 타워 허깅 중이면 감점
       }
 
-      // D. 레벨 격차: 내가 적보다 레벨 높으면 유리
-      score += (player.level - enemy.level) * 10;
+      // D. 레벨 우위
+      score += (player.level - enemy.level) * 15;
 
-      // 갱킹 임계점 (이 점수를 넘어야만 감)
-      if (score > 60 && score > maxScore) {
+      // E. 역할군 보정 (봇 갱킹 선호)
+      if (enemy.lane === 'BOT') score += 20;
+
+      // 갱킹 임계점 (기존 60 -> 50으로 하향하여 더 자주 감)
+      if (score > 50 && score > maxScore) {
         maxScore = score;
         bestTarget = enemy;
       }

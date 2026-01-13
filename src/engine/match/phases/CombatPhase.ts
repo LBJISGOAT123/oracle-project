@@ -1,6 +1,8 @@
+// ==========================================
+// FILE PATH: /src/engine/match/phases/CombatPhase.ts
+// ==========================================
 import { LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
 import { applyRoleBonus } from '../systems/RoleManager';
-// [수정] 경로 수정
 import { getLevelScaledStats } from '../utils/StatUtils';
 import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
 
@@ -19,6 +21,7 @@ export const processCombatPhase = (
   if (blueAlive.length === 0 || redAlive.length === 0) return;
 
   const allAttackers = [...blueAlive, ...redAlive];
+  // 랜덤성 부여 (선공 결정)
   allAttackers.sort(() => Math.random() - 0.5);
 
   allAttackers.forEach(attacker => {
@@ -30,6 +33,7 @@ export const processCombatPhase = (
       const attackerHero = heroes.find(h => h.id === attacker.heroId);
       if (!attackerHero) return;
 
+      // 1. 글로벌 궁극기 로직
       if (attackerHero.skills.r.mechanic === 'GLOBAL' && attacker.level >= 6) {
           const rCd = (attacker.cooldowns as any)?.r || 0;
           if (rCd <= 0 && attacker.currentMp >= (attackerHero.skills.r.cost || 100)) {
@@ -42,6 +46,7 @@ export const processCombatPhase = (
                   attacker.currentMp -= (attackerHero.skills.r.cost || 100);
                   (attacker.cooldowns as any).r = attackerHero.skills.r.cd;
                   
+                  // 중요 이벤트(킬/궁극기)만 로그에 남김
                   match.logs.push({
                       time: match.currentDuration,
                       message: `⚡ [${attackerHero.name}] 글로벌 궁극기 발동!`,
@@ -56,7 +61,7 @@ export const processCombatPhase = (
                           attacker.kills++; e.deaths++; attacker.gold += 300;
                           if (isBlue) match.score.blue++; else match.score.red++;
                           e.respawnTimer = 10 + (e.level * 2);
-                          match.logs.push({ time: match.currentDuration, message: `💀 [${attackerHero.name}]가 [${heroes.find(h=>h.id===e.heroId)?.name}] 처치!`, type: 'KILL', team: isBlue ? 'BLUE' : 'RED' });
+                          match.logs.push({ time: Math.floor(match.currentDuration), message: `💀 [${attackerHero.name}]가 [${heroes.find(h=>h.id===e.heroId)?.name}] 처치!`, type: 'KILL', team: isBlue ? 'BLUE' : 'RED' });
                       }
                   });
                   return; 
@@ -64,6 +69,7 @@ export const processCombatPhase = (
           }
       }
 
+      // 2. 타겟 탐색
       const attackRange = attackerHero.stats.range / 100; 
       const targetsInRange = enemies.filter(e => {
           const d = Math.sqrt(Math.pow(attacker.x - e.x, 2) + Math.pow(attacker.y - e.y, 2));
@@ -78,10 +84,9 @@ export const processCombatPhase = (
       const defenderHero = heroes.find(h => h.id === defender.heroId);
       if (!defenderHero) return;
 
+      // 3. 전투 연산
       const atkStats = getLevelScaledStats(attackerHero.stats, attacker.level);
       const defStats = getLevelScaledStats(defenderHero.stats, defender.level);
-
-      let logDetail = `[${attackerHero.name} ⚔️ ${defenderHero.name}] `;
 
       const mechanicsDiff = (attacker.stats.mechanics - defender.stats.mechanics);
       let hitChance = 0.92 + (atkStats.range / 5000) + (mechanicsDiff * 0.003);
@@ -92,10 +97,9 @@ export const processCombatPhase = (
           hitChance += (watcherBuffAmount / 100);
       }
 
+      // 회피 발생 (로그 최소화: 회피는 자주 일어나므로 로그 생략 or 확률적 기록)
       if (Math.random() > hitChance) {
-          if (Math.random() < 0.05) {
-              match.logs.push({ time: match.currentDuration, message: `💨 [${defenderHero.name}] 회피!`, type: 'DODGE', team: isBlue ? 'RED' : 'BLUE' });
-          }
+          // [최적화] 회피 로그는 너무 자주 뜨므로 제거 (성능 향상)
           return; 
       }
 
@@ -121,7 +125,6 @@ export const processCombatPhase = (
 
       if (!selectedSkillKey || !skill) {
           rawDamage = totalAD;
-          logDetail += `평타 `;
       } else {
           const baseCd = skill.cd || 10;
           const cdr = Math.min(0.5, attacker.level * 0.02); 
@@ -133,14 +136,11 @@ export const processCombatPhase = (
           const apDmg = totalAP * skill.apRatio;
           const skillLevelBonus = 1 + (attacker.level * 0.05); 
           rawDamage = (skill.val * skillLevelBonus) + adDmg + apDmg;
-          logDetail += `${skill.name} `;
-          if (selectedSkillKey === 'r') logDetail += `(ULT) `;
       }
 
       const itemCrit = attacker.items.reduce((sum, item) => sum + item.crit, 0);
       if (Math.random() < (atkStats.crit + itemCrit) / 100) {
           rawDamage *= 1.75; 
-          logDetail += `⚡`;
       }
 
       const defenderGod = isBlue ? settings.izman : settings.dante;
@@ -160,11 +160,14 @@ export const processCombatPhase = (
       if (finalDamage > 0) {
           defender.currentHp -= finalDamage;
           attacker.totalDamageDealt += finalDamage;
-          if (match.currentDuration % 10 < 0.1) match.logs.push({ time: Number(match.currentDuration.toFixed(1)), message: `${logDetail} → ${finalDamage}`, type: 'DEBUG', team: isBlue ? 'BLUE' : 'RED' });
+          
+          // [핵심 최적화] 매 타격마다 쌓이던 DEBUG 로그 제거
+          // if (match.currentDuration % 10 < 0.1) match.logs.push(...) <--- 이 부분이 렉의 주범
 
           if (defender.currentHp <= 0) {
               attacker.kills++; defender.deaths++; attacker.gold += 300;
               if (isBlue) match.score.blue++; else match.score.red++;
+              // 킬 로그는 중요하므로 남김 (단, 정수 시간에만 기록하여 중복 방지)
               match.logs.push({ time: Math.floor(match.currentDuration), message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, type: 'KILL', team: isBlue ? 'BLUE' : 'RED' });
               defender.currentHp = 0;
               defender.respawnTimer = 10 + (defender.level * 2);

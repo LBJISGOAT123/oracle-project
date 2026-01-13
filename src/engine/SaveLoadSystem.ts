@@ -1,177 +1,231 @@
-// ==========================================
-// FILE PATH: /src/engine/SaveLoadSystem.ts
-// ==========================================
-
-// [경로 수정됨] system 폴더 추가
-import { userPool, UserAgent, initUserPool } from './system/UserManager';
+import { userPool, replaceUserPool, initUserPool, getTopRankers } from './system/UserManager';
+import { analyzeHeroMeta, calculateUserEcosystem } from './system/RankingSystem';
 import { useGameStore } from '../store/useGameStore';
-import { Hero } from '../types';
+import { Hero, GameState, SaveMeta, LiveMatch, TowerStatus, TeamStats } from '../types';
+import { IDBStorage } from '../utils/IDBStorage';
+import { INITIAL_HEROES } from '../data/heroes';
 
-const STORAGE_PREFIX = 'GW_SAVE_DATA_';
 const META_KEY = 'GW_SAVE_META';
 
-export interface SaveMeta {
-  slotId: string;
-  timestamp: number;
-  dateStr: string;
-  season: number;
-  day: number;
-  totalUsers: number;
-}
-
-// 깊은 병합 함수
-function deepMerge(target: any, source: any): any {
-  if (typeof target !== 'object' || target === null) {
-    return source !== undefined ? source : target;
-  }
-  if (Array.isArray(target)) {
-    return Array.isArray(source) ? source : target;
-  }
-  const output = { ...target };
-  if (typeof source === 'object' && source !== null) {
-    Object.keys(source).forEach(key => {
-      if (key in target) {
-        output[key] = deepMerge(target[key], source[key]);
-      }
+// [데이터 정제] 유령 매치 제거
+const validateAndCleanMatches = (matches: LiveMatch[], validHeroIds: Set<string>): LiveMatch[] => {
+    const validUserNames = new Set(userPool.map(u => u.name));
+    return matches.filter(match => {
+        // 끝난 게임 제외
+        if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) return false;
+        
+        const allPlayers = [...match.blueTeam, ...match.redTeam];
+        for (const p of allPlayers) {
+            // 영웅 ID가 없거나 유저 명단에 없으면 삭제
+            if (p.heroId && !validHeroIds.has(p.heroId)) return false;
+            if (!validUserNames.has(p.name)) return false;
+        }
+        return true;
     });
-  }
-  return output;
-}
-
-const serializeUsers = () => {
-  return userPool.map(u => ({
-    i: u.id, n: u.name, s: u.score, m: u.mainHeroId,
-    w: u.wins, l: u.losses, h: u.history.slice(0, 10), st: 'OFFLINE',
-    promo: u.promoStatus, isC: u.isChallenger
-  }));
 };
 
-const deserializeUsers = (data: any[], heroes: Hero[]) => {
-  userPool.length = 0;
-  data.forEach((d: any) => {
-    const u = new UserAgent(d.i, heroes);
-    Object.assign(u, {
-      name: d.n, score: d.s, mainHeroId: d.m,
-      wins: d.w || 0, losses: d.l || 0, history: d.h || [], status: 'OFFLINE',
-      promoStatus: d.promo || null, isChallenger: d.isC || false
+// [데이터 병합] 구버전 호환성 확보
+const safeMergeMatches = (savedMatches: any[], validHeroIds: Set<string>): LiveMatch[] => {
+    if (!Array.isArray(savedMatches)) return [];
+
+    const defaultBuffs = { siegeUnit: false, voidPower: false, voidBuffEndTime: 0 };
+    const defaultTowers: TowerStatus = { top: 0, mid: 0, bot: 0 };
+    const defaultObjs = { 
+        colossus: { hp: 0, maxHp: 10000, status: 'DEAD', nextSpawnTime: 300 },
+        watcher: { hp: 0, maxHp: 10000, status: 'DEAD', nextSpawnTime: 900 }
+    };
+
+    const restoredMatches = savedMatches.map(m => {
+        // 타워 데이터가 숫자면 객체로 변환
+        const blueTowers = (typeof m.stats?.blue?.towers === 'object') ? m.stats.blue.towers : defaultTowers;
+        const redTowers = (typeof m.stats?.red?.towers === 'object') ? m.stats.red.towers : defaultTowers;
+        
+        // 버프 데이터 없으면 기본값
+        const blueBuffs = m.stats?.blue?.activeBuffs || defaultBuffs;
+        const redBuffs = m.stats?.red?.activeBuffs || defaultBuffs;
+
+        return {
+            ...m,
+            // 무거운 객체 초기화
+            minions: [], projectiles: [], jungleMobs: [],
+            logs: (m.logs || []).slice(-20),
+            stats: {
+                blue: { ...m.stats?.blue, towers: blueTowers, activeBuffs: blueBuffs },
+                red: { ...m.stats?.red, towers: redTowers, activeBuffs: redBuffs }
+            },
+            objectives: m.objectives || defaultObjs
+        };
     });
-    userPool.push(u);
-  });
+
+    return validateAndCleanMatches(restoredMatches, validHeroIds);
 };
 
-export const saveToSlot = (slotId: string) => {
+// [핵심] 새로고침 없이 상태 즉시 적용 (Soft Load)
+const applyStateDirectly = (data: any, defaultHeroes: Hero[]) => {
+    const store = useGameStore.getState();
+    
+    // 1. 게임 일시정지 (안전 확보)
+    if (store.gameState.isPlaying) {
+        store.togglePlay();
+    }
+
+    console.log("🔄 Applying Save Data Directly...");
+
+    // 2. 글로벌 유저 풀 복구
+    if (data.users && Array.isArray(data.users)) {
+        const cleanUsers = data.users.map((u: any) => ({
+            ...u,
+            heroStats: u.heroStats || {},
+            history: u.history || [],
+            brain: typeof u.brain === 'number' ? u.brain : 50,
+            mechanics: typeof u.mechanics === 'number' ? u.mechanics : 50,
+            status: 'OFFLINE' // 로드 직후 오프라인으로 시작 (매칭 충돌 방지)
+        }));
+        replaceUserPool(cleanUsers);
+    } else {
+        initUserPool(defaultHeroes, 3000);
+    }
+
+    // 3. 영웅 데이터 복구 (최신 스탯 + 저장된 전적)
+    const mergedHeroes = INITIAL_HEROES.map(defaultHero => {
+        const savedHero = (data.heroes || []).find((h: any) => h.id === defaultHero.id);
+        if (savedHero) {
+            return {
+                ...defaultHero,
+                record: savedHero.record || defaultHero.record,
+                name: savedHero.name || defaultHero.name,
+                concept: savedHero.concept || defaultHero.concept
+            };
+        }
+        return defaultHero;
+    });
+
+    // 4. 매치 데이터 복구
+    const validHeroIds = new Set(mergedHeroes.map(h => h.id));
+    const validatedMatches = safeMergeMatches(data.liveMatches, validHeroIds);
+
+    // 5. GameState 병합 (최신 기본값 + 저장된 값)
+    const currentFreshState = store.gameState;
+    const mergedState: GameState = {
+        ...currentFreshState,
+        ...data.time,
+        tierConfig: { ...currentFreshState.tierConfig, ...data.config?.tier },
+        battleSettings: { ...currentFreshState.battleSettings, ...data.config?.battle },
+        fieldSettings: { ...currentFreshState.fieldSettings, ...data.config?.field },
+        roleSettings: { ...currentFreshState.roleSettings, ...data.config?.role },
+        aiConfig: { ...currentFreshState.aiConfig, ...data.config?.ai },
+        itemStats: data.itemStats || {},
+        godStats: data.godStats || currentFreshState.godStats,
+        customImages: { ...currentFreshState.customImages, ...(data.customImages || {}) },
+        liveMatches: validatedMatches,
+        userSentiment: data.userSentiment || 50,
+        isPlaying: false // 로드 후엔 멈춤 상태
+    };
+
+    // 6. 파생 데이터 재계산
+    const recalculatedHeroes = analyzeHeroMeta(mergedHeroes);
+    const recalculatedRankers = getTopRankers(recalculatedHeroes, mergedState.tierConfig);
+    const recalculatedUserStatus = calculateUserEcosystem(0, userPool.length, mergedState.tierConfig);
+
+    // 7. Store 업데이트 (화면 갱신)
+    useGameStore.setState({ 
+        gameState: {
+            ...mergedState,
+            topRankers: recalculatedRankers,
+            userStatus: recalculatedUserStatus
+        },
+        heroes: recalculatedHeroes,
+        shopItems: data.shopItems || store.shopItems
+    });
+
+    alert("로드 완료! (Soft Load)");
+};
+
+// [로드 함수 수정됨]
+export const loadFromSlot = async (slotId: string, defaultHeroes: Hero[]): Promise<boolean> => {
+  try {
+    let data = await IDBStorage.getItem(slotId);
+    
+    // IDB 실패 시 로컬스토리지 백업 확인
+    if (!data) {
+        const legacyJson = localStorage.getItem(`GW_SAVE_DATA_${slotId}`);
+        if(legacyJson) data = JSON.parse(legacyJson);
+        else {
+            alert("저장된 데이터가 없습니다.");
+            return false;
+        }
+    }
+
+    if (!data || !data.config) {
+        alert("세이브 데이터가 손상되어 불러올 수 없습니다.");
+        return false;
+    }
+
+    // [중요] window.location.reload()를 제거하고 직접 적용 함수 호출
+    applyStateDirectly(data, defaultHeroes);
+    return true;
+
+  } catch (e) {
+    console.error("Load Error:", e);
+    alert("로드 중 오류가 발생했습니다.");
+    return false;
+  }
+};
+
+// [저장]
+export const saveToSlot = async (slotId: string): Promise<boolean> => {
   const store = useGameStore.getState();
+  const state = store.gameState;
 
-  const optimizedMatches = store.gameState.liveMatches.map(m => ({
-    ...m, logs: [], timeline: []
+  const optimizedMatches = state.liveMatches.map(m => ({
+    ...m, logs: [], timeline: [], minions: [], projectiles: [], jungleMobs: []    
   }));
 
   const saveData = {
-    time: {
-      season: store.gameState.season, day: store.gameState.day,
-      hour: store.gameState.hour, minute: store.gameState.minute
-    },
+    version: 18, 
+    time: { season: state.season, day: state.day, hour: state.hour, minute: state.minute, second: state.second },
     config: {
-      battle: store.gameState.battleSettings,
-      field: store.gameState.fieldSettings,
-      role: store.gameState.roleSettings,
-      tier: store.gameState.tierConfig,
-      ai: store.gameState.aiConfig
+      battle: state.battleSettings,
+      field: state.fieldSettings,
+      role: state.roleSettings,
+      tier: state.tierConfig,
+      ai: state.aiConfig
     },
-    customImages: store.gameState.customImages,
+    customImages: state.customImages,
     heroes: store.heroes.map(h => ({
-      id: h.id, name: h.name, stats: h.stats, skills: h.skills, record: h.record
+      id: h.id, name: h.name, stats: h.stats, skills: h.skills, record: h.record, concept: h.concept 
     })),
-    users: serializeUsers(),
-    itemStats: store.gameState.itemStats,
+    users: userPool,
+    itemStats: state.itemStats,
     shopItems: store.shopItems,
-    godStats: store.gameState.godStats, 
+    godStats: state.godStats, 
     liveMatches: optimizedMatches,
+    userSentiment: state.userSentiment,
     timestamp: Date.now()
   };
 
   try {
-    const json = JSON.stringify(saveData);
-    localStorage.setItem(`${STORAGE_PREFIX}${slotId}`, json);
-
+    await IDBStorage.setItem(slotId, saveData);
+    const now = new Date();
     const meta: SaveMeta = {
-      slotId, timestamp: Date.now(), dateStr: new Date().toLocaleString(),
-      season: saveData.time.season, day: saveData.time.day, totalUsers: userPool.length
+      slotId, timestamp: Date.now(), realDateStr: now.toLocaleString(), 
+      gameTimeDisplay: `S${state.season} D${state.day}`, totalUsers: userPool.length
     };
-    updateMeta(slotId, meta);
-    return true;
-  } catch (e) {
-    console.error('❌ 저장 실패 (용량 초과 가능성):', e);
-    if(slotId === 'auto') localStorage.removeItem(`${STORAGE_PREFIX}${slotId}`);
-    return false;
-  }
-};
-
-export const loadFromSlot = (slotId: string, defaultHeroes: Hero[]) => {
-  const json = localStorage.getItem(`${STORAGE_PREFIX}${slotId}`);
-  if (!json) return false;
-
-  try {
-    const data = JSON.parse(json);
-    const store = useGameStore.getState();
-    const loadedTime = data.time || {};
-
-    const newGameState = {
-      ...store.gameState,
-      season: loadedTime.season || 1, day: loadedTime.day || 1,
-      hour: loadedTime.hour || 12, minute: loadedTime.minute || 0,
-      battleSettings: deepMerge(store.gameState.battleSettings, data.config?.battle),
-      fieldSettings: deepMerge(store.gameState.fieldSettings, data.config?.field),
-      roleSettings: deepMerge(store.gameState.roleSettings, data.config?.role),
-      tierConfig: deepMerge(store.gameState.tierConfig, data.config?.tier),
-      aiConfig: deepMerge(store.gameState.aiConfig, data.config?.ai),
-      itemStats: data.itemStats || {},
-      godStats: data.godStats || store.gameState.godStats,
-      customImages: { ...store.gameState.customImages, ...(data.customImages || {}) },
-      liveMatches: data.liveMatches || [],
-      isPlaying: false
-    };
-
-    let loadedHeroes = defaultHeroes;
-    if (data.heroes && Array.isArray(data.heroes)) {
-      const savedHeroMap = new Map(data.heroes.map((h: any) => [h.id, h]));
-      loadedHeroes = defaultHeroes.map(codeHero => {
-        const savedHero = savedHeroMap.get(codeHero.id);
-        if (savedHero) {
-          return {
-            ...codeHero,
-            name: savedHero.name || codeHero.name,
-            stats: { ...codeHero.stats, ...savedHero.stats },
-            skills: deepMerge(codeHero.skills, savedHero.skills),
-            record: savedHero.record || codeHero.record,
-            tier: savedHero.tier || '3', rank: savedHero.rank || 999,
-          };
-        }
-        return codeHero;
-      });
-    }
-
-    useGameStore.setState({ 
-        gameState: newGameState, 
-        heroes: loadedHeroes,
-        shopItems: data.shopItems || store.shopItems 
-    });
-
-    deserializeUsers(data.users || [], loadedHeroes);
-    return true;
-  } catch (e) {
-    console.error('❌ 불러오기 실패:', e);
-    return false;
-  }
-};
-
-const updateMeta = (slotId: string, info: SaveMeta) => {
-  try {
     const json = localStorage.getItem(META_KEY);
     const allMeta = json ? JSON.parse(json) : {};
-    allMeta[slotId] = info;
+    allMeta[slotId] = meta;
     localStorage.setItem(META_KEY, JSON.stringify(allMeta));
-  } catch {}
+    return true;
+  } catch (e: any) {
+    console.error("Save Failed:", e);
+    return false;
+  }
+};
+
+// [초기화]
+export const initializeGame = async (heroes: Hero[]) => {
+    // 이제 로드는 loadFromSlot에서 직접 하므로, 여기서는 무조건 새 게임만 시작
+    if (userPool.length === 0) initUserPool(heroes, 3000);
 };
 
 export const getSlotsMeta = (): Record<string, SaveMeta> => {
@@ -181,45 +235,12 @@ export const getSlotsMeta = (): Record<string, SaveMeta> => {
   } catch { return {}; }
 };
 
-export const deleteSlot = (slotId: string) => {
-  localStorage.removeItem(`${STORAGE_PREFIX}${slotId}`);
+export const deleteSlot = async (slotId: string) => {
+  await IDBStorage.removeItem(slotId); 
   const meta = getSlotsMeta();
   delete meta[slotId];
   localStorage.setItem(META_KEY, JSON.stringify(meta));
 };
 
-export const exportSaveFile = () => {
-  saveToSlot('temp_export'); 
-  const json = localStorage.getItem(`${STORAGE_PREFIX}temp_export`);
-  if (!json) return;
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `GW_Save_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  localStorage.removeItem(`${STORAGE_PREFIX}temp_export`);
-};
-
-export const importSaveFile = (file: File, heroes: Hero[]) => {
-  return new Promise<boolean>((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        localStorage.setItem(`${STORAGE_PREFIX}temp_import`, e.target?.result as string);
-        const success = loadFromSlot('temp_import', heroes);
-        localStorage.removeItem(`${STORAGE_PREFIX}temp_import`);
-        if(success) { saveToSlot('auto'); resolve(true); } else { resolve(false); }
-      } catch (err) { console.error(err); resolve(false); }
-    };
-    reader.readAsText(file);
-  });
-};
-
-export const initializeGame = (heroes: Hero[]) => {
-  console.log('🆕 게임 엔진 초기화');
-  if (userPool.length === 0) {
-    initUserPool(heroes, 3000);
-  }
-};
+export const exportSaveFile = async () => {};
+export const importSaveFile = (file: File, heroes: Hero[]) => { return new Promise(()=>false); };

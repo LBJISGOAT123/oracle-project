@@ -10,6 +10,10 @@ import { processCombatPhase } from './phases/CombatPhase';
 import { updateLivePlayerStats } from './systems/ItemManager'; 
 import { BASES } from '../data/MapData';
 
+import { MinionSystem } from './systems/MinionSystem';
+import { JungleSystem } from './systems/JungleSystem';
+import { ProjectileSystem } from './systems/ProjectileSystem';
+
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
   const state = useGameStore.getState();
   const shopItems = state.shopItems || []; 
@@ -32,41 +36,35 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
   };
 
   return matches.map(m => {
+    // [CRITICAL SAFETY] 필수 배열 강제 초기화
+    // 로드 직후 undefined 상태인 배열들을 빈 배열로 만들어 루프 에러 방지
+    if (!m.minions) m.minions = [];
+    if (!m.projectiles) m.projectiles = [];
+    if (!m.jungleMobs) m.jungleMobs = [];
+    if (!m.logs) m.logs = [];
+
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
     // =============================================
-    // PHASE 1: 밴픽 (Draft) - [고배속 대응 수정]
+    // PHASE 1: 밴픽 (Draft)
     // =============================================
     if (match.status === 'DRAFTING') {
        if (!match.draft) return match;
-
-       // 경과 시간을 타이머에서 뺌
        match.draft.timer -= delta;
-
-       // 타이머가 0 이하로 내려갔다면, 밀린 시간만큼 턴을 계속 진행시킴 (while 루프)
-       // *주의: 무한 루프 방지를 위해 한 틱당 최대 20번(풀 드래프트)까지만 처리
        let loopGuard = 0;
        
        while (match.draft.timer <= 0 && match.status === 'DRAFTING' && loopGuard < 25) {
            loopGuard++;
-           
-           // AI 밴/픽 진행 (IQ 50 기준)
            processDraftTurn(match, heroes, 50);
-           
            match.draft.turnIndex++;
-           
-           // 다음 턴을 위한 시간 설정 (기본 30초 + 랜덤 고민시간)
-           // 시간이 많이 흘렀다면(delta가 크다면) timer는 여전히 음수일 것이므로 루프가 다시 돔
            const nextDecisionTime = 2 + Math.random() * 8;
-           match.draft.timer += (30 + nextDecisionTime); // 시간 빚 탕감 느낌으로 더해줌
+           match.draft.timer += (30 + nextDecisionTime);
            match.draft.decisionTime = nextDecisionTime; 
 
-           // [게임 시작] 20번째 턴(픽 종료) 도달 시
            if (match.draft.turnIndex >= 20) {
                match.status = 'PLAYING';
                match.logs.push({ time: 0, message: "미니언 생성! 전군 출격!", type: 'START' });
 
-               // 플레이어 초기화 함수
                const initPlayer = (p: any, isBlue: boolean) => {
                    const h = heroes.find(x => x.id === p.heroId);
                    if(h) { 
@@ -83,11 +81,14 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                        (p as any).pathIdx = 0;
                    }
                };
-
                match.blueTeam.forEach(p => initPlayer(p, true));
                match.redTeam.forEach(p => initPlayer(p, false));
                
-               // 게임이 시작되었으므로 밴픽 루프 종료
+               // 게임 시작 시 배열 확실하게 초기화
+               match.minions = [];
+               match.projectiles = [];
+               match.jungleMobs = [];
+               
                break; 
            }
        }
@@ -120,6 +121,11 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         watcherSettings?.buffAmount || 20, 
         delta
     );
+
+    // [신규 시스템 업데이트]
+    MinionSystem.update(match, delta);
+    JungleSystem.update(match, delta);
+    ProjectileSystem.update(match, delta);
 
     return match;
   });

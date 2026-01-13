@@ -1,14 +1,10 @@
-// ==========================================
-// FILE PATH: /src/engine/system/CommunityEngine.ts
-// ==========================================
-
 import { Hero, TierConfig, Post, Comment, AIConfig, BattleSettings, BattlefieldSettings } from '../../types';
-// [경로 수정됨] ../ -> ../../
 import { fetchAIPost, fetchAIComment } from '../../utils/AIService';
+// [중요] 유저 객체 안에 함수가 없으므로, 외부 함수를 가져와서 씁니다.
+import { getUserTierName } from './UserManager'; 
 
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-// 티어별 가중치 (잠재력 계산용)
 const getTierWeight = (tier: string) => {
   if (tier.includes('천상계') || tier.includes('챌린저')) return 50;
   if (tier.includes('마스터') || tier.includes('에이스')) return 30;
@@ -18,67 +14,39 @@ const getTierWeight = (tier: string) => {
   return 0; 
 };
 
-// [핵심] 다양한 주제를 생성하는 함수
 const getRichTopicContext = (heroes: Hero[], userPool: any[], battleSettings: BattleSettings) => {
   const rand = Math.random();
 
-  // 1. 유저 저격 (5%) - 징징/잡담 카테고리
   if (rand < 0.05 && userPool.length > 0) {
     const targetUser = pick(userPool); 
+    // 여기서는 단순히 이름만 쓰므로 수정 불필요
     const isHighRank = targetUser.score > 3000;
     const isFeeder = targetUser.winRate < 45;
 
     let tone = "비난";
-    if (isHighRank) tone = "질투/의심 (대리, 버스 의심)";
-    else if (isFeeder) tone = "극딜 (트롤 박제)";
+    if (isHighRank) tone = "질투/의심";
+    else if (isFeeder) tone = "극딜";
 
     return {
       type: 'SNIPING',
-      text: `주제: 유저 '${targetUser.name}' 저격. (티어: ${targetUser.getTierName()}). ${tone}하는 내용.`
+      text: `주제: 유저 '${targetUser.name}' 저격. (점수: ${targetUser.score}). ${tone}하는 내용.`
     };
   } 
-
-  // 2. 밸런스 토론 - 특정 영웅/스킬 (25%) - 분석/공략/징징
   else if (rand < 0.40) {
     const h = pick(heroes);
-    const skillKeys = ['q', 'w', 'e', 'r'] as const;
-    const skill = h.skills[pick(skillKeys)];
-    return {
-      type: 'BALANCE',
-      text: `주제: ${h.name}의 ${skill.name} 스킬이 너무 ${h.recentWinRate > 52 ? '사기(OP)' : '쓰레기'}라는 내용. (승률: ${h.recentWinRate.toFixed(1)}%)`
-    };
+    return { type: 'BALANCE', text: `주제: ${h.name} 밸런스 토론.` };
   }
-
-  // 3. 아이템/시스템 불만 (15%) - 징징/분석
   else if (rand < 0.55) {
-    const topic = Math.random() < 0.5 ? '매칭 시스템' : '특정 아이템';
-    return {
-      type: 'SYSTEM',
-      text: `주제: 이 게임의 ${topic}이 엉망이라는 불만 토로. (억까, 팀운, 버그 등)`
-    };
+    return { type: 'SYSTEM', text: `주제: 게임 시스템 불만.` };
   }
-
-  // 4. 개드립/뻘글 (20%) - 유머/잡담
   else if (rand < 0.75) {
-    const keywords = ["라면", "여자친구", "군대", "시험", "치킨", "제로투"];
-    return {
-      type: 'NONSENSE',
-      text: `주제: 게임과 관련 없는 ${pick(keywords)} 이야기 또는 웃긴 드립. 짧고 굵게.`
-    };
+    return { type: 'NONSENSE', text: `주제: 아무말 대잔치.` };
   }
-
-  // 5. 일반적인 게임 이야기 (25%)
   else {
-    return {
-      type: 'NORMAL',
-      text: `주제: 방금 한 게임 썰, 티어 올리는 팁, 혹은 그냥 심심하다는 잡담.`
-    };
+    return { type: 'NORMAL', text: `주제: 게임 잡담.` };
   }
 };
 
-// ------------------------------------------------------------------
-// 1. 게시글 생성
-// ------------------------------------------------------------------
 export async function generatePostAsync(
   uniqueId: number, 
   heroes: Hero[], 
@@ -93,18 +61,16 @@ export async function generatePostAsync(
   if (!aiConfig.apiKey || !aiConfig.enabled) return null;
   if (!userPool || userPool.length === 0) return null;
 
-  // 작성자 선정
   const author = pick(userPool);
-  const currentTierName = author.getTierName(tierConfig);
+  // [수정] author.getTierName() -> getUserTierName(author, tierConfig)
+  const currentTierName = getUserTierName(author, tierConfig); 
   const mostChamp = heroes.find(h => h.id === author.mainHeroId)?.name || '랜덤';
 
   const contextObj = getRichTopicContext(heroes, userPool, battleSettings);
-
-  // 주제에 맞는 카테고리 자동 매핑
   let category = "잡담";
-  if (contextObj.type === 'SNIPING') category = Math.random() < 0.5 ? '징징' : '잡담';
-  else if (contextObj.type === 'BALANCE') category = Math.random() < 0.4 ? '분석' : '징징';
-  else if (contextObj.type === 'NONSENSE') category = Math.random() < 0.6 ? '유머' : '잡담';
+  if (contextObj.type === 'SNIPING') category = '징징';
+  else if (contextObj.type === 'BALANCE') category = '분석';
+  else if (contextObj.type === 'NONSENSE') category = '유머';
   else if (contextObj.type === 'SYSTEM') category = '징징';
 
   if (Math.random() < 0.1) category = pick(['공략', '질문', '자랑']);
@@ -112,15 +78,11 @@ export async function generatePostAsync(
   const userContext = `[작성자 정보] 닉네임: ${author.name}, 티어: ${currentTierName}, 주챔: ${mostChamp}`;
   const fullContext = `${userContext}\n${contextObj.text}\n(카테고리: ${category} 게시판)`;
 
-  // AI 호출
   const aiResult = await fetchAIPost(aiConfig, fullContext, category);
-
   if (!aiResult) return null;
 
   let basePotential = 10;
-
   if (category === '공략' || category === '분석') basePotential += 20;
-  if (category === '유머' || contextObj.type === 'SNIPING') basePotential += 30;
 
   return {
     id: uniqueId,
@@ -148,7 +110,8 @@ export async function generateCommentAsync(
   if (!userPool || userPool.length === 0) return null;
 
   const commenter = pick(userPool);
-  const commenterTier = commenter.getTierName(tierConfig);
+  // [수정] 메서드 호출 -> 함수 호출
+  const commenterTier = getUserTierName(commenter, tierConfig); 
   const commentText = await fetchAIComment(aiConfig, post.title, post.content);
 
   if (!commentText) return null;
@@ -168,7 +131,6 @@ export function updatePostInteractions(posts: Post[], currentTick: number): Post
     if (age > 1440) return post; 
 
     const updatedPost = { ...post };
-
     if (age < 1) updatedPost.displayTime = "방금 전";
     else if (age < 60) updatedPost.displayTime = `${Math.floor(age)}분 전`;
     else updatedPost.displayTime = `${Math.floor(age / 60)}시간 전`;
@@ -176,35 +138,16 @@ export function updatePostInteractions(posts: Post[], currentTick: number): Post
     let exposure = (post.potential / (age * 1.5 + 20)); 
     if (post.isBest) exposure *= 3.0; 
 
-    let newViews = 0;
     if (Math.random() < exposure) {
-        newViews = Math.floor(Math.random() * 8) + 1;
-        updatedPost.views += newViews;
-    }
-
-    if (newViews > 0) {
-        let conversionRate = post.potential / 1500; 
-        if (post.upvotes > 5) conversionRate *= 1.2;
-
-        let dislikeRate = 0.001; 
-        if (post.category === '징징') dislikeRate = 0.08; 
-
-        for (let i = 0; i < newViews; i++) {
-            if (Math.random() < conversionRate) updatedPost.upvotes += 1;
-            if (Math.random() < dislikeRate) updatedPost.downvotes += 1;
-        }
-    }
-
-    if (updatedPost.downvotes > updatedPost.upvotes * 3) {
-        updatedPost.potential = Math.max(0, updatedPost.potential - 10); 
+        updatedPost.views += Math.floor(Math.random() * 5) + 1;
+        if (Math.random() < 0.1) updatedPost.upvotes++;
     }
 
     if (!updatedPost.isBest && updatedPost.upvotes >= 10) {
       updatedPost.isBest = true;
-      updatedPost.potential += 60; 
+      updatedPost.potential += 50; 
       updatedPost.title = `[념글] ${updatedPost.title}`;
     }
-
     return updatedPost;
   });
 }

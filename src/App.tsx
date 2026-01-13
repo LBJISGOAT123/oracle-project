@@ -1,10 +1,11 @@
 import React, { useState, useEffect, Component, ErrorInfo } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { preloadGameImages } from './utils/ImageLoader';
+import { GlobalErrorBoundary } from './utils/GlobalErrorBoundary';
 
 import { Header } from './components/layout/Header';
 import { GameStats } from './components/dashboard/GameStats';
-import { SystemMenu } from './components/common/SystemMenu';
+import { SystemMenu } from './components/common/SystemMenu'; 
 import { HeroStatsView } from './components/hero/HeroStatsView';
 import { PatchModal } from './components/hero/PatchModal';
 import { UserDashboard } from './components/user/UserDashboard';
@@ -17,28 +18,8 @@ import { LiveGameListModal } from './components/battle/LiveGameListModal';
 import { SpectateModal } from './components/battle/SpectateModal';
 import { ShopTab } from './components/shop/ShopTab';
 
-import { Swords, User, MessageSquare, Map, Crown, ShoppingBag, Loader2, AlertTriangle } from 'lucide-react';
+import { Swords, User, MessageSquare, Map, Crown, ShoppingBag, Loader2 } from 'lucide-react';
 import { Hero, UserProfile, LiveMatch } from './types';
-
-// [안전장치] 에러 바운더리 컴포넌트
-class GlobalErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: string}> {
-  constructor(props: any) { super(props); this.state = { hasError: false, error: "" }; }
-  static getDerivedStateFromError(error: any) { return { hasError: true, error: error.toString() }; }
-  componentDidCatch(error: any, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ height:'100vh', background:'#0f1115', color:'#fff', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'20px', textAlign:'center' }}>
-          <AlertTriangle size={60} color="#da3633" style={{ marginBottom:'20px' }}/>
-          <h2 style={{fontSize:'24px', fontWeight:'bold'}}>치명적인 오류 발생</h2>
-          <p style={{color:'#8b949e', marginBottom:'20px', maxWidth:'600px'}}>{this.state.error}</p>
-          <button onClick={() => window.location.reload()} style={{ padding:'12px 24px', background:'#238636', color:'#fff', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer' }}>게임 다시 시작</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 const TABS = [
   { id: 'hero-stats', label: '영웅 통계', icon: Swords },
@@ -50,18 +31,18 @@ const TABS = [
 ];
 
 function GameContent() {
-  const { isMobile, store } = useGameEngine();
+  const { isMobile, store, isGameReady } = useGameEngine();
   const { gameState, selectedPost, closePost } = store;
 
-  // 로딩 상태
-  const [isLoading, setIsLoading] = useState(true);
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
 
   useEffect(() => {
     preloadGameImages((percent) => {
       setLoadProgress(percent);
-    }).then(() => {
-      setTimeout(() => setIsLoading(false), 500);
+      if (percent >= 100) {
+        setTimeout(() => setIsImageLoading(false), 100);
+      }
     });
   }, []);
 
@@ -72,17 +53,23 @@ function GameContent() {
   const [spectatingMatch, setSpectatingMatch] = useState<LiveMatch | null>(null);
   const [activeTab, setActiveTab] = useState('hero-stats');
 
-  if (isLoading) {
+  // [수정] 문법 오류가 있던 부분 (width 스타일)
+  if (isImageLoading || !isGameReady) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f1115', color: '#fff' }}>
         <div style={{ position: 'relative' }}>
           <Loader2 size={60} color="#58a6ff" style={{ animation: 'spin 1s linear infinite' }} />
           <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         </div>
-        <h2 style={{ marginTop: '20px', fontSize: '18px', fontWeight: 'bold' }}>리소스 로딩 중...</h2>
-        <div style={{ width: '300px', height: '6px', background: '#333', borderRadius: '3px', marginTop: '15px', overflow: 'hidden' }}>
-          <div style={{ width: `${loadProgress}%`, height: '100%', background: '#58a6ff', transition: 'width 0.1s' }}></div>
-        </div>
+        <h2 style={{ marginTop: '20px', fontSize: '18px', fontWeight: 'bold' }}>
+          {!isGameReady ? "세이브 데이터 복구 중..." : "리소스 로딩 중..."}
+        </h2>
+        {isImageLoading && (
+          <div style={{ width: '300px', height: '6px', background: '#333', borderRadius: '3px', marginTop: '15px', overflow: 'hidden' }}>
+            {/* 여기의 백틱과 $ 기호 앞의 역슬래시 제거됨 */}
+            <div style={{ width: `${loadProgress}%`, height: '100%', background: '#58a6ff', transition: 'width 0.1s' }}></div>
+          </div>
+        )}
       </div>
     );
   }
@@ -105,12 +92,24 @@ function GameContent() {
       )}
 
       <div style={{ minHeight: '600px' }}>
-        {activeTab === 'hero-stats' && <HeroStatsView />}
-        {activeTab === 'shop' && <ShopTab />} 
-        {activeTab === 'user' && <UserDashboard onUserClick={setSelectedUser} />}
-        {activeTab === 'gods' && <BattleDashboard />}
-        {activeTab === 'battlefield' && <BattlefieldTab />}
-        {activeTab === 'community' && <CommunityBoard />}
+        <div style={{ display: activeTab === 'hero-stats' ? 'block' : 'none' }}>
+          <HeroStatsView />
+        </div>
+        <div style={{ display: activeTab === 'shop' ? 'block' : 'none' }}>
+          <ShopTab />
+        </div>
+        <div style={{ display: activeTab === 'user' ? 'block' : 'none' }}>
+          <UserDashboard onUserClick={setSelectedUser} />
+        </div>
+        <div style={{ display: activeTab === 'gods' ? 'block' : 'none' }}>
+          <BattleDashboard />
+        </div>
+        <div style={{ display: activeTab === 'battlefield' ? 'block' : 'none' }}>
+          <BattlefieldTab />
+        </div>
+        <div style={{ display: activeTab === 'community' ? 'block' : 'none' }}>
+          <CommunityBoard />
+        </div>
       </div>
 
       {isMobile && (

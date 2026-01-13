@@ -1,9 +1,4 @@
-// ==========================================
-// FILE PATH: /src/engine/system/UserManager.ts
-// ==========================================
-
-// [수정됨] 경로가 한 단계 더 깊어졌으므로 ../../ 로 변경
-import { Hero, UserProfile, MatchHistory, TierConfig, UserHeroStat } from '../../types';
+import { Hero, UserProfile, TierConfig } from '../../types';
 import { generateUserName } from '../../utils/nameGenerator';
 
 const registeredNames = new Set<string>();
@@ -15,254 +10,173 @@ const HOURLY_ACTIVITY_RATES = [
   0.55, 0.60, 0.65, 0.60, 0.50, 0.40 
 ];
 
-export class UserAgent {
-  id: number; name: string; score: number; hiddenMmr: number;
-  preferredLane: 'TOP' | 'JUNGLE' | 'MID' | 'BOT'; 
-  preferredHeroes: string[]; 
-  wins: number; losses: number; 
-  history: MatchHistory[];
-  status: 'IDLE' | 'QUEUE' | 'INGAME' | 'OFFLINE' | 'RESTING';
-  restTimer: number;
-  heroStats: Record<string, UserHeroStat>; 
-  mainHeroId: string; 
-  activityBias: number; 
+// 전역 유저 데이터 저장소 (순수 배열)
+export let userPool: UserProfile[] = [];
 
-  promoStatus: { targetTier: string; wins: number; losses: number; targetWins: number; } | null = null;
-  rank: number = 0;
-  isChallenger: boolean = false;
-
-  draftIq: number;   // 뇌지컬 (Brain)
-  mechanics: number; // 피지컬 (Mechanics)
-
-  // 호환성을 위한 getter/setter
-  get brain() { return this.draftIq; }
-  set brain(val: number) { this.draftIq = val; }
-
-  constructor(id: number, heroes: Hero[]) {
-    this.id = id;
-    this.score = 0;
-    this.wins = 0; this.losses = 0;
-    this.history = [];
-    this.status = 'OFFLINE';
-    this.restTimer = 0;
-    this.heroStats = {};
-
-    this.activityBias = (Math.random() * 0.2) - 0.1;
-
-    let tempName = generateUserName(id);
-    let attempts = 0;
-    while (registeredNames.has(tempName) && attempts < 5) {
-      tempName = generateUserName(id + attempts * 1000); 
-      attempts++;
-    }
-    if (registeredNames.has(tempName)) tempName = `${tempName}#${id}`; 
-    registeredNames.add(tempName);
-    this.name = tempName;
-
-    // MMR 생성 (1000 ~ 3000)
-    this.hiddenMmr = 1000 + Math.floor(Math.random() * 1000) + Math.floor(Math.random() * 1000);
-
-    // 스탯 생성
-    const mmrFactor = (this.hiddenMmr - 1000) / 2000;
-    const baseStat = 20 + (mmrFactor * 40) + (Math.random() * 20); 
-
-    const typeRand = Math.random();
-
-    if (typeRand < 0.2) { 
-        // 피지컬형
-        this.draftIq = Math.floor(baseStat * 0.8);
-        this.mechanics = Math.floor(baseStat * 1.3);
-    } 
-    else if (typeRand < 0.4) {
-        // 뇌지컬형
-        this.draftIq = Math.floor(baseStat * 1.3);
-        this.mechanics = Math.floor(baseStat * 0.8);
-    } 
-    else {
-        // 밸런스형
-        this.draftIq = Math.floor(baseStat);
-        this.mechanics = Math.floor(baseStat);
-    }
-
-    // 슈퍼스타 보너스
-    if (Math.random() < 0.01) {
-        this.mechanics += 20;
-        this.draftIq += 10;
-        this.name = `[Pro] ${this.name}`;
-    }
-
-    this.draftIq = Math.min(100, Math.max(10, this.draftIq));
-    this.mechanics = Math.min(100, Math.max(10, this.mechanics));
-
-    const lanes = ['TOP', 'JUNGLE', 'MID', 'BOT'];
-    this.preferredLane = lanes[Math.floor(Math.random() * lanes.length)] as any;
-
-    const myRoleHeroes = heroes.filter(h => this.isHeroForLane(h, this.preferredLane));
-    const poolSize = Math.min(myRoleHeroes.length, 3 + Math.floor(Math.random() * 3));
-    this.preferredHeroes = myRoleHeroes
-      .sort(() => Math.random() - 0.5)
-      .slice(0, poolSize)
-      .map(h => h.id);
-
-    if (this.preferredHeroes.length === 0) {
-        this.preferredHeroes = [heroes[0].id];
-    }
-
-    this.mainHeroId = this.preferredHeroes[0];
-  }
-
-  private isHeroForLane(hero: Hero, lane: string) {
-    if (lane === 'TOP') return hero.role === '수호기사' || hero.role === '집행관';
-    if (lane === 'MID') return hero.role === '선지자' || hero.role === '추적자';
-    if (lane === 'BOT') return hero.role === '신살자';
-    if (lane === 'JUNGLE') return hero.role === '추적자' || hero.role === '집행관';
-    return true;
-  }
-
-  getTierName(config?: TierConfig) {
-    const defaults = { challengerRank: 50, challenger: 9999, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promoMatches: 3 };
-    const cfg = config || defaults;
-
-    if (this.isChallenger) return '천상계';
-    if (this.score >= cfg.master) return '마스터';
-    if (this.score >= cfg.ace) return '에이스';
-    if (this.score >= cfg.joker) return '조커';
-    if (this.score >= cfg.gold) return '골드';
-    if (this.score >= cfg.silver) return '실버';
-    if (this.score >= cfg.bronze) return '브론즈';
-    return '아이언';
-  }
-
-  pickHero(heroes: Hero[]): string {
-    if (Math.random() < 0.7 && this.preferredHeroes.length > 0) {
-      return this.preferredHeroes[Math.floor(Math.random() * this.preferredHeroes.length)];
-    }
-    return heroes[Math.floor(Math.random() * heroes.length)].id;
-  }
-
-  shouldBeOnline(hour: number): boolean {
-    const baseRate = HOURLY_ACTIVITY_RATES[hour] || 0.3;
-    const finalRate = Math.min(0.95, Math.max(0.01, baseRate + this.activityBias));
-    return Math.random() < finalRate;
-  }
+// [로드용] 유저 풀 데이터 교체
+export function replaceUserPool(newUsers: UserProfile[]) {
+  userPool = newUsers;
 }
 
-export const userPool: UserAgent[] = [];
+// 1. 유저 생성 로직 (데이터만 반환)
+export function createUser(id: number, heroes: Hero[]): UserProfile {
+  let tempName = generateUserName(id);
+  if (!registeredNames.has(tempName)) {
+      registeredNames.add(tempName);
+  } else {
+      tempName = `${tempName}#${id}`;
+  }
 
-export function getTierNameHelper(score: number, config: TierConfig) {
-  if (score >= 9999) return '천상계';
-  if (score >= config.master) return '마스터';
-  if (score >= config.ace) return '에이스';
-  if (score >= config.joker) return '조커';
-  if (score >= config.gold) return '골드';
-  if (score >= config.silver) return '실버';
-  if (score >= config.bronze) return '브론즈';
+  const hiddenMmr = 1000 + Math.floor(Math.random() * 2000);
+  const mmrFactor = (hiddenMmr - 1000) / 2000;
+  const baseStat = 20 + (mmrFactor * 40) + (Math.random() * 20); 
+
+  // 피지컬/뇌지컬 랜덤 설정
+  let brain = 50, mechanics = 50;
+  const typeRand = Math.random();
+  if (typeRand < 0.2) { brain = baseStat * 0.8; mechanics = baseStat * 1.3; } 
+  else if (typeRand < 0.4) { brain = baseStat * 1.3; mechanics = baseStat * 0.8; } 
+  else { brain = baseStat; mechanics = baseStat; }
+
+  brain = Math.min(100, Math.max(10, Math.floor(brain)));
+  mechanics = Math.min(100, Math.max(10, Math.floor(mechanics)));
+
+  const lanes = ['TOP', 'JUNGLE', 'MID', 'BOT'];
+  const preferredLane = lanes[Math.floor(Math.random() * lanes.length)] as any;
+
+  // 선호 영웅 설정
+  let preferredHeroes: string[] = [];
+  if (heroes && heroes.length > 0) {
+    const myRoleHeroes = heroes.filter(h => isHeroForLane(h, preferredLane));
+    const poolSize = Math.min(myRoleHeroes.length, 3);
+    preferredHeroes = myRoleHeroes.slice(0, poolSize).map(h => h.id);
+    if (preferredHeroes.length === 0) preferredHeroes = [heroes[0].id];
+  }
+
+  return {
+    id,
+    name: tempName,
+    score: 0,
+    hiddenMmr,
+    tier: '아이언',
+    rank: 0,
+    isChallenger: false,
+    winRate: 0,
+    totalGames: 0,
+    wins: 0,
+    losses: 0,
+    mainHeroId: preferredHeroes[0] || '',
+    preferredLane,
+    preferredHeroes,
+    brain,
+    mechanics,
+    activityBias: (Math.random() * 0.2) - 0.1,
+    status: 'OFFLINE',
+    restTimer: 0,
+    history: [],
+    heroStats: {},
+    promoStatus: null,
+    mostChamps: [],
+    laneStats: []
+  };
+}
+
+// 2. 헬퍼 함수: 라인에 맞는 영웅인지
+function isHeroForLane(hero: Hero, lane: string) {
+  if (lane === 'TOP') return hero.role === '수호기사' || hero.role === '집행관';
+  if (lane === 'MID') return hero.role === '선지자' || hero.role === '추적자';
+  if (lane === 'BOT') return hero.role === '신살자';
+  if (lane === 'JUNGLE') return hero.role === '추적자' || hero.role === '집행관';
+  return true;
+}
+
+// 3. 헬퍼 함수: 티어 이름 계산 (UserAgent.getTierName 대체)
+export function getUserTierName(user: UserProfile, config: TierConfig) {
+  const cfg = config || { challengerRank:50, master:4800, ace:3800, joker:3200, gold:2100, silver:1300, bronze:300 };
+  
+  if (user.isChallenger) return '천상계';
+  if (user.score >= cfg.master) return '마스터';
+  if (user.score >= cfg.ace) return '에이스';
+  if (user.score >= cfg.joker) return '조커';
+  if (user.score >= cfg.gold) return '골드';
+  if (user.score >= cfg.silver) return '실버';
+  if (user.score >= cfg.bronze) return '브론즈';
   return '아이언';
 }
 
+// 4. 헬퍼 함수: 영웅 픽 (UserAgent.pickHero 대체)
+export function userPickHero(user: UserProfile, heroes: Hero[]): string {
+  if (Math.random() < 0.7 && user.preferredHeroes.length > 0) {
+    return user.preferredHeroes[Math.floor(Math.random() * user.preferredHeroes.length)];
+  }
+  if (heroes.length > 0) return heroes[Math.floor(Math.random() * heroes.length)].id;
+  return '';
+}
+
+// 5. 헬퍼 함수: 접속 여부 판단 (UserAgent.shouldBeOnline 대체)
+export function userShouldBeOnline(user: UserProfile, hour: number): boolean {
+  const baseRate = HOURLY_ACTIVITY_RATES[hour] || 0.3;
+  const finalRate = Math.min(0.95, Math.max(0.01, baseRate + user.activityBias));
+  return Math.random() < finalRate;
+}
+
+// 초기화
 export function initUserPool(heroes: Hero[], count: number = 3000) {
   const startId = userPool.length;
   if (count > userPool.length) {
     const newUsersCount = count - userPool.length;
-    const newUsers = Array.from({ length: newUsersCount }, (_, i) => new UserAgent(startId + i, heroes));
-    userPool.push(...newUsers);
+    for(let i=0; i<newUsersCount; i++) {
+        userPool.push(createUser(startId + i, heroes));
+    }
   }
 }
 
+// 상태 업데이트
 export function updateUserActivity(hour: number, heroes: Hero[]) {
   userPool.forEach(u => {
     if (u.status === 'INGAME') return; 
-
     if (u.status === 'RESTING') {
       u.restTimer -= 1;
       if (u.restTimer <= 0) u.status = 'IDLE';
       return;
     }
-
-    const wantsToPlay = u.shouldBeOnline(hour);
-
-    if (u.status === 'OFFLINE' && wantsToPlay) {
-        u.status = 'IDLE';
-    } 
+    const wantsToPlay = userShouldBeOnline(u, hour);
+    if (u.status === 'OFFLINE' && wantsToPlay) u.status = 'IDLE'; 
     else if ((u.status === 'IDLE' || u.status === 'QUEUE') && !wantsToPlay) {
-        if (Math.random() < 0.2) { 
-            u.status = 'OFFLINE';
-        }
+        if (Math.random() < 0.2) u.status = 'OFFLINE';
     }
   });
 }
 
+// 랭킹 조회
 export function getTopRankers(heroes: Hero[], config: TierConfig): UserProfile[] {
   const sorted = [...userPool].sort((a, b) => b.score - a.score || a.id - b.id);
-
+  
+  // 상위 50명만 리턴
   return sorted.slice(0, 50).map(u => {
-    let mostPlayedId = u.mainHeroId;
-    let maxGames = -1;
-
-    Object.entries(u.heroStats).forEach(([hid, stat]) => {
-      if (stat.matches > maxGames) {
-        maxGames = stat.matches;
-        mostPlayedId = hid;
-      }
-    });
-
+    // 실시간 티어 계산하여 주입
     return {
-      id: u.id, 
-      name: u.name, 
-      mainHeroId: mostPlayedId, 
-      score: u.score, 
-      tier: u.getTierName(config), 
-      winRate: u.wins + u.losses > 0 ? (u.wins / (u.wins + u.losses)) * 100 : 0,
-      totalGames: u.wins + u.losses, 
-      history: u.history || [],
-      heroStats: u.heroStats, 
-      preferredLane: u.preferredLane,
-      laneStats: [],
-      mostChamps: [],
-      promoStatus: u.promoStatus,
-      draftIq: u.brain,       
-      mechanics: u.mechanics  
+        ...u,
+        tier: getUserTierName(u, config)
     };
   });
 }
 
+// 특정 티어 유저 조회
 export function getUsersInTier(tierName: string, config: TierConfig): UserProfile[] {
   return userPool
-    .filter(u => u.getTierName(config) === tierName)
-    .sort((a, b) => b.score - a.score)
-    .map(u => ({
-      id: u.id, name: u.name, mainHeroId: u.mainHeroId, score: u.score,
-      tier: tierName, winRate: (u.wins/(u.wins+u.losses))*100 || 0,
-      totalGames: u.wins+u.losses, history: u.history || [],
-      heroStats: u.heroStats,
-      preferredLane: u.preferredLane,
-      laneStats: [],
-      mostChamps: [],
-      promoStatus: u.promoStatus,
-      draftIq: u.brain,
-      mechanics: u.mechanics
-    }));
+    .filter(u => getUserTierName(u, config) === tierName)
+    .sort((a, b) => b.score - a.score);
 }
 
+// 이름으로 찾기
 export function findUserProfileByName(name: string, config: TierConfig): UserProfile | null {
   const user = userPool.find(u => u.name === name);
   if (!user) return null;
+  return { ...user, tier: getUserTierName(user, config) };
+}
 
-  return {
-    id: user.id,
-    name: user.name,
-    mainHeroId: user.mainHeroId,
-    score: user.score,
-    tier: user.getTierName(config),
-    winRate: user.wins + user.losses > 0 ? (user.wins / (user.wins + user.losses)) * 100 : 0,
-    totalGames: user.wins + user.losses,
-    history: user.history || [],
-    heroStats: user.heroStats,
-    preferredLane: user.preferredLane,
-    laneStats: [],
-    mostChamps: [],
-    promoStatus: user.promoStatus,
-    draftIq: user.brain,
-    mechanics: user.mechanics
-  };
+// 단순 스코어 기반 티어 이름 (유저 객체 없을 때용)
+export function getTierNameHelper(score: number, config: TierConfig) {
+  return getUserTierName({ score, isChallenger: false } as UserProfile, config);
 }

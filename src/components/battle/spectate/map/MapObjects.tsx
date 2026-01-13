@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/components/battle/spectate/map/MapObjects.tsx
+// ==========================================
 import React from 'react';
 import { Skull, Zap, Shield } from 'lucide-react';
 import { POI } from '../../../../engine/data/MapData';
@@ -87,15 +90,18 @@ export const NexusRender = ({ side, stats }: any) => {
   );
 };
 
-// --- 몬스터 렌더링 ---
+// --- 몬스터(거신병/주시자) 렌더링 ---
 export const MonsterRender = ({ type, objectives }: { type: 'colossus' | 'watcher', objectives: any }) => {
   if (!objectives || !objectives[type]) return null;
   const obj = objectives[type];
+  
+  // [수정] ALIVE 상태가 아니면 렌더링 안 함
   if (obj.status !== 'ALIVE') return null;
 
+  // MapData.ts에서 수정한 좌표를 사용
   const pos = type === 'colossus' ? POI.BARON : POI.DRAGON;
-  const color = type === 'colossus' ? '#7ee787' : '#a371f7';
-  const icon = type === 'colossus' ? <Skull size={14} color="#fff"/> : <Zap size={14} color="#fff"/>;
+  const color = type === 'colossus' ? '#a658ff' : '#e67e22'; // 거신병(보라), 주시자(주황)
+  const icon = type === 'colossus' ? <Skull size={16} color="#fff"/> : <Zap size={16} color="#fff"/>;
   const hpPercent = (obj.hp / obj.maxHp) * 100;
 
   return (
@@ -105,15 +111,24 @@ export const MonsterRender = ({ type, objectives }: { type: 'colossus' | 'watche
       display: 'flex', flexDirection: 'column', alignItems: 'center'
     }}>
       <div style={{
-        width: '28px', height: '28px', background: color, borderRadius: '50%',
-        border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 0 15px rgba(0,0,0,0.5)'
+        width: '32px', height: '32px', background: color, borderRadius: '50%',
+        border: '3px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: `0 0 15px ${color}`
       }}>
         {icon}
       </div>
-      <div style={{ width:'36px', height:'4px', background:'#000', marginTop:'-8px', borderRadius:'2px', overflow:'hidden', border:'1px solid #fff' }}>
+      <div style={{ 
+        width:'40px', height:'5px', background:'#000', marginTop:'-10px', 
+        borderRadius:'2px', overflow:'hidden', border:'1px solid #fff', zIndex:8 
+      }}>
          <div style={{ width: `${hpPercent}%`, height:'100%', background: '#fff' }}/>
       </div>
+      <span style={{ 
+        marginTop:'2px', fontSize:'9px', fontWeight:'900', color:'#fff', 
+        textShadow:'0 0 3px #000', background:'rgba(0,0,0,0.5)', padding:'0 4px', borderRadius:'4px'
+      }}>
+        {type === 'colossus' ? '거신병' : '주시자'}
+      </span>
     </div>
   );
 };
