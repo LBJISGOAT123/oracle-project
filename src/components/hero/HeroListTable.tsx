@@ -60,7 +60,6 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hero.name}</span>
-                    {/* [수정] 티어 배지 스타일 적용 */}
                     <span style={{ 
                       fontSize: '10px', fontWeight: '800', 
                       color: tierStyle.color, 
@@ -71,7 +70,12 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                       {hero.tier}티어
                     </span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{hero.role}</div>
+                  {/* [수정됨] 역할군 옆에 KDA 정보 추가 */}
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '4px', display:'flex', alignItems:'center', gap:'6px' }}>
+                    <span style={{ fontWeight:'bold', color:'#ccc' }}>{hero.role}</span>
+                    <span style={{ width:'1px', height:'10px', background:'#444' }}></span>
+                    <span style={{ fontFamily:'monospace', color:'#aaa' }}>{hero.avgKda}</span>
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getWinRateColor(hero.recentWinRate) }}>{hero.recentWinRate.toFixed(1)}%</div>
@@ -82,8 +86,8 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
               {/* 2. 하단: 상세 스탯 그리드 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: '4px', background: '#0d1117', borderRadius: '6px', padding: '8px 4px' }}>
                 <div style={{ textAlign: 'center', borderRight: '1px solid #222' }}>
-                  <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Skull size={9}/> KDA</div>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: parseFloat(hero.kdaRatio) >= 3 ? '#e89d40' : '#ccc' }}>{hero.kdaRatio}</div>
+                  <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Skull size={9}/> 평점</div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: parseFloat(hero.kdaRatio) >= 3 ? '#e89d40' : '#ccc' }}>{hero.kdaRatio}:1</div>
                 </div>
                 <div style={{ textAlign: 'center', borderRight: '1px solid #222' }}>
                   <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Swords size={9}/> DPM</div>
@@ -134,7 +138,6 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                 <GameIcon id={hero.id} size={32} fallback={<span style={{fontSize:'16px'}}>🧙‍♂️</span>} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontWeight: 'bold', color: '#fff' }}>{hero.name}</span>
-                  {/* [수정] 티어 배지 */}
                   <span style={{ fontSize: '9px', fontWeight: '800', color: tierStyle.color, border: `1px solid ${tierStyle.border}`, background: tierStyle.bg, padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>{hero.tier}티어</span>
                 </div>
               </div>

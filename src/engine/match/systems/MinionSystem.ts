@@ -1,78 +1,64 @@
-import { LiveMatch, Minion, BattleSettings } from '../../../types';
-import { BASES } from '../constants/MapConstants';
+// ==========================================
+// FILE PATH: /src/engine/match/systems/MinionSystem.ts
+// ==========================================
+import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
 import { MinionLogic } from '../logics/MinionLogic';
+import { MinionSpawner } from './MinionSpawner';
+import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
 
 const WAVE_INTERVAL = 30;
-const MAX_MINIONS_PER_MATCH = 120; 
 
 export class MinionSystem {
-  static update(match: LiveMatch, settings: BattleSettings, dt: number) {
+  static update(match: LiveMatch, settings: BattleSettings, dt: number, heroes: Hero[]) {
     if (!match.minions) match.minions = [];
 
     const currentWaveCycle = Math.floor(match.currentDuration / WAVE_INTERVAL);
     const prevWaveCycle = Math.floor((match.currentDuration - dt) / WAVE_INTERVAL);
 
     if (currentWaveCycle > prevWaveCycle) {
-      this.spawnWave(match, 'BLUE');
-      this.spawnWave(match, 'RED');
+      MinionSpawner.spawnWave(match, 'BLUE');
+      MinionSpawner.spawnWave(match, 'RED');
     }
 
-    this.processMinions(match, settings, dt);
+    this.processMinions(match, settings, dt, heroes);
   }
 
-  private static spawnWave(match: LiveMatch, team: 'BLUE' | 'RED') {
-    if (match.minions!.length > MAX_MINIONS_PER_MATCH) return;
+  private static processMinions(match: LiveMatch, settings: BattleSettings, dt: number, heroes: Hero[]) {
+    // 1. 죽은 미니언 정리
+    match.minions = match.minions!.filter(m => m.hp > 0);
 
-    const lanes = ['TOP', 'MID', 'BOT'] as const;
-    const startPos = team === 'BLUE' ? BASES.BLUE : BASES.RED;
-    
-    const rawScaling = 1 + (match.currentDuration / 900); 
-    const timeScaling = Math.min(3.5, rawScaling); 
+    // 2. [최적화] 전체 미니언 및 영웅 그리드 구축
+    // 기존의 라인별 캐싱(cachedEnemies) 대신 그리드 사용
+    const minionList = match.minions;
+    const blueMinions = minionList.filter(m => m.team === 'BLUE');
+    const redMinions = minionList.filter(m => m.team === 'RED');
+    const blueHeroes = match.blueTeam.filter(h => h.currentHp > 0);
+    const redHeroes = match.redTeam.filter(h => h.currentHp > 0);
 
-    lanes.forEach(lane => {
-      for (let i = 0; i < 3; i++) {
-        match.minions!.push(this.createMinion(team, lane, 'MELEE', startPos, timeScaling));
-        match.minions!.push(this.createMinion(team, lane, 'RANGED', startPos, timeScaling));
-      }
-      if (Math.floor(match.currentDuration / WAVE_INTERVAL) % 3 === 0) {
-        match.minions!.push(this.createMinion(team, lane, 'SIEGE', startPos, timeScaling));
-      }
-    });
-  }
-
-  private static createMinion(team: 'BLUE' | 'RED', lane: any, type: any, pos: {x:number, y:number}, scaling: number): Minion {
-    const offsetX = (Math.random() - 0.5) * 2;
-    const offsetY = (Math.random() - 0.5) * 2;
-    
-    let hp = 500, atk = 20;
-    if (type === 'RANGED') { hp = 300; atk = 40; }
-    if (type === 'SIEGE') { hp = 900; atk = 60; }
-
-    return {
-      id: `minion_${team}_${lane}_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
-      team, lane, type,
-      x: pos.x + offsetX, y: pos.y + offsetY,
-      hp: Math.floor(hp * scaling), 
-      maxHp: Math.floor(hp * scaling), 
-      atk: Math.floor(atk * scaling),
-      pathIdx: 0
+    const grids = {
+        // 블루팀 입장에서의 적 (레드팀)
+        BLUE_ENEMIES: {
+            minions: new SpatialGrid(redMinions),
+            heroes: new SpatialGrid(redHeroes)
+        },
+        // 레드팀 입장에서의 적 (블루팀)
+        RED_ENEMIES: {
+            minions: new SpatialGrid(blueMinions),
+            heroes: new SpatialGrid(blueHeroes)
+        }
     };
-  }
 
-  private static processMinions(match: LiveMatch, settings: BattleSettings, dt: number) {
-    match.minions = match.minions!.filter(m => m.hp > 0 && !isNaN(m.x) && !isNaN(m.y));
+    // 3. 미니언 로직 실행
+    // 미니언은 인터리빙 없이 매 프레임 돌려도 그리드 덕분에 빠름
+    for (let i = 0; i < match.minions.length; i++) {
+        const m = match.minions[i];
+        
+        // 내 팀에 맞는 적 그리드 선택
+        const enemyGrids = m.team === 'BLUE' ? grids.BLUE_ENEMIES : grids.RED_ENEMIES;
 
-    const cachedEnemies: Record<string, Minion[]> = {};
-    const lanes = ['TOP', 'MID', 'BOT'];
-    ['BLUE', 'RED'].forEach(team => {
-        lanes.forEach(lane => {
-            const key = `${team}_${lane}`;
-            cachedEnemies[key] = match.minions!.filter(m => m.team === team && m.lane === lane);
-        });
-    });
-
-    match.minions!.forEach(m => {
-        MinionLogic.processSingleMinion(m, match, settings, dt, cachedEnemies);
-    });
+        MinionLogic.processSingleMinion(
+            m, match, settings, dt, enemyGrids, true, heroes
+        );
+    }
   }
 }

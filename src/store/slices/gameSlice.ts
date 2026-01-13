@@ -62,28 +62,22 @@ const initialGameState: GameState = {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     economy: { minionGold: 14, minionXp: 30 },
-    // [수정 완료] 요청하신 데미지 비율 적용
     siege: { 
         minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0,
-        
-        dmgToHero: 1.0,   // 영웅에겐 100%
-        dmgToT1: 0.01,    // 1% (거의 안 박힘)
-        dmgToT2: 0.01,    // 1%
-        dmgToT3: 0.01,    // 1%
-        dmgToNexus: 0.03, // 3%
-
-        colossusToHero: 0.3,   // 30%
-        colossusToT1: 0.4,     // 40%
-        colossusToT2: 0.2,     // 20%
-        colossusToT3: 0.1,     // 10%
-        colossusToNexus: 0.05  // 5%
+        dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1,
+        colossusToHero: 0.3, colossusToT1: 0.4, colossusToT2: 0.2, colossusToT3: 0.1, colossusToNexus: 0.05
     }
   },
+  
+  // [수정 완료] 타워는 하향, 넥서스는 원본 유지
   fieldSettings: {
     towers: {
-        t1: { hp: 10000, armor: 80, rewardGold: 300, atk: 350 },
-        t2: { hp: 15000, armor: 120, rewardGold: 450, atk: 450 },
-        t3: { hp: 20000, armor: 150, rewardGold: 600, atk: 550 },
+        // [하향] 타워: 50% 수준 (잘 부서짐)
+        t1: { hp: 5000, armor: 40, rewardGold: 300, atk: 350 },
+        t2: { hp: 7500, armor: 60, rewardGold: 450, atk: 450 },
+        t3: { hp: 10000, armor: 75, rewardGold: 600, atk: 550 },
+        
+        // [유지] 넥서스: 원본 수치 (강력함) - HP 30000, 방어 200
         nexus: { hp: 30000, armor: 200, rewardGold: 0, atk: 1000 }
     },
     colossus: { hp: 15000, armor: 80, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300 },
@@ -117,31 +111,28 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         newField = { ...newField, positions: initialPositions };
     }
     
-    // [중요] 기존 세이브에 값이 없으면, 위에서 정의한 최신 siege 설정값으로 덮어씁니다.
     if (newBattle) {
         const defaultSiege = initialGameState.battleSettings.siege;
         const currentSiege = (newBattle as any).siege || {};
         newBattle.siege = { ...defaultSiege, ...currentSiege };
         
-        // 특정 키가 없는 경우 강제 업데이트 (기존 세이브 호환)
         if (newBattle.siege.dmgToT1 === undefined) {
              newBattle.siege = defaultSiege;
         }
     }
 
-    if ((newField as any).tower) {
-        const oldTower = (newField as any).tower;
-        newField = {
-            ...newField,
-            towers: {
-                t1: { ...oldTower, hp: 10000, atk: 350 },
-                t2: { ...oldTower, hp: 15000, atk: 450 },
-                t3: { ...oldTower, hp: 20000, atk: 550 },
-                nexus: { ...oldTower, hp: 30000, atk: 1000 }
-            }
-        };
-        if(!(newField.colossus as any).initialSpawnTime) (newField.colossus as any).initialSpawnTime = 300;
-        if(!(newField.watcher as any).initialSpawnTime) (newField.watcher as any).initialSpawnTime = 420;
+    // [강제 패치] 기존 세이브 로드 시에도 적용
+    if ((newField as any).towers) {
+        const t = (newField as any).towers;
+        
+        // 1. 타워는 너프 (50%)
+        if (t.t1.hp > 6000) { t.t1.hp = 5000; t.t1.armor = 40; }
+        if (t.t2.hp > 9000) { t.t2.hp = 7500; t.t2.armor = 60; }
+        if (t.t3.hp > 12000) { t.t3.hp = 10000; t.t3.armor = 75; }
+        
+        // 2. [복구] 넥서스는 다시 강력하게 복구 (이전 너프 취소)
+        // 만약 HP가 25000 이하라면(이전 실수로 낮춰진 경우) -> 30000으로 복구
+        if (t.nexus.hp < 25000) { t.nexus.hp = 30000; t.nexus.armor = 200; }
     }
 
     return { 

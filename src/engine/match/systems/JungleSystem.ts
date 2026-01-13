@@ -28,7 +28,7 @@ export class JungleSystem {
       );
 
       if (nearbyHeroes.length > 0) {
-        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 20) + (h.items.length * 15), 0);
+        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 30) + (h.items.length * 20), 0);
         mob.hp -= dps * dt;
         nearbyHeroes.forEach(h => { h.currentHp -= (mob.atk * dt) / nearbyHeroes.length; });
 
@@ -42,6 +42,10 @@ export class JungleSystem {
              killer.gold += Math.floor(((mob as any).rewardGold || 50) * bonus);
              (killer as any).exp = ((killer as any).exp || 0) + Math.floor(((mob as any).rewardXp || 80) * bonus);
              
+             // [수정] 정글 CS 지급 (대형몹은 4점, 소형은 1점) - 실제 롤 방식
+             // isBuffMob(레드/블루/두꺼비 등)은 4점, 나머지는 1점
+             killer.cs += (mob as any).isBuffMob ? 4 : 1;
+             
              if ((mob as any).isBuffMob && (mob as any).buffs) {
                 const buffs = (mob as any).buffs as { type: string, value: number }[];
                 const buffMsg = buffs.map(b => `${b.type} +${b.value}`).join(', ');
@@ -49,11 +53,14 @@ export class JungleSystem {
                     if(!killer.buffs) killer.buffs = [];
                     killer.buffs.push(`${b.type}:${b.value}`);
                 });
-                match.logs.push({
-                    time: Math.floor(match.currentDuration),
-                    type: 'KILL',
-                    message: `Buff: ${killer.name} -> [${buffMsg}] 획득!`
-                });
+                // 정글몹 처치 로그는 너무 자주 뜨면 시끄러우므로 중요 버프몹만
+                if (Math.random() < 0.3) {
+                    match.logs.push({
+                        time: Math.floor(match.currentDuration),
+                        type: 'KILL',
+                        message: `Buff: ${killer.name} -> [${buffMsg}] 획득!`
+                    });
+                }
              }
           }
         }
@@ -63,22 +70,15 @@ export class JungleSystem {
     });
   }
 
-  // [핵심 수정] 하드코딩 좌표 제거 -> 스토어의 positions 참조
   private static initJungle(): JungleMob[] {
     const state = useGameStore.getState().gameState;
-    
-    // 1. 몬스터 스펙 (HP, 골드 등)
     const settings = state.fieldSettings.jungle as any;
     const camps = settings?.camps || DEFAULT_JUNGLE_CONFIG.camps;
-    
-    // 2. 캠프 위치 좌표 (fieldSettings.positions에서 가져옴)
     const positions = state.fieldSettings.positions;
     
-    // positions.jungle 배열은 [BlueTop, BlueBot, RedTop, RedBot] 순서
-    // [중요] gameSlice.ts에서 업데이트한 값을 여기서 끌어다 씀
     const CAMP_POSITIONS: Record<JungleCampType, {x:number, y:number}> = {
-        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, // Blue Top (좌측 벽)
-        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, // Blue Bot (우측 하단)
+        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, 
+        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, 
         TOP_RED:  positions.jungle[2] || { x: 58, y: 22 },
         BOT_RED:  positions.jungle[3] || { x: 82, y: 55 }
     };
@@ -90,7 +90,6 @@ export class JungleSystem {
         const basePos = CAMP_POSITIONS[campKey];
 
         campConfig.monsters.forEach((m: any, idx: number) => {
-            // 상대 좌표(0~100)를 절대 월드 좌표로 변환 (스케일 0.12)
             const worldX = basePos.x + (m.x - 50) * 0.12; 
             const worldY = basePos.y + (m.y - 50) * 0.12;
 

@@ -16,7 +16,6 @@ import { BASES } from '../data/MapData';
 import { MinionSystem } from './systems/MinionSystem';
 import { JungleSystem } from './systems/JungleSystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
-// [추가] 거신병 로직 임포트
 import { ColossusLogic } from './logics/ColossusLogic';
 
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
@@ -46,9 +45,6 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
     if (!Array.isArray(m.logs)) m.logs = [];
 
-    if (typeof m.stats.blue.nexusHp !== 'number') m.stats.blue.nexusHp = Number(m.stats.blue.nexusHp);
-    if (typeof m.stats.red.nexusHp !== 'number') m.stats.red.nexusHp = Number(m.stats.red.nexusHp);
-
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
@@ -75,13 +71,9 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                const initPlayer = (p: any, isBlue: boolean) => {
                    const h = heroes.find(x => x.id === p.heroId);
                    if(h) { 
-                       p.level = 1;
-                       p.items = [];
-                       (p as any).exp = 0;
+                       p.level = 1; p.items = []; (p as any).exp = 0;
                        updateLivePlayerStats(p, h);
-                       p.currentHp = p.maxHp;
-                       p.currentMp = p.maxMp;
-                       p.respawnTimer = 0;
+                       p.currentHp = p.maxHp; p.currentMp = p.maxMp; p.respawnTimer = 0;
                        p.totalDamageDealt = 0;
                        p.x = isBlue ? BASES.BLUE.x : BASES.RED.x;
                        p.y = isBlue ? BASES.BLUE.y : BASES.RED.y;
@@ -91,9 +83,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                match.blueTeam.forEach(p => initPlayer(p, true));
                match.redTeam.forEach(p => initPlayer(p, false));
                
-               match.minions = [];
-               match.projectiles = [];
-               match.jungleMobs = [];
+               match.minions = []; match.projectiles = []; match.jungleMobs = [];
                break; 
            }
        }
@@ -113,17 +103,12 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
 
     const watcherSettings = safeField.watcher;
     processCombatPhase(
-        match, 
-        heroes, 
-        battleSettings, 
-        safeRole, 
+        match, heroes, battleSettings, safeRole, 
         watcherSettings?.buffType || 'COMBAT', 
         watcherSettings?.buffAmount || 20, 
         delta
     );
 
-    // [핵심] 미니언 업데이트 전에 거신병만 따로 업데이트
-    // 거신병은 minions 배열에 들어있지만, 별도 로직으로 처리해야 함
     if (match.minions) {
         match.minions.forEach(m => {
             if (m.type === 'SUMMONED_COLOSSUS') {
@@ -132,8 +117,8 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         });
     }
 
-    // 일반 미니언 업데이트 (MinionSystem 내부에서 거신병은 건너뛰도록 수정해둠)
-    MinionSystem.update(match, battleSettings, delta);
+    // [수정] heroes 파라미터 전달
+    MinionSystem.update(match, battleSettings, delta, heroes);
     
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);

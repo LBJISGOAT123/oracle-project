@@ -5,31 +5,33 @@
 export interface Point { x: number; y: number; }
 
 export class Collision {
-  // 원형 충돌 체크 (거리 기반)
-  static checkCircle(p1: Point, r1: number, p2: Point, r2: number): boolean {
+  // [최적화] 거리 제곱 계산 (루트 연산 제거)
+  static distSq(p1: Point, p2: Point): number {
     const dx = p1.x - p2.x;
     const dy = p1.y - p2.y;
-    const distSq = dx*dx + dy*dy;
+    return dx * dx + dy * dy;
+  }
+
+  // [최적화] 원형 충돌 체크
+  static checkCircle(p1: Point, r1: number, p2: Point, r2: number): boolean {
+    const d2 = this.distSq(p1, p2);
     const radSum = r1 + r2;
-    return distSq <= radSum * radSum;
+    return d2 <= radSum * radSum;
   }
 
-  // 점이 사거리 안에 있는지 체크
+  // [최적화] 사거리 체크 (거리 제곱 비교)
   static inRange(attacker: Point, target: Point, range: number): boolean {
-    const dx = attacker.x - target.x;
-    const dy = attacker.y - target.y;
-    return (dx*dx + dy*dy) <= (range * range);
+    return this.distSq(attacker, target) <= (range * range);
   }
 
-  // 가장 가까운 적 찾기 (제네릭 타입)
+  // [최적화] 가장 가까운 적 찾기
   static findNearest<T extends Point>(me: Point, targets: T[], maxRange: number = 999): T | null {
     let nearest: T | null = null;
     let minDistSq = maxRange * maxRange;
 
-    for (const t of targets) {
-      const dx = me.x - t.x;
-      const dy = me.y - t.y;
-      const dSq = dx*dx + dy*dy;
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      const dSq = this.distSq(me, t);
       
       if (dSq < minDistSq) {
         minDistSq = dSq;

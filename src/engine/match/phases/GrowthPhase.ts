@@ -18,9 +18,6 @@ export const processGrowthPhase = (
 ) => {
   const allPlayers = [...match.blueTeam, ...match.redTeam];
 
-  const jgGold = fieldSettings?.jungle?.gold ?? 80;
-  const jgXp = fieldSettings?.jungle?.xp ?? 160;
-
   allPlayers.forEach(p => {
     if (p.respawnTimer > 0) return;
 
@@ -38,30 +35,13 @@ export const processGrowthPhase = (
         p.currentHp = Math.min(p.maxHp, p.currentHp + (hpRegen * dt));
     }
 
-    // 2. 자연 골드
-    p.gold += (2.0 * dt);
+    // 2. [정상화] 자연 골드/경험치 (현실적 수치)
+    // 분당 180골드 (초당 3)
+    p.gold += (3.0 * dt);
+    // 자연 경험치는 아주 조금만 (라인 서있으면 먹는건 CombatPhase 등에서 처리)
+    (p as any).exp = ((p as any).exp || 0) + (2.0 * dt);
 
-    // 3. CS 및 정글링
-    const farmingSpeed = 1 + (p.stats.mechanics / 2000) + (p.level * 0.05);
-    
-    if (p.lane === 'JUNGLE') {
-        const csRatePerSec = 0.2 * farmingSpeed;
-        if (Math.random() < csRatePerSec * dt) {
-            p.cs += 1;
-            p.gold += jgGold;
-            (p as any).exp = ((p as any).exp || 0) + jgXp;
-            p.currentHp -= Math.max(0, (30 - p.level * 2)); 
-        }
-    } else {
-        const csRatePerSec = 0.25 * farmingSpeed;
-        if (Math.random() < csRatePerSec * dt) {
-            p.cs += 1;
-            p.gold += 21;
-            (p as any).exp = ((p as any).exp || 0) + 60;
-        }
-    }
-
-    // 4. 레벨업 처리 (Issue #6 해결: while 루프 사용)
+    // 3. 레벨업 처리
     let reqExp = getRequiredExpForLevel(p.level);
     
     while ((p as any).exp >= reqExp && p.level < 18) {
@@ -71,10 +51,8 @@ export const processGrowthPhase = (
         const oldMaxHp = p.maxHp;
         const oldMaxMp = p.maxMp;
 
-        // 스탯 재계산
         updateLivePlayerStats(p, heroData);
 
-        // 체력/마나 회복 및 증가분 반영
         p.currentHp += (p.maxHp - oldMaxHp) + 100; 
         p.currentMp += (p.maxMp - oldMaxMp) + 100;
 
@@ -85,18 +63,16 @@ export const processGrowthPhase = (
             team: match.blueTeam.includes(p) ? 'BLUE' : 'RED'
         });
 
-        // 다음 레벨 요구치 갱신
         reqExp = getRequiredExpForLevel(p.level);
     }
 
-    // 5. 귀환 로직
+    // 4. 비상 귀환
     const isLowHp = p.currentHp < p.maxHp * 0.2; 
     const isLowMp = p.currentMp < p.maxMp * 0.1; 
     const hasLotsOfGold = p.gold > 2000; 
 
     if ((isLowHp || isLowMp || hasLotsOfGold) && Math.random() < 0.1 * dt) {
-        p.currentHp = p.maxHp;
-        p.currentMp = p.maxMp;
+        p.currentHp += p.maxHp * 0.05 * dt; 
     }
   });
 };

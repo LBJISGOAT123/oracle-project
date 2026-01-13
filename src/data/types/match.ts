@@ -2,7 +2,7 @@
 // FILE PATH: /src/data/types/match.ts
 // ==========================================
 
-export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START';
+export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP';
 
 export interface GameLog {
   time: number;
@@ -26,29 +26,47 @@ export interface LivePlayer {
   gold: number; cs: number;
   currentHp: number; 
   maxHp: number;
+  currentMp: number;
+  maxMp: number;
+  mpRegen: number;
   level: number;
-  items: string[];
+  items: any[]; 
+  totalDamageDealt: number;
   x: number; 
   y: number;
   lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE';
+  buffs: string[];
+  mmr: number;
+  respawnTimer: number;
+  cooldowns?: { q:number, w:number, e:number, r:number };
+  stats: { brain: number, mechanics: number };
+
+  // [신규] 타워 어그로 시스템을 위한 필드
+  lastAttackTime?: number;       // 마지막으로 적을 공격한 시간
+  lastAttackedTargetId?: string; // 마지막으로 공격한 대상(영웅)의 ID
 }
 
-// [수정됨] 포탑을 라인별로 관리하기 위해 구조 변경
 export interface TowerStatus {
-  top: number; // 0 ~ 3 (파괴된 단계)
+  top: number; 
   mid: number;
   bot: number;
 }
 
 export interface TeamStats {
-  towers: TowerStatus; // [변경] number -> TowerStatus
+  towers: TowerStatus; 
+  laneHealth: { top: number; mid: number; bot: number };
   colossus: number;
   watcher: number;
   fury: number;
+  nexusHp: number;
+  maxNexusHp: number;
+  activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
 }
 
 export interface LiveMatch {
   id: string;
+  status: 'DRAFTING' | 'PLAYING' | 'ENDED';
+  draft?: any;
   blueTeam: LivePlayer[];
   redTeam: LivePlayer[];
   bans: { blue: string[]; red: string[]; };
@@ -63,4 +81,14 @@ export interface LiveMatch {
   };
   timeline: TimelineEvent[];
   logs: GameLog[];
+  
+  nextColossusSpawnTime?: number;
+  nextWatcherSpawnTime?: number;
+  objectives: {
+      colossus: { hp: number; maxHp: number; status: 'ALIVE'|'DEAD'; nextSpawnTime: number };
+      watcher: { hp: number; maxHp: number; status: 'ALIVE'|'DEAD'; nextSpawnTime: number };
+  };
+  minions: any[];
+  projectiles: any[];
+  jungleMobs: any[];
 }

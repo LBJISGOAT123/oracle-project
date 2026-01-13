@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/types/index.ts
+// ==========================================
 export * from './user';
 export * from './hero';
 export * from './match';
@@ -70,10 +73,9 @@ export interface Post { id: number; author: string; authorTier: string; title: s
 import { UserProfile, UserStatus } from './user';
 import { LiveMatch } from './match';
 
-// [중요] TeamStats 인터페이스에 laneHealth 추가
 export interface TeamStats {
   towers: { top: number; mid: number; bot: number };
-  laneHealth: { top: number; mid: number; bot: number }; // 추가됨
+  laneHealth: { top: number; mid: number; bot: number };
   colossus: number;
   watcher: number;
   fury: number;
@@ -90,6 +92,21 @@ export interface GameState {
   liveMatches: LiveMatch[]; 
   tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; roleSettings: RoleSettings; aiConfig: AIConfig; 
   itemStats: Record<string, ItemStatData>; customImages: Record<string, string>; 
+}
+
+// [수정] Minion 인터페이스에 targetId 추가 (기억력)
+export interface Minion {
+  id: string;
+  team: 'BLUE' | 'RED';
+  lane: 'TOP' | 'MID' | 'BOT';
+  type: 'MELEE' | 'RANGED' | 'SIEGE' | 'SUMMONED_COLOSSUS';
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  atk: number;
+  pathIdx: number;
+  targetId?: string; // 내가 때리고 있는 대상 ID
 }
 
 export interface HeroSlice { heroes: any[]; addHero: (hero: any) => void; deleteHero: (heroId: string) => void; updateHero: (id: string, updates: any) => void; resetHeroStats: () => void; }
