@@ -6,7 +6,6 @@ import { applyRoleBonus } from '../systems/RoleManager';
 import { getDistance, BASES } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
 import { TowerLogic } from '../logics/TowerLogic';
-// [수정] DamageCalculator 임포트
 import { calcMitigatedDamage } from '../systems/DamageCalculator';
 
 const getTowerPos = (lane: string, tier: number, isBlueSide: boolean) => {
@@ -37,6 +36,11 @@ export const processSiegePhase = (
     const hero = heroes.find(h => h.id === p.heroId);
     if (!hero) return;
 
+    // [수정] 공격 속도 시뮬레이션 적용
+    // 매 프레임 dt를 곱하는 대신, 확률적으로 '평타 한 방'을 때리게 변경하여 데미지 증발 방지
+    // speed 300 기준 초당 약 1.2회 공격
+    if (Math.random() > dt * (hero.stats.speed / 250)) return;
+
     // 타워 공격
     if (p.lane !== 'JUNGLE') {
         const laneKey = p.lane.toLowerCase();
@@ -54,8 +58,9 @@ export const processSiegePhase = (
                 const myStats = isBlue ? match.stats.blue : match.stats.red;
                 const buffFactor = myStats.activeBuffs.siegeUnit ? 1.5 : 1.0;
 
+                // [핵심] dt를 곱하지 않음 -> 영웅의 강력한 한 방이 그대로 들어감
                 const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-                const realDmg = calcMitigatedDamage(rawDmg, tStats.armor) * dt;
+                const realDmg = calcMitigatedDamage(rawDmg, tStats.armor);
                 
                 if (!(enemyStats as any).laneHealth) {
                     (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
@@ -90,15 +95,16 @@ export const processSiegePhase = (
             const nStats = fieldSettings.towers.nexus;
             const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
             const buffFactor = (isBlue ? match.stats.blue : match.stats.red).activeBuffs.siegeUnit ? 2.5 : 1.0;
+            
             const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-            const realDmg = calcMitigatedDamage(rawDmg, nStats.armor) * dt;
+            const realDmg = calcMitigatedDamage(rawDmg, nStats.armor);
 
             enemyStats.nexusHp -= realDmg;
         }
     }
   });
 
-  // 구조물 방어 (타워 어그로)
+  // [기존 로직 유지] 구조물 방어 (타워가 적을 공격)
   const lanes = ['TOP', 'MID', 'BOT'];
   const teams = ['BLUE', 'RED'] as const;
 

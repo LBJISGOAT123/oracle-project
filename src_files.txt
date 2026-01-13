@@ -5205,7 +5205,6 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hero.name}</span>
-                    {/* [수정] 티어 배지 스타일 적용 */}
                     <span style={{ 
                       fontSize: '10px', fontWeight: '800', 
                       color: tierStyle.color, 
@@ -5216,7 +5215,12 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                       {hero.tier}티어
                     </span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{hero.role}</div>
+                  {/* [수정됨] 역할군 옆에 KDA 정보 추가 */}
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '4px', display:'flex', alignItems:'center', gap:'6px' }}>
+                    <span style={{ fontWeight:'bold', color:'#ccc' }}>{hero.role}</span>
+                    <span style={{ width:'1px', height:'10px', background:'#444' }}></span>
+                    <span style={{ fontFamily:'monospace', color:'#aaa' }}>{hero.avgKda}</span>
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: getWinRateColor(hero.recentWinRate) }}>{hero.recentWinRate.toFixed(1)}%</div>
@@ -5227,8 +5231,8 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
               {/* 2. 하단: 상세 스탯 그리드 */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', gap: '4px', background: '#0d1117', borderRadius: '6px', padding: '8px 4px' }}>
                 <div style={{ textAlign: 'center', borderRight: '1px solid #222' }}>
-                  <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Skull size={9}/> KDA</div>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: parseFloat(hero.kdaRatio) >= 3 ? '#e89d40' : '#ccc' }}>{hero.kdaRatio}</div>
+                  <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Skull size={9}/> 평점</div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: parseFloat(hero.kdaRatio) >= 3 ? '#e89d40' : '#ccc' }}>{hero.kdaRatio}:1</div>
                 </div>
                 <div style={{ textAlign: 'center', borderRight: '1px solid #222' }}>
                   <div style={{ fontSize: '9px', color: '#666', marginBottom: '1px', display:'flex', alignItems:'center', justifyContent:'center', gap:'3px' }}><Swords size={9}/> DPM</div>
@@ -5279,7 +5283,6 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
                 <GameIcon id={hero.id} size={32} fallback={<span style={{fontSize:'16px'}}>🧙‍♂️</span>} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontWeight: 'bold', color: '#fff' }}>{hero.name}</span>
-                  {/* [수정] 티어 배지 */}
                   <span style={{ fontSize: '9px', fontWeight: '800', color: tierStyle.color, border: `1px solid ${tierStyle.border}`, background: tierStyle.bg, padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>{hero.tier}티어</span>
                 </div>
               </div>
@@ -5296,6 +5299,7 @@ export const HeroListTable: React.FC<Props> = ({ heroes, isMobile = false, onHer
     </div>
   );
 };
+
 
 --- FILE: src/components/hero/HeroManagement.tsx ---
 // ==========================================
@@ -10128,7 +10132,7 @@ export interface GameState {
 // FILE PATH: /src/data/types/match.ts
 // ==========================================
 
-export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START';
+export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP';
 
 export interface GameLog {
   time: number;
@@ -10152,29 +10156,47 @@ export interface LivePlayer {
   gold: number; cs: number;
   currentHp: number; 
   maxHp: number;
+  currentMp: number;
+  maxMp: number;
+  mpRegen: number;
   level: number;
-  items: string[];
+  items: any[]; 
+  totalDamageDealt: number;
   x: number; 
   y: number;
   lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE';
+  buffs: string[];
+  mmr: number;
+  respawnTimer: number;
+  cooldowns?: { q:number, w:number, e:number, r:number };
+  stats: { brain: number, mechanics: number };
+
+  // [신규] 타워 어그로 시스템을 위한 필드
+  lastAttackTime?: number;       // 마지막으로 적을 공격한 시간
+  lastAttackedTargetId?: string; // 마지막으로 공격한 대상(영웅)의 ID
 }
 
-// [수정됨] 포탑을 라인별로 관리하기 위해 구조 변경
 export interface TowerStatus {
-  top: number; // 0 ~ 3 (파괴된 단계)
+  top: number; 
   mid: number;
   bot: number;
 }
 
 export interface TeamStats {
-  towers: TowerStatus; // [변경] number -> TowerStatus
+  towers: TowerStatus; 
+  laneHealth: { top: number; mid: number; bot: number };
   colossus: number;
   watcher: number;
   fury: number;
+  nexusHp: number;
+  maxNexusHp: number;
+  activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
 }
 
 export interface LiveMatch {
   id: string;
+  status: 'DRAFTING' | 'PLAYING' | 'ENDED';
+  draft?: any;
   blueTeam: LivePlayer[];
   redTeam: LivePlayer[];
   bans: { blue: string[]; red: string[]; };
@@ -10189,7 +10211,18 @@ export interface LiveMatch {
   };
   timeline: TimelineEvent[];
   logs: GameLog[];
+  
+  nextColossusSpawnTime?: number;
+  nextWatcherSpawnTime?: number;
+  objectives: {
+      colossus: { hp: number; maxHp: number; status: 'ALIVE'|'DEAD'; nextSpawnTime: number };
+      watcher: { hp: number; maxHp: number; status: 'ALIVE'|'DEAD'; nextSpawnTime: number };
+  };
+  minions: any[];
+  projectiles: any[];
+  jungleMobs: any[];
 }
+
 
 --- FILE: src/data/types/user.ts ---
 // src/types/user.ts
@@ -10971,8 +11004,11 @@ export function getTierNameHelper(score: number, config: TierConfig) {
 
 
 --- FILE: src/engine/system/RankingSystem.ts ---
+// ==========================================
+// FILE PATH: /src/engine/system/RankingSystem.ts
+// ==========================================
 import { Hero, UserStatus, TierStat, TierConfig, Tier, UserProfile } from '../../types';
-import { userPool, getUserTierName } from './UserManager';
+import { userPool } from './UserManager';
 
 const safeDiv = (num: number, den: number) => (!den || den === 0 ? 0 : num / den);
 
@@ -10980,12 +11016,12 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
   // [Safety] 데이터가 없으면 즉시 종료
   if (!heroes || !Array.isArray(heroes) || heroes.length === 0) return [];
 
-  // 안전한 접근을 위한 맵핑
+  // 글로벌 픽 통계 계산
   const totalGlobalPicks = heroes.reduce((sum, h) => sum + (h?.record?.totalPicks || 0), 0);
   const totalGlobalGames = Math.max(1, Math.floor(totalGlobalPicks / 10));
 
   const scoredHeroes = heroes.map(h => {
-    if (!h) return null; // 영웅 데이터 깨짐 방지
+    if (!h) return null; 
 
     const r = h.record || { 
       totalMatches: 0, totalWins: 0, recentResults: [], totalBans: 0, 
@@ -10994,41 +11030,61 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
     };
     
     const matches = Math.max(1, r.totalMatches);
-    const totalWinRate = matches > 0 ? (r.totalWins / matches) * 100 : 0;
+    const totalWinRate = matches > 0 ? (r.totalWins / matches) * 100 : 50;
     
+    // [최근 전적 계산]
     const recentResults = Array.isArray(r.recentResults) ? r.recentResults : [];
     const recentCount = recentResults.length;
-    let recentWinRate = 50;
+    let recentWinRate = totalWinRate; // 기본값은 전체 승률
+
     if (recentCount > 0) {
         const recentWins = recentResults.filter(win => win).length;
         recentWinRate = (recentWins / recentCount) * 100;
     }
 
-    let weightedWinRate = (totalWinRate * 0.7) + (recentWinRate * 0.3);
+    // ---------------------------------------------------------------
+    // [핵심 수정] 메타 반응성 강화
+    // ---------------------------------------------------------------
+    
+    // 1. 가중치 변경: 최근 승률 비중을 30% -> 70%로 대폭 상향
+    // (패치나 에디터 수정 직후의 성능을 더 중요하게 봄)
+    let weightedWinRate = (totalWinRate * 0.3) + (recentWinRate * 0.7);
     if (isNaN(weightedWinRate)) weightedWinRate = 50;
 
-    if (matches < 2000) {
-       const factor = matches / 2000;
+    // 2. 신뢰도 임계값(Threshold) 하향: 2000판 -> 100판
+    // 100판만 쌓여도 데이터를 100% 신뢰함 (기존엔 2000판 필요했음)
+    const TRUST_THRESHOLD = 100;
+
+    if (matches < TRUST_THRESHOLD) {
+       // 신뢰도가 낮아도, 최소 30%는 실제 승률을 반영하여 "가능성"을 보여줌
+       // (기존에는 0%에서 시작해서 50%에 고정되었음)
+       const factor = Math.max(0.3, matches / TRUST_THRESHOLD);
        weightedWinRate = (weightedWinRate * factor) + (50 * (1 - factor));
     }
 
-    let winScore = (weightedWinRate - 50) * 4.0;
-    const banRate = (r.totalBans / totalGlobalGames) * 100;
-    const banScore = isNaN(banRate) ? 0 : banRate * 0.8;
-    const pickRate = (r.totalPicks / totalGlobalGames) * 100;
-    let pickScore = isNaN(pickRate) ? 0 : pickRate * 0.3;
+    // ---------------------------------------------------------------
 
+    // [OP Score 산출]
+    let winScore = (weightedWinRate - 50) * 4.0; // 승률 1% 차이당 4점
+    const banRate = (r.totalBans / totalGlobalGames) * 100;
+    const banScore = isNaN(banRate) ? 0 : banRate * 1.0; // 밴률 가중치 상향
+    const pickRate = (r.totalPicks / totalGlobalGames) * 100;
+    let pickScore = isNaN(pickRate) ? 0 : pickRate * 0.5;
+
+    // 승률이 낮으면 픽률/밴률 점수 삭감 (거품 제거)
     if (weightedWinRate < 49) { pickScore *= 0.5; winScore -= 5; }
-    if (weightedWinRate < 47) winScore -= 10;
-    if (weightedWinRate < 45) winScore -= 20;
+    if (weightedWinRate < 47) winScore -= 15;
+    if (weightedWinRate < 45) winScore -= 30;
 
     const opScore = winScore + banScore + pickScore;
 
+    // 통계 문자열 포맷팅
     const k = safeDiv(r.totalKills, matches);
     const d = safeDiv(r.totalDeaths, matches);
     const a = safeDiv(r.totalAssists, matches);
     const kdaVal = d < 1 ? (k + a) : (k + a) / d;
 
+    // [수정 완료] 템플릿 리터럴 문법 정상화 (역슬래시 제거됨)
     return {
       ...h,
       recentWinRate: weightedWinRate, 
@@ -11037,27 +11093,31 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
       opScore: opScore || 0, 
       avgKda: `${k.toFixed(1)}/${d.toFixed(1)}/${a.toFixed(1)}`,
       kdaRatio: kdaVal.toFixed(2),
-      avgDpm: Math.floor((r.totalDamage / matches) / 20).toLocaleString(),
+      avgDpm: Math.floor((r.totalDamage / matches) / 20).toLocaleString(), 
       avgDpg: Math.floor((r.totalDamageTaken / matches) / 20).toLocaleString(),
       avgCs: (r.totalCs / matches).toFixed(1),
       avgGold: Math.floor(r.totalGold / matches).toLocaleString(),
     };
   }).filter(h => h !== null) as Hero[];
 
+  // 점수 기반 정렬
   scoredHeroes.sort((a, b) => ((b as any).opScore || 0) - ((a as any).opScore || 0));
 
+  // 티어 할당
   return scoredHeroes.map((h, index) => {
     const rank = index + 1;
     const score = (h as any).opScore || 0;
     let tier: Tier = '3';
 
-    if (score >= 80 && rank <= 4) tier = 'OP';
-    else if (score >= 40) tier = '1';
-    else if (score >= 15) tier = '2';
-    else if (score >= -5) tier = '3';
-    else if (score >= -30) tier = '4';
+    // 티어 컷라인 조정
+    if (score >= 60 && rank <= 5) tier = 'OP';      // 기준 완화 (80 -> 60)
+    else if (score >= 30) tier = '1';               // 기준 완화 (40 -> 30)
+    else if (score >= 10) tier = '2';
+    else if (score >= -10) tier = '3';
+    else if (score >= -40) tier = '4';
     else tier = '5';
 
+    // 하위권 강제 할당
     if (rank >= 46) tier = '5'; 
     else if (rank >= 41 && tier !== '5') tier = '4';
 
@@ -11065,8 +11125,8 @@ export function analyzeHeroMeta(heroes: Hero[]): Hero[] {
   });
 }
 
+// (기존 유저 생태계 계산 로직 유지)
 export function calculateUserEcosystem(ccu: number, totalUsers: number, config: TierConfig): UserStatus {
-  // [Safety] 유저 데이터가 없거나 깨져있으면 기본값 반환
   if (!userPool || !Array.isArray(userPool)) {
       return { totalGames: 0, playingUsers: 0, queuingUsers: 0, avgWaitTime: 0, tierDistribution: [] };
   }
@@ -11241,10 +11301,17 @@ export const lerpPosition = (current: {x:number, y:number}, target: {x:number, y
 // FILE PATH: /src/engine/match/phases/CombatPhase.ts
 // ==========================================
 import { LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
-import { applyRoleBonus } from '../systems/RoleManager';
 import { getLevelScaledStats } from '../utils/StatUtils';
 import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
 import { Collision } from '../utils/Collision';
+import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
+import { 
+    calculateHeroDamage, 
+    calculateUnitDamage, 
+    distributeAssist, 
+    distributeRewards,
+    MINION_REWARD 
+} from '../logics/CombatLogic';
 
 export const processCombatPhase = (
   match: LiveMatch, 
@@ -11260,142 +11327,124 @@ export const processCombatPhase = (
 
   if (blueAlive.length === 0 && redAlive.length === 0) return;
 
+  // [최적화] 매 프레임 그리드 구축 (비용 저렴함)
+  const enemyGrid = {
+      BLUE: new SpatialGrid(redAlive), // 블루팀 입장에서의 적(레드)
+      RED: new SpatialGrid(blueAlive)  // 레드팀 입장에서의 적(블루)
+  };
+  
+  // 미니언 그리드 구축
+  const minionList = match.minions || [];
+  const minionGrid = {
+      BLUE: new SpatialGrid(minionList.filter(m => m.team === 'RED' && m.hp > 0)),
+      RED: new SpatialGrid(minionList.filter(m => m.team === 'BLUE' && m.hp > 0))
+  };
+
   const allAttackers = [...blueAlive, ...redAlive];
   allAttackers.sort(() => Math.random() - 0.5);
 
   allAttackers.forEach(attacker => {
-      if (attacker.currentHp <= 0) return;
-
       const isBlue = match.blueTeam.includes(attacker);
-      const enemyHeroes = isBlue ? redAlive : blueAlive;
+      const enemyTeamKey = isBlue ? 'BLUE' : 'RED'; // 내 입장에서의 적 그리드 키
+
       const attackerHero = heroes.find(h => h.id === attacker.heroId);
       if (!attackerHero) return;
 
       const atkStats = getLevelScaledStats(attackerHero.stats, attacker.level);
-      const attackRange = atkStats.range / 100; 
+      const attackRange = atkStats.range / 100;
 
-      // ----------------------------------------------------
-      // 1. 적 영웅 타겟팅
-      // ----------------------------------------------------
-      const targetsInRange = enemyHeroes.filter(e => {
-          const d = Math.sqrt(Math.pow(attacker.x - e.x, 2) + Math.pow(attacker.y - e.y, 2));
-          return d <= attackRange;
-      });
+      // -------------------------------------------------------------
+      // 1. [최우선] CS 막타 (Smart Farming)
+      // -------------------------------------------------------------
+      let farmed = false;
 
-      if (targetsInRange.length > 0) {
-          // 영웅이 있으면 영웅 우선 공격 (기존 로직)
-          const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, targetsInRange, heroes);
-          if (defender) {
-            const defenderHero = heroes.find(h => h.id === defender.heroId);
-            if (defenderHero) {
-                // 데미지 계산 및 적용
-                const defStats = getLevelScaledStats(defenderHero.stats, defender.level);
-                const damage = calculateDamage(attacker, defender, atkStats, defStats, attackerHero, isBlue, settings, roleSettings, watcherBuffType, watcherBuffAmount);
-                
-                defender.currentHp -= damage;
-                attacker.totalDamageDealt += damage;
+      if (match.minions && attacker.lane !== 'JUNGLE') {
+          // [최적화] 전체 미니언 루프 대신, 내 주변 미니언만 가져옴 (수백번 -> 수십번으로 감소)
+          const nearbyMinions = minionGrid[enemyTeamKey].getNearbyUnits(attacker);
+          
+          const minionsInRange = nearbyMinions.filter(m => Collision.inRange(attacker, m, attackRange));
 
-                if (defender.currentHp <= 0) {
-                    attacker.kills++; defender.deaths++; attacker.gold += 300;
-                    if (isBlue) match.score.blue++; else match.score.red++;
-                    match.logs.push({ time: Math.floor(match.currentDuration), message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, type: 'KILL', team: isBlue ? 'BLUE' : 'RED' });
-                    defender.currentHp = 0;
-                    defender.respawnTimer = 10 + (defender.level * 2);
-                }
-            }
+          if (minionsInRange.length > 0) {
+              const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
+              
+              // 처형 임계값
+              let executeThreshold = myDamage * 2.5; 
+              if (attackerHero.role === '수호기사') {
+                  if (Math.random() < 0.05) executeThreshold = myDamage * 6.0; 
+                  else return; 
+              }
+
+              const targetMinion = TargetEvaluator.selectFarmTarget(attacker, minionsInRange, executeThreshold);
+
+              if (targetMinion) {
+                  if (targetMinion.hp <= executeThreshold) targetMinion.hp = 0;
+                  else targetMinion.hp -= myDamage;
+                  
+                  attacker.totalDamageDealt += myDamage;
+
+                  if (targetMinion.hp <= 0) {
+                      const reward = (MINION_REWARD as any)[targetMinion.type] || MINION_REWARD.MELEE;
+                      attacker.cs++;
+                      attacker.gold += reward.gold;
+                      distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
+
+                      if (targetMinion.type === 'SUMMONED_COLOSSUS') {
+                          match.logs.push({ 
+                              time: Math.floor(match.currentDuration), 
+                              message: `⚔️ [${attackerHero.name}]가 적의 거신병을 처치했습니다!`, 
+                              type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
+                          });
+                      }
+                  }
+                  farmed = true;
+              }
           }
-          return; // 영웅을 때렸으면 턴 종료
       }
 
-      // ----------------------------------------------------
-      // 2. [신규] 적 거신병(보스 미니언) 타겟팅
-      // 영웅이 없으면 거신병을 때린다. (이게 없어서 무시했던 것)
-      // ----------------------------------------------------
-      const enemyMinions = match.minions || [];
-      // 적군이면서, 살아있고, 거신병 타입이고, 사거리 안에 있는 놈
-      const targetColossus = enemyMinions.find(m => 
-          m.team !== (isBlue ? 'BLUE' : 'RED') && 
-          m.hp > 0 && 
-          m.type === 'SUMMONED_COLOSSUS' &&
-          Collision.inRange(attacker, m, atkStats.range / 100)
-      );
+      if (farmed) return;
 
-      if (targetColossus) {
-          // 거신병 공격
-          // 영웅 -> 미니언 데미지 계산 (방어력 50 가정)
-          const damage = calculateDamageToUnit(attacker, atkStats, 50, isBlue, settings, roleSettings);
-          
-          targetColossus.hp -= damage;
-          attacker.totalDamageDealt += damage;
+      // -------------------------------------------------------------
+      // 2. 적 영웅 타겟팅
+      // -------------------------------------------------------------
+      if (Math.random() < dt * 2.0) {
+          // [최적화] 내 주변 적 영웅만 탐색
+          const nearbyEnemies = enemyGrid[enemyTeamKey].getNearbyUnits(attacker);
+          const targetsInRange = nearbyEnemies.filter(e => Collision.inRange(attacker, e, attackRange));
 
-          // 거신병 처치 시
-          if (targetColossus.hp <= 0) {
-              attacker.gold += 150; // 처치 골드
-              match.logs.push({ 
-                  time: Math.floor(match.currentDuration), 
-                  message: `⚔️ [${attackerHero.name}]가 적의 거신병을 파괴했습니다!`, 
-                  type: 'KILL', 
-                  team: isBlue ? 'BLUE' : 'RED' 
-              });
+          if (targetsInRange.length > 0) {
+              const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, targetsInRange, heroes);
+              if (defender) {
+                attacker.lastAttackTime = match.currentDuration;
+                attacker.lastAttackedTargetId = defender.heroId;
+
+                const defenderHero = heroes.find(h => h.id === defender.heroId);
+                if (defenderHero) {
+                    const defStats = getLevelScaledStats(defenderHero.stats, defender.level);
+                    const damage = calculateHeroDamage(attacker, defender, atkStats, defStats, attackerHero, isBlue, settings, roleSettings, watcherBuffType);
+                    
+                    defender.currentHp -= damage;
+                    attacker.totalDamageDealt += damage;
+
+                    if (defender.currentHp <= 0) {
+                        attacker.kills++; defender.deaths++; attacker.gold += 300;
+                        distributeAssist(match, attacker, defender, isBlue);
+
+                        if (isBlue) match.score.blue++; else match.score.red++;
+                        match.logs.push({ 
+                            time: Math.floor(match.currentDuration), 
+                            message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, 
+                            type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
+                        });
+                        defender.currentHp = 0;
+                        defender.respawnTimer = 10 + (defender.level * 2);
+                    }
+                }
+                return;
+              }
           }
       }
   });
 };
-
-// [헬퍼] 영웅 간 데미지 계산
-function calculateDamage(
-    attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
-    isBlue: boolean, settings: any, roleSettings: any, buffType: string, buffAmount: number
-) {
-    // 1. 공격력 계산 (기본 + 아이템 + 신 버프)
-    const god = isBlue ? settings.dante : settings.izman;
-    const atkRatio = god?.atkRatio || 1.0;
-    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
-    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
-
-    // 2. 크리티컬
-    const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
-    let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
-    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
-
-    // 3. 방어력 계산
-    const defGod = isBlue ? settings.izman : settings.dante; // 적 신
-    const defRatio = defGod?.defRatio || 1.0;
-    const itemArmor = defender.items.reduce((s:number, i:any) => s + (i.armor||0), 0);
-    const totalArmor = (defStats.armor + itemArmor) * defRatio;
-    
-    // 관통
-    const itemPen = attacker.items.reduce((s:number, i:any) => s + (i.pen||0), 0);
-    const effectiveArmor = Math.max(0, totalArmor - (atkStats.pen + itemPen));
-    
-    // 4. 데미지 감소 공식
-    const damageReduction = 100 / (100 + effectiveArmor);
-    
-    // 5. 역할군 보너스 & 버프
-    const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
-    let finalDamage = rawDmg * damageReduction * damageMod;
-
-    // 주시자 버프
-    if (buffType === 'COMBAT') {
-        const stats = isBlue ? settings.dante : settings.izman; // (여기서는 간략히)
-        // 실제로는 match.stats를 봐야하지만 함수 인자가 많아지므로 생략, 
-        // 대신 기본 데미지에 살짝 보정 (원래 로직 참조)
-        finalDamage *= 1.0; 
-    }
-
-    return Math.floor(finalDamage);
-}
-
-// [헬퍼] 영웅 -> 유닛(거신병) 데미지 계산
-function calculateDamageToUnit(attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: any, roleSettings: any) {
-    const god = isBlue ? settings.dante : settings.izman;
-    const atkRatio = god?.atkRatio || 1.0;
-    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
-    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
-
-    const damageReduction = 100 / (100 + targetArmor);
-    return Math.floor(totalAD * damageReduction);
-}
 
 
 --- FILE: src/engine/match/phases/GrowthPhase.ts ---
@@ -11419,9 +11468,6 @@ export const processGrowthPhase = (
 ) => {
   const allPlayers = [...match.blueTeam, ...match.redTeam];
 
-  const jgGold = fieldSettings?.jungle?.gold ?? 80;
-  const jgXp = fieldSettings?.jungle?.xp ?? 160;
-
   allPlayers.forEach(p => {
     if (p.respawnTimer > 0) return;
 
@@ -11439,30 +11485,13 @@ export const processGrowthPhase = (
         p.currentHp = Math.min(p.maxHp, p.currentHp + (hpRegen * dt));
     }
 
-    // 2. 자연 골드
-    p.gold += (2.0 * dt);
+    // 2. [정상화] 자연 골드/경험치 (현실적 수치)
+    // 분당 180골드 (초당 3)
+    p.gold += (3.0 * dt);
+    // 자연 경험치는 아주 조금만 (라인 서있으면 먹는건 CombatPhase 등에서 처리)
+    (p as any).exp = ((p as any).exp || 0) + (2.0 * dt);
 
-    // 3. CS 및 정글링
-    const farmingSpeed = 1 + (p.stats.mechanics / 2000) + (p.level * 0.05);
-    
-    if (p.lane === 'JUNGLE') {
-        const csRatePerSec = 0.2 * farmingSpeed;
-        if (Math.random() < csRatePerSec * dt) {
-            p.cs += 1;
-            p.gold += jgGold;
-            (p as any).exp = ((p as any).exp || 0) + jgXp;
-            p.currentHp -= Math.max(0, (30 - p.level * 2)); 
-        }
-    } else {
-        const csRatePerSec = 0.25 * farmingSpeed;
-        if (Math.random() < csRatePerSec * dt) {
-            p.cs += 1;
-            p.gold += 21;
-            (p as any).exp = ((p as any).exp || 0) + 60;
-        }
-    }
-
-    // 4. 레벨업 처리 (Issue #6 해결: while 루프 사용)
+    // 3. 레벨업 처리
     let reqExp = getRequiredExpForLevel(p.level);
     
     while ((p as any).exp >= reqExp && p.level < 18) {
@@ -11472,10 +11501,8 @@ export const processGrowthPhase = (
         const oldMaxHp = p.maxHp;
         const oldMaxMp = p.maxMp;
 
-        // 스탯 재계산
         updateLivePlayerStats(p, heroData);
 
-        // 체력/마나 회복 및 증가분 반영
         p.currentHp += (p.maxHp - oldMaxHp) + 100; 
         p.currentMp += (p.maxMp - oldMaxMp) + 100;
 
@@ -11486,33 +11513,32 @@ export const processGrowthPhase = (
             team: match.blueTeam.includes(p) ? 'BLUE' : 'RED'
         });
 
-        // 다음 레벨 요구치 갱신
         reqExp = getRequiredExpForLevel(p.level);
     }
 
-    // 5. 귀환 로직
+    // 4. 비상 귀환
     const isLowHp = p.currentHp < p.maxHp * 0.2; 
     const isLowMp = p.currentMp < p.maxMp * 0.1; 
     const hasLotsOfGold = p.gold > 2000; 
 
     if ((isLowHp || isLowMp || hasLotsOfGold) && Math.random() < 0.1 * dt) {
-        p.currentHp = p.maxHp;
-        p.currentMp = p.maxMp;
+        p.currentHp += p.maxHp * 0.05 * dt; 
     }
   });
 };
 
 
 --- FILE: src/engine/match/phases/SiegePhase.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/phases/SiegePhase.ts
+// ==========================================
 import { LiveMatch, Hero, RoleSettings, BattlefieldSettings, BattleSettings } from '../../../types';
 import { applyRoleBonus } from '../systems/RoleManager';
 import { getDistance, BASES } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
-
-const calcMitigatedDamage = (rawDmg: number, armor: number) => {
-  const reduction = 100 / (100 + armor);
-  return rawDmg * reduction;
-};
+import { TowerLogic } from '../logics/TowerLogic';
+// [수정] DamageCalculator 임포트
+import { calcMitigatedDamage } from '../systems/DamageCalculator';
 
 const getTowerPos = (lane: string, tier: number, isBlueSide: boolean) => {
   const coords = isBlueSide ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
@@ -11531,8 +11557,7 @@ export const processSiegePhase = (
   dt: number
 ) => {
   const allPlayers = [...match.blueTeam, ...match.redTeam];
-
-  // 1. [플레이어 -> 구조물 공격]
+  
   allPlayers.forEach(p => {
     if (p.currentHp <= 0 || p.respawnTimer > 0) return;
 
@@ -11555,26 +11580,30 @@ export const processSiegePhase = (
 
             if (dist <= 10) {
                 const tStats = (fieldSettings.towers as any)[`t${targetTier}`];
-                
                 const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
-                const rawDmg = hero.stats.ad * siegeMod;
+                
+                const myStats = isBlue ? match.stats.blue : match.stats.red;
+                const buffFactor = myStats.activeBuffs.siegeUnit ? 1.5 : 1.0;
+
+                const rawDmg = hero.stats.ad * siegeMod * buffFactor;
                 const realDmg = calcMitigatedDamage(rawDmg, tStats.armor) * dt;
                 
-                // [안전장치] 초기화 안된 경우
                 if (!(enemyStats as any).laneHealth) {
-                    (enemyStats as any).laneHealth = { top: tStats.hp, mid: tStats.hp, bot: tStats.hp };
+                    (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
                 }
                 
-                // [핵심] 체력 깎기
                 (enemyStats as any).laneHealth[laneKey] -= realDmg;
 
-                // [핵심] 체력 0 이하 시 파괴 처리
                 if ((enemyStats as any).laneHealth[laneKey] <= 0) {
                     (enemyStats.towers as any)[laneKey]++;
                     (isBlue ? match.blueTeam : match.redTeam).forEach(m => m.gold += tStats.rewardGold);
-                    match.logs.push({ time: Math.floor(match.currentDuration), message: `🔥 [${hero.name}] ${targetTier}차 포탑 철거!`, type: 'TOWER', team: isBlue ? 'BLUE' : 'RED' });
                     
-                    // 다음 타워 체력 세팅 (다음 티어 스펙 가져오기)
+                    match.logs.push({ 
+                        time: Math.floor(match.currentDuration), 
+                        message: `🔥 [${hero.name}] ${targetTier}차 포탑 철거!`, 
+                        type: 'TOWER', team: isBlue ? 'BLUE' : 'RED' 
+                    });
+                    
                     if (brokenCount + 1 < 3) {
                         const nextStats = (fieldSettings.towers as any)[`t${targetTier + 1}`];
                         (enemyStats as any).laneHealth[laneKey] = nextStats.hp;
@@ -11600,46 +11629,50 @@ export const processSiegePhase = (
     }
   });
 
-  // 2. [구조물 -> 플레이어 방어] (백도어/레이저)
-  allPlayers.forEach(p => {
-    if (p.currentHp <= 0 || p.respawnTimer > 0) return;
-    const isBlue = match.blueTeam.includes(p);
-    const enemyStats = isBlue ? match.stats.red : match.stats.blue;
-    const enemyMinions = match.minions || [];
+  // 구조물 방어 (타워 어그로)
+  const lanes = ['TOP', 'MID', 'BOT'];
+  const teams = ['BLUE', 'RED'] as const;
 
-    if (p.lane !== 'JUNGLE') {
-        const laneKey = p.lane.toLowerCase();
-        const brokenCount = (enemyStats.towers as any)[laneKey];
-        if (brokenCount < 3) {
-            const targetTier = brokenCount + 1;
-            const towerPos = getTowerPos(p.lane, targetTier, !isBlue);
-            const dist = getDistance(p, towerPos);
+  teams.forEach(defendingTeam => {
+      const isBlueDef = defendingTeam === 'BLUE';
+      const myStats = isBlueDef ? match.stats.blue : match.stats.red;
+      
+      const allies = isBlueDef ? match.blueTeam : match.redTeam; 
+      const enemies = {
+          heroes: isBlueDef ? match.redTeam : match.blueTeam,
+          minions: (match.minions || []).filter(m => m.team !== defendingTeam)
+      };
 
-            if (dist <= 10) {
-                const hasMinion = enemyMinions.some(m => m.team === (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && getDistance(m, towerPos) < 15);
-                const tStats = (fieldSettings.towers as any)[`t${targetTier}`];
-                let towerDmg = (tStats.atk || 200) * dt;
+      // A. 레인 타워
+      lanes.forEach(lane => {
+          const laneKey = lane.toLowerCase();
+          const brokenCount = (myStats.towers as any)[laneKey];
+          
+          if (brokenCount < 3) {
+              const currentTier = brokenCount + 1;
+              const towerPos = getTowerPos(lane, currentTier, isBlueDef);
+              const towerStats = (fieldSettings.towers as any)[`t${currentTier}`];
 
-                if (!hasMinion) towerDmg *= 3.0; // 백도어 패널티
+              const target = TowerLogic.selectTarget(towerPos, enemies, allies, 12, match.currentDuration);
+              if (target) {
+                  const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, towerPos) <= 12);
+                  TowerLogic.applyDamage(target, towerStats, dt, false, hasMinions);
+              }
+          }
+      });
 
-                p.currentHp -= calcMitigatedDamage(towerDmg, p.level * 5 + 30);
-            }
-        }
-    }
-
-    const inhibitorsDown = enemyStats.towers.top >= 3 || enemyStats.towers.mid >= 3 || enemyStats.towers.bot >= 3;
-    const enemyBase = isBlue ? BASES.RED : BASES.BLUE;
-    const distToNexus = getDistance(p, enemyBase);
-
-    if (distToNexus <= 15) {
-        if (!inhibitorsDown) {
-            p.currentHp -= 2000 * dt; // 억제기 생존 시 레이저
-        } else {
-            const nStats = fieldSettings.towers.nexus;
-            const nexusDmg = (nStats.atk || 500) * dt;
-            p.currentHp -= calcMitigatedDamage(nexusDmg, p.level * 5 + 30);
-        }
-    }
+      // B. 넥서스 타워
+      const inhibitorsDown = myStats.towers.top >= 3 || myStats.towers.mid >= 3 || myStats.towers.bot >= 3;
+      if (inhibitorsDown) {
+          const nexusPos = isBlueDef ? BASES.BLUE : BASES.RED;
+          const nexusStats = fieldSettings.towers.nexus;
+          
+          const target = TowerLogic.selectTarget(nexusPos, enemies, allies, 15, match.currentDuration);
+          if (target) {
+              const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, nexusPos) <= 15);
+              TowerLogic.applyDamage(target, nexusStats, dt, true, hasMinions);
+          }
+      }
   });
 };
 
@@ -11954,7 +11987,7 @@ export class JungleSystem {
       );
 
       if (nearbyHeroes.length > 0) {
-        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 20) + (h.items.length * 15), 0);
+        const dps = nearbyHeroes.reduce((sum, h) => sum + (h.level * 30) + (h.items.length * 20), 0);
         mob.hp -= dps * dt;
         nearbyHeroes.forEach(h => { h.currentHp -= (mob.atk * dt) / nearbyHeroes.length; });
 
@@ -11968,6 +12001,10 @@ export class JungleSystem {
              killer.gold += Math.floor(((mob as any).rewardGold || 50) * bonus);
              (killer as any).exp = ((killer as any).exp || 0) + Math.floor(((mob as any).rewardXp || 80) * bonus);
              
+             // [수정] 정글 CS 지급 (대형몹은 4점, 소형은 1점) - 실제 롤 방식
+             // isBuffMob(레드/블루/두꺼비 등)은 4점, 나머지는 1점
+             killer.cs += (mob as any).isBuffMob ? 4 : 1;
+             
              if ((mob as any).isBuffMob && (mob as any).buffs) {
                 const buffs = (mob as any).buffs as { type: string, value: number }[];
                 const buffMsg = buffs.map(b => `${b.type} +${b.value}`).join(', ');
@@ -11975,11 +12012,14 @@ export class JungleSystem {
                     if(!killer.buffs) killer.buffs = [];
                     killer.buffs.push(`${b.type}:${b.value}`);
                 });
-                match.logs.push({
-                    time: Math.floor(match.currentDuration),
-                    type: 'KILL',
-                    message: `Buff: ${killer.name} -> [${buffMsg}] 획득!`
-                });
+                // 정글몹 처치 로그는 너무 자주 뜨면 시끄러우므로 중요 버프몹만
+                if (Math.random() < 0.3) {
+                    match.logs.push({
+                        time: Math.floor(match.currentDuration),
+                        type: 'KILL',
+                        message: `Buff: ${killer.name} -> [${buffMsg}] 획득!`
+                    });
+                }
              }
           }
         }
@@ -11989,22 +12029,15 @@ export class JungleSystem {
     });
   }
 
-  // [핵심 수정] 하드코딩 좌표 제거 -> 스토어의 positions 참조
   private static initJungle(): JungleMob[] {
     const state = useGameStore.getState().gameState;
-    
-    // 1. 몬스터 스펙 (HP, 골드 등)
     const settings = state.fieldSettings.jungle as any;
     const camps = settings?.camps || DEFAULT_JUNGLE_CONFIG.camps;
-    
-    // 2. 캠프 위치 좌표 (fieldSettings.positions에서 가져옴)
     const positions = state.fieldSettings.positions;
     
-    // positions.jungle 배열은 [BlueTop, BlueBot, RedTop, RedBot] 순서
-    // [중요] gameSlice.ts에서 업데이트한 값을 여기서 끌어다 씀
     const CAMP_POSITIONS: Record<JungleCampType, {x:number, y:number}> = {
-        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, // Blue Top (좌측 벽)
-        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, // Blue Bot (우측 하단)
+        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, 
+        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, 
         TOP_RED:  positions.jungle[2] || { x: 58, y: 22 },
         BOT_RED:  positions.jungle[3] || { x: 82, y: 55 }
     };
@@ -12016,7 +12049,6 @@ export class JungleSystem {
         const basePos = CAMP_POSITIONS[campKey];
 
         campConfig.monsters.forEach((m: any, idx: number) => {
-            // 상대 좌표(0~100)를 절대 월드 좌표로 변환 (스케일 0.12)
             const worldX = basePos.x + (m.x - 50) * 0.12; 
             const worldY = basePos.y + (m.y - 50) * 0.12;
 
@@ -12053,82 +12085,68 @@ export class JungleSystem {
 
 
 --- FILE: src/engine/match/systems/MinionSystem.ts ---
-import { LiveMatch, Minion, BattleSettings } from '../../../types';
-import { BASES } from '../constants/MapConstants';
+// ==========================================
+// FILE PATH: /src/engine/match/systems/MinionSystem.ts
+// ==========================================
+import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
 import { MinionLogic } from '../logics/MinionLogic';
+import { MinionSpawner } from './MinionSpawner';
+import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
 
 const WAVE_INTERVAL = 30;
-const MAX_MINIONS_PER_MATCH = 120; 
 
 export class MinionSystem {
-  static update(match: LiveMatch, settings: BattleSettings, dt: number) {
+  static update(match: LiveMatch, settings: BattleSettings, dt: number, heroes: Hero[]) {
     if (!match.minions) match.minions = [];
 
     const currentWaveCycle = Math.floor(match.currentDuration / WAVE_INTERVAL);
     const prevWaveCycle = Math.floor((match.currentDuration - dt) / WAVE_INTERVAL);
 
     if (currentWaveCycle > prevWaveCycle) {
-      this.spawnWave(match, 'BLUE');
-      this.spawnWave(match, 'RED');
+      MinionSpawner.spawnWave(match, 'BLUE');
+      MinionSpawner.spawnWave(match, 'RED');
     }
 
-    this.processMinions(match, settings, dt);
+    this.processMinions(match, settings, dt, heroes);
   }
 
-  private static spawnWave(match: LiveMatch, team: 'BLUE' | 'RED') {
-    if (match.minions!.length > MAX_MINIONS_PER_MATCH) return;
+  private static processMinions(match: LiveMatch, settings: BattleSettings, dt: number, heroes: Hero[]) {
+    // 1. 죽은 미니언 정리
+    match.minions = match.minions!.filter(m => m.hp > 0);
 
-    const lanes = ['TOP', 'MID', 'BOT'] as const;
-    const startPos = team === 'BLUE' ? BASES.BLUE : BASES.RED;
-    
-    const rawScaling = 1 + (match.currentDuration / 900); 
-    const timeScaling = Math.min(3.5, rawScaling); 
+    // 2. [최적화] 전체 미니언 및 영웅 그리드 구축
+    // 기존의 라인별 캐싱(cachedEnemies) 대신 그리드 사용
+    const minionList = match.minions;
+    const blueMinions = minionList.filter(m => m.team === 'BLUE');
+    const redMinions = minionList.filter(m => m.team === 'RED');
+    const blueHeroes = match.blueTeam.filter(h => h.currentHp > 0);
+    const redHeroes = match.redTeam.filter(h => h.currentHp > 0);
 
-    lanes.forEach(lane => {
-      for (let i = 0; i < 3; i++) {
-        match.minions!.push(this.createMinion(team, lane, 'MELEE', startPos, timeScaling));
-        match.minions!.push(this.createMinion(team, lane, 'RANGED', startPos, timeScaling));
-      }
-      if (Math.floor(match.currentDuration / WAVE_INTERVAL) % 3 === 0) {
-        match.minions!.push(this.createMinion(team, lane, 'SIEGE', startPos, timeScaling));
-      }
-    });
-  }
-
-  private static createMinion(team: 'BLUE' | 'RED', lane: any, type: any, pos: {x:number, y:number}, scaling: number): Minion {
-    const offsetX = (Math.random() - 0.5) * 2;
-    const offsetY = (Math.random() - 0.5) * 2;
-    
-    let hp = 500, atk = 20;
-    if (type === 'RANGED') { hp = 300; atk = 40; }
-    if (type === 'SIEGE') { hp = 900; atk = 60; }
-
-    return {
-      id: `minion_${team}_${lane}_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
-      team, lane, type,
-      x: pos.x + offsetX, y: pos.y + offsetY,
-      hp: Math.floor(hp * scaling), 
-      maxHp: Math.floor(hp * scaling), 
-      atk: Math.floor(atk * scaling),
-      pathIdx: 0
+    const grids = {
+        // 블루팀 입장에서의 적 (레드팀)
+        BLUE_ENEMIES: {
+            minions: new SpatialGrid(redMinions),
+            heroes: new SpatialGrid(redHeroes)
+        },
+        // 레드팀 입장에서의 적 (블루팀)
+        RED_ENEMIES: {
+            minions: new SpatialGrid(blueMinions),
+            heroes: new SpatialGrid(blueHeroes)
+        }
     };
-  }
 
-  private static processMinions(match: LiveMatch, settings: BattleSettings, dt: number) {
-    match.minions = match.minions!.filter(m => m.hp > 0 && !isNaN(m.x) && !isNaN(m.y));
+    // 3. 미니언 로직 실행
+    // 미니언은 인터리빙 없이 매 프레임 돌려도 그리드 덕분에 빠름
+    for (let i = 0; i < match.minions.length; i++) {
+        const m = match.minions[i];
+        
+        // 내 팀에 맞는 적 그리드 선택
+        const enemyGrids = m.team === 'BLUE' ? grids.BLUE_ENEMIES : grids.RED_ENEMIES;
 
-    const cachedEnemies: Record<string, Minion[]> = {};
-    const lanes = ['TOP', 'MID', 'BOT'];
-    ['BLUE', 'RED'].forEach(team => {
-        lanes.forEach(lane => {
-            const key = `${team}_${lane}`;
-            cachedEnemies[key] = match.minions!.filter(m => m.team === team && m.lane === lane);
-        });
-    });
-
-    match.minions!.forEach(m => {
-        MinionLogic.processSingleMinion(m, match, settings, dt, cachedEnemies);
-    });
+        MinionLogic.processSingleMinion(
+            m, match, settings, dt, enemyGrids, true, heroes
+        );
+    }
   }
 }
 
@@ -12380,16 +12398,14 @@ export class ProjectileSystem {
 
 
 --- FILE: src/engine/match/systems/SteeringSystem.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/SteeringSystem.ts
+// ==========================================
 import { Vector, Vector2 } from '../utils/Vector';
 import { LivePlayer } from '../../../types';
 import { MOVEMENT_SETTINGS } from '../constants/MapConstants';
 
 export class SteeringSystem {
-  /**
-   * 목표 지점으로 향하는 힘(Seek)과 
-   * 동료들과 겹치지 않으려는 힘(Separation)을 합쳐서
-   * 최종 이동 벡터를 계산합니다.
-   */
   static calculateSteering(
     me: LivePlayer, 
     target: Vector2, 
@@ -12398,13 +12414,18 @@ export class SteeringSystem {
   ): Vector2 {
     const myPos = { x: me.x, y: me.y };
     
-    // 1. Seek (목표 지점으로 가려는 힘)
+    // 1. Seek (목적지 이동)
     const desired = Vector.sub(target, myPos);
     const dist = Vector.mag(desired);
     
+    // [최적화] 도착 시 완전 정지 (떨림 방지)
+    if (dist < 0.5) {
+        return { x: 0, y: 0 };
+    }
+
     let seekForce = Vector.normalize(desired);
     
-    // 도착 지점에 가까워지면 감속 (Arrive 동작)
+    // Arrival (감속)
     if (dist < MOVEMENT_SETTINGS.ARRIVAL_TOLERANCE * 5) {
       const m = (dist / (MOVEMENT_SETTINGS.ARRIVAL_TOLERANCE * 5)) * maxSpeed;
       seekForce = Vector.mult(seekForce, m);
@@ -12412,7 +12433,7 @@ export class SteeringSystem {
       seekForce = Vector.mult(seekForce, maxSpeed);
     }
 
-    // 2. Separation (동료와 거리두기)
+    // 2. Separation (밀어내기) - [수정] 힘 대폭 약화
     let sepForce = { x: 0, y: 0 };
     let count = 0;
     
@@ -12423,7 +12444,7 @@ export class SteeringSystem {
       if (d > 0 && d < MOVEMENT_SETTINGS.SEPARATION_DIST) {
         let diff = Vector.sub(myPos, { x: other.x, y: other.y });
         diff = Vector.normalize(diff);
-        diff = Vector.div(diff, d); // 가까울수록 더 강하게 밀어냄
+        diff = Vector.div(diff, d); 
         sepForce = Vector.add(sepForce, diff);
         count++;
       }
@@ -12432,17 +12453,18 @@ export class SteeringSystem {
     if (count > 0) {
       sepForce = Vector.div(sepForce, count);
       sepForce = Vector.normalize(sepForce);
-      sepForce = Vector.mult(sepForce, maxSpeed); // 분리력 최대화
+      // [수정] 밀어내는 힘을 maxSpeed만큼 주지 않고 0.5배로 줄임 (덜덜거림 방지)
+      sepForce = Vector.mult(sepForce, maxSpeed * 0.5); 
     }
 
-    // 3. 힘의 합성 (목적지 60% + 분리 40%)
-    // 정글러나 라인전 상황에 따라 가중치 조절 가능
+    // [수정] 힘의 합성 비율 조정 (이동 우선순위 높임)
+    // 기존: Seek 1.0 : Sep 1.5 -> 변경: Seek 1.2 : Sep 0.6
     const totalForce = Vector.add(
-      Vector.mult(seekForce, 1.0),
-      Vector.mult(sepForce, 1.5) // 겹치는걸 싫어하도록 가중치 높임
+      Vector.mult(seekForce, 1.2),
+      Vector.mult(sepForce, 0.6) 
     );
     
-    return totalForce; // 정규화하지 않고 속도로 바로 사용 (간소화)
+    return totalForce; 
   }
 }
 
@@ -12758,6 +12780,226 @@ export const calculateHeroPower = (
   const skillMultiplier = 0.85 + (player.mmr / 15000) + (player.stats.mechanics / 1000); 
 
   return basePower * skillMultiplier;
+};
+
+
+--- FILE: src/engine/match/systems/MinionSpawner.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/MinionSpawner.ts
+// ==========================================
+import { LiveMatch, Minion } from '../../../types';
+import { BASES } from '../constants/MapConstants';
+
+// [핵심] 전체 제한(120) 대신 팀별 제한(60)을 적용하여 한 팀이 스폰을 독점하는 현상 방지
+const MAX_MINIONS_PER_TEAM = 60;
+
+export class MinionSpawner {
+  
+  static spawnWave(match: LiveMatch, team: 'BLUE' | 'RED') {
+    if (!match.minions) match.minions = [];
+
+    // 1. 해당 팀의 현재 미니언 수 체크
+    const currentCount = match.minions.filter(m => m.team === team && m.hp > 0).length;
+    
+    // 2. 팀별 제한을 넘으면 생성 중단 (상대팀 생성에는 영향 없음 - 이즈마한 구원!)
+    if (currentCount >= MAX_MINIONS_PER_TEAM) return;
+
+    const lanes = ['TOP', 'MID', 'BOT'] as const;
+    const startPos = team === 'BLUE' ? BASES.BLUE : BASES.RED;
+    
+    // 게임 시간에 따른 스탯 스케일링
+    const rawScaling = 1 + (match.currentDuration / 900); 
+    const timeScaling = Math.min(3.5, rawScaling); 
+
+    // 대포 미니언 생성 주기 (3웨이브마다)
+    const isSiegeWave = Math.floor(match.currentDuration / 30) % 3 === 0;
+
+    lanes.forEach(lane => {
+      // 전사 미니언 3마리
+      for (let i = 0; i < 3; i++) {
+        match.minions!.push(this.createMinion(team, lane, 'MELEE', startPos, timeScaling));
+      }
+      // 마법사 미니언 3마리
+      for (let i = 0; i < 3; i++) {
+        match.minions!.push(this.createMinion(team, lane, 'RANGED', startPos, timeScaling));
+      }
+      // 대포 미니언 1마리
+      if (isSiegeWave) {
+        match.minions!.push(this.createMinion(team, lane, 'SIEGE', startPos, timeScaling));
+      }
+    });
+  }
+
+  private static createMinion(team: 'BLUE' | 'RED', lane: any, type: any, pos: {x:number, y:number}, scaling: number): Minion {
+    // 겹침 방지를 위한 약간의 위치 랜덤값
+    const offsetX = (Math.random() - 0.5) * 2;
+    const offsetY = (Math.random() - 0.5) * 2;
+    
+    let hp = 550, atk = 25;
+    if (type === 'RANGED') { hp = 350; atk = 45; }
+    if (type === 'SIEGE') { hp = 950; atk = 70; }
+
+    return {
+      id: `minion_${team}_${lane}_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
+      team, lane, type,
+      x: pos.x + offsetX, 
+      y: pos.y + offsetY,
+      hp: Math.floor(hp * scaling), 
+      maxHp: Math.floor(hp * scaling), 
+      atk: Math.floor(atk * scaling),
+      pathIdx: 0
+    };
+  }
+}
+
+
+--- FILE: src/engine/match/systems/DamageCalculator.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/DamageCalculator.ts
+// ==========================================
+import { BattleSettings, RoleSettings } from '../../../types';
+import { applyRoleBonus } from './RoleManager';
+
+// 방어력 적용 공식
+export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
+  const reduction = 100 / (100 + armor);
+  return rawDmg * reduction;
+};
+
+// [영웅 vs 영웅] 데미지 계산
+export const calculateHeroDamage = (
+    attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
+    isBlue: boolean, settings: BattleSettings, roleSettings: RoleSettings, buffType: string
+) => {
+    // 1. 공격력 (기본 + 아이템 + 신 버프)
+    const god = isBlue ? settings.dante : settings.izman;
+    const atkRatio = god?.atkRatio || 1.0;
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
+    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
+
+    // 2. 크리티컬
+    const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
+    let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
+    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
+
+    // 3. 방어력
+    const defGod = isBlue ? settings.izman : settings.dante; 
+    const defRatio = defGod?.defRatio || 1.0;
+    const itemArmor = defender.items.reduce((s:number, i:any) => s + (i.armor||0), 0);
+    const totalArmor = (defStats.armor + itemArmor) * defRatio;
+    
+    // 관통
+    const itemPen = attacker.items.reduce((s:number, i:any) => s + (i.pen||0), 0);
+    const effectiveArmor = Math.max(0, totalArmor - (atkStats.pen + itemPen));
+    
+    // 4. 최종 데미지
+    const finalDamage = calcMitigatedDamage(rawDmg, effectiveArmor);
+    
+    // 5. 역할군/버프 보정
+    const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
+    let result = finalDamage * damageMod;
+
+    if (buffType === 'COMBAT') result *= 1.1; 
+
+    return Math.floor(result);
+};
+
+// [영웅 -> 미니언/몬스터] 데미지 계산
+export const calculateUnitDamage = (
+    attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: BattleSettings
+) => {
+    const god = isBlue ? settings.dante : settings.izman;
+    const atkRatio = god?.atkRatio || 1.0;
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
+    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
+
+    return Math.floor(calcMitigatedDamage(totalAD, targetArmor));
+};
+
+
+--- FILE: src/engine/match/systems/RewardSystem.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/RewardSystem.ts
+// ==========================================
+import { LiveMatch, LivePlayer, Hero } from '../../../types';
+import { getDistance } from '../../data/MapData';
+
+export const MINION_REWARD = {
+    'MELEE': { gold: 21, xp: 60 },
+    'RANGED': { gold: 14, xp: 30 },
+    'SIEGE': { gold: 60, xp: 90 },
+    'SUMMONED_COLOSSUS': { gold: 150, xp: 200 }
+};
+
+/**
+ * 통합 보상 분배 시스템
+ * - 막타 친 영웅: 골드/XP 획득
+ * - 주변 아군: XP 공유
+ * - 수호기사(서포터): 타곤산 골드 공유
+ */
+export const distributeRewards = (
+    match: LiveMatch, 
+    deadUnitPos: {x:number, y:number}, 
+    killer: LivePlayer | null, 
+    killerTeam: 'BLUE'|'RED', 
+    reward: { gold: number, xp: number },
+    heroes: Hero[] 
+) => {
+    // 1. 킬러 보상
+    if (killer) {
+        killer.cs++;
+        killer.gold += reward.gold;
+
+        // [서포터 타곤산 로직]
+        const killerHero = heroes.find(h => h.id === killer.heroId);
+        if (killerHero && killerHero.role === '수호기사') {
+            const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
+            let nearestAlly = null;
+            let minDist = 15;
+            
+            for (const ally of allies) {
+                if (ally !== killer && ally.currentHp > 0) {
+                    const d = getDistance(killer, ally);
+                    if (d < minDist) {
+                        minDist = d;
+                        nearestAlly = ally;
+                    }
+                }
+            }
+
+            if (nearestAlly) {
+                nearestAlly.gold += reward.gold; // 골드 공유
+                nearestAlly.cs++; // 기분 좋게 CS도 1 올려줌
+            }
+        }
+    }
+
+    // 2. 경험치 분배 (N빵)
+    const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
+    const beneficiaries = allies.filter(p => 
+        p.currentHp > 0 && 
+        p.respawnTimer <= 0 &&
+        getDistance(p, deadUnitPos) < 18 
+    );
+
+    if (beneficiaries.length > 0) {
+        const xpPerPerson = Math.floor(reward.xp / beneficiaries.length);
+        beneficiaries.forEach(p => {
+            (p as any).exp = ((p as any).exp || 0) + xpPerPerson;
+        });
+    }
+};
+
+// 어시스트 보상
+export const distributeAssist = (match: LiveMatch, killer: LivePlayer, victim: LivePlayer, isBlue: boolean) => {
+    const allies = isBlue ? match.blueTeam : match.redTeam;
+    const assists = allies.filter(p => p !== killer && p.currentHp > 0 && getDistance(p, victim) < 20);
+    
+    assists.forEach(p => {
+        p.assists++;
+        p.gold += 150; 
+        (p as any).exp = ((p as any).exp || 0) + 100;
+    });
 };
 
 
@@ -13392,23 +13634,22 @@ export class GankEvaluator {
 
 
 --- FILE: src/engine/match/ai/evaluators/TargetEvaluator.ts ---
-import { LivePlayer, Hero } from '../../../../types';
+// ==========================================
+// FILE PATH: /src/engine/match/ai/evaluators/TargetEvaluator.ts
+// ==========================================
+import { LivePlayer, Hero, Minion } from '../../../../types';
 import { AIUtils } from '../AIUtils';
 
 export class TargetEvaluator {
-  /**
-   * 사거리 내의 적들 중 가장 우선순위가 높은 타겟을 반환
-   */
   static selectBestTarget(
     attacker: LivePlayer, 
     attackerHero: Hero, 
     enemiesInRange: LivePlayer[], 
-    heroes: Hero[] // 적 영웅 정보를 알기 위해 필요
+    heroes: Hero[] 
   ): LivePlayer | null {
     if (enemiesInRange.length === 0) return null;
     if (enemiesInRange.length === 1) return enemiesInRange[0];
 
-    // 역할군별 선호도
     const myRole = attackerHero.role;
     
     let bestTarget: LivePlayer | null = null;
@@ -13420,28 +13661,20 @@ export class TargetEvaluator {
 
       let score = 0;
 
-      // 1. 킬각 점수 (막타 칠 수 있으면 최우선)
-      // 대략적인 데미지 계산 (평타 2방 + 스킬 1방 가정)
       const estimatedDmg = attackerHero.stats.ad * 3 + attackerHero.stats.ap * 2; 
-      if (enemy.currentHp < estimatedDmg) score += 5000; // 절대적 우선순위
+      if (enemy.currentHp < estimatedDmg) score += 5000; 
 
-      // 2. 거리 점수 (가까울수록 때리기 쉬움 - 카이팅 기본)
       const dist = AIUtils.dist(attacker, enemy);
       score -= dist * 10; 
 
-      // 3. 적 역할군 점수 (전략적 판단)
       const isSquishy = ['신살자', '선지자', '추적자'].includes(enemyHero.role);
       
       if (myRole === '추적자' || myRole === '집행관') {
-        // 암살자/브루저는 딜러를 무는 게 이득
         if (isSquishy) score += 200;
       } else if (myRole === '신살자') {
-        // 원딜은 "안전하게 칠 수 있는" 적이 우선이지만, 
-        // 딜러가 사거리 내에 들어왔으면 점사
         if (isSquishy) score += 50; 
       }
 
-      // 4. 적 체력 비율 점수 (점사 유도)
       score += (1 - AIUtils.hpPercent(enemy)) * 100;
 
       if (score > maxScore) {
@@ -13449,8 +13682,43 @@ export class TargetEvaluator {
         bestTarget = enemy;
       }
     }
-
     return bestTarget;
+  }
+
+  /**
+   * [Smart Farming]
+   * killThreshold 이하의 체력을 가진 미니언을 최우선으로 반환합니다.
+   */
+  static selectFarmTarget(
+    attacker: LivePlayer,
+    minionsInRange: Minion[],
+    killThreshold: number 
+  ): Minion | null {
+    if (minionsInRange.length === 0) return null;
+
+    // 1. 막타 가능 미니언 찾기
+    const killableMinions = minionsInRange.filter(m => m.hp <= killThreshold);
+
+    if (killableMinions.length > 0) {
+        // 대포 > 근거리 > 원거리 순 + 피 적은 순
+        killableMinions.sort((a, b) => {
+            const valA = this.getMinionValue(a.type);
+            const valB = this.getMinionValue(b.type);
+            if (valA !== valB) return valB - valA; 
+            return a.hp - b.hp;
+        });
+        return killableMinions[0];
+    }
+
+    // 막타 칠 게 없으면 null 반환 (불필요한 공격 자제 -> 막타 대기)
+    return null;
+  }
+
+  private static getMinionValue(type: string): number {
+      if (type === 'SUMMONED_COLOSSUS') return 10;
+      if (type === 'SIEGE') return 3;
+      if (type === 'MELEE') return 2;
+      return 1;
   }
 }
 
@@ -13853,41 +14121,54 @@ export class LaningLogic {
 // ==========================================
 // FILE PATH: /src/engine/match/logics/MinionLogic.ts
 // ==========================================
-import { LiveMatch, Minion, BattleSettings } from '../../../types';
-import { BASES, WAYPOINTS, TOWER_COORDS } from '../constants/MapConstants';
+import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
+import { WAYPOINTS, TOWER_COORDS } from '../constants/MapConstants';
 import { Collision } from '../utils/Collision';
+import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
+import { 
+    distributeRewards, 
+    calcMitigatedDamage, 
+    MINION_REWARD 
+} from './CombatLogic'; 
 
 const MINION_SPEED = 15;
 
-// 방어력 적용 데미지 공식 (100 / (100 + 방어력))
-const calcMitigatedDamage = (rawDmg: number, armor: number) => {
-  const reduction = 100 / (100 + armor);
-  return rawDmg * reduction;
-};
-
 export class MinionLogic {
 
-  static processSingleMinion(m: Minion, match: LiveMatch, settings: BattleSettings, dt: number, cachedEnemies: Record<string, Minion[]>) {
-    // 거신병은 별도 로직이므로 패스
+  // [수정] cachedEnemies -> enemyGrids (SpatialGrid 객체)
+  static processSingleMinion(
+      m: Minion, 
+      match: LiveMatch, 
+      settings: BattleSettings, 
+      dt: number, 
+      enemyGrids: { minions: SpatialGrid, heroes: SpatialGrid },
+      shouldThink: boolean,
+      heroes: Hero[] 
+  ) {
     if (m.type === 'SUMMONED_COLOSSUS') return;
 
+    // 타겟이 있으면 이동 멈춤 (Sticky Target)
+    if (m.targetId) {
+       // ... (기존 타겟 유효성 검사 로직이 필요하지만, 성능상 생략하고 공격 시도에서 체크)
+    }
+
     const isBlue = m.team === 'BLUE';
-    const enemyTeam = isBlue ? 'RED' : 'BLUE';
-    const enemyHeroes = isBlue ? match.redTeam : match.blueTeam;
-    
-    // 1. 타겟팅 (미니언 -> 영웅 -> 구조물 순)
-    const laneEnemies = cachedEnemies[`${enemyTeam}_${m.lane}`] || [];
     const range = m.type === 'MELEE' ? 6 : 16;
     
-    let target: any = Collision.findNearest(m, laneEnemies, range);
+    // [최적화] 그리드를 통해 내 주변 적만 가져옴
+    // 1. 미니언 타겟팅
+    const nearbyEnemyMinions = enemyGrids.minions.getNearbyUnits(m);
+    let target: any = Collision.findNearest(m, nearbyEnemyMinions, range);
     let targetType = 'MINION';
 
+    // 2. 영웅 타겟팅
     if (!target) {
-      const aliveHeroes = enemyHeroes.filter(h => h.currentHp > 0);
-      target = Collision.findNearest(m, aliveHeroes as any, range);
+      const nearbyEnemyHeroes = enemyGrids.heroes.getNearbyUnits(m);
+      target = Collision.findNearest(m, nearbyEnemyHeroes, range);
       if (target) targetType = 'HERO';
     }
 
+    // 3. 구조물 타겟팅 (구조물은 몇 개 없으므로 그리드 불필요)
     if (!target) {
       const structure = this.findEnemyStructure(m, match);
       if (structure) {
@@ -13896,36 +14177,40 @@ export class MinionLogic {
       }
     }
 
-    // 2. 행동 (공격 or 이동)
     if (target) {
-        this.attackTarget(m, target, targetType, match, settings, dt, isBlue);
+        m.targetId = target.id || target.heroId || 'structure'; // 타겟 기억
+        this.attackTarget(m, target, targetType, match, settings, dt, isBlue, heroes);
     } else {
+        m.targetId = undefined;
         this.move(m, isBlue, dt);
     }
   }
 
-  private static attackTarget(m: Minion, target: any, type: string, match: LiveMatch, settings: BattleSettings, dt: number, isBlue: boolean) {
-    if (Math.random() > dt) return; 
+  private static attackTarget(
+      m: Minion, target: any, type: string, match: LiveMatch, 
+      settings: BattleSettings, dt: number, isBlue: boolean, heroes: Hero[]
+  ) {
+    // 타겟이 죽었거나 멀어졌으면 공격 취소
+    if ((target.hp !== undefined && target.hp <= 0) || 
+        (target.currentHp !== undefined && target.currentHp <= 0) ||
+        !Collision.inRange(m, target, (m.type === 'MELEE' ? 6 : 16) + 2)) {
+        m.targetId = undefined;
+        return;
+    }
 
-    const s = settings.siege || { 
-        minionDmg: 1.0, cannonDmg: 1.0, 
-        dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1 
-    };
+    if (Math.random() > dt * 1.5) return; 
 
-    // 1. 공격자 계수
+    const s = settings.siege || { minionDmg: 1.0, cannonDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1 };
+
     let sourceFactor = s.minionDmg ?? 1.0;
     if (m.type === 'SIEGE') sourceFactor = s.cannonDmg ?? 1.0;
 
-    // 2. 대상 계수 및 방어력 정보 가져오기
     let targetFactor = 1.0; 
     let targetArmor = 0;
-
-    // 안전하게 필드 설정 가져오기
     const fieldTowers = settings.fieldSettings?.towers || ({} as any);
 
     if (type === 'HERO') {
         targetFactor = s.dmgToHero ?? 1.0;
-        // 영웅 방어력 (간단 계산)
         targetArmor = (target.level * 3) + 30; 
     }
     else if (type === 'STRUCTURE') {
@@ -13937,28 +14222,28 @@ export class MinionLogic {
             const enemyStats = isBlue ? match.stats.red : match.stats.blue;
             const tier = ((enemyStats.towers as any)[laneKey] || 0) + 1;
             
-            if (tier === 1) {
-                targetFactor = s.dmgToT1 ?? 0.3;
-                targetArmor = fieldTowers.t1?.armor || 80;
-            } else if (tier === 2) {
-                targetFactor = s.dmgToT2 ?? 0.25;
-                targetArmor = fieldTowers.t2?.armor || 120;
-            } else {
-                targetFactor = s.dmgToT3 ?? 0.2;
-                targetArmor = fieldTowers.t3?.armor || 150;
-            }
+            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 80; }
+            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 120; }
+            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 150; }
         }
     }
 
-    // 3. 데미지 계산 (방어력 적용)
+    if (type === 'MINION') {
+        sourceFactor *= 0.3; 
+    }
+
     const rawAtk = m.atk || 10;
     const mitigatedDmg = calcMitigatedDamage(rawAtk, targetArmor);
-    const finalDmg = Math.max(1, mitigatedDmg * sourceFactor * targetFactor);
+    const finalDmg = Math.max(1, mitigatedDmg * sourceFactor * targetFactor * 3.0);
 
-    // 4. 데미지 적용 (확률 아님. 진짜 체력 감소)
     if (type === 'MINION' || type === 'HERO') {
         target.hp -= finalDmg;
         if (target.currentHp !== undefined) target.currentHp -= finalDmg;
+
+        if (type === 'MINION' && target.hp <= 0) {
+            const reward = (MINION_REWARD as any)[target.type] || MINION_REWARD.MELEE;
+            distributeRewards(match, target, null, isBlue ? 'BLUE' : 'RED', reward, heroes);
+        }
     } 
     else if (type === 'STRUCTURE') {
         const laneKey = m.lane.toLowerCase();
@@ -13967,14 +14252,11 @@ export class MinionLogic {
         if (target.isNexus) {
             enemyStats.nexusHp -= finalDmg;
         } else {
-            // [수정완료] 확률 제거 -> 실제 체력(laneHealth) 깎기
             if (!(enemyStats as any).laneHealth) {
                 (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
             }
-
             (enemyStats as any).laneHealth[laneKey] -= finalDmg;
 
-            // 체력이 0 이하가 되면 파괴
             if ((enemyStats as any).laneHealth[laneKey] <= 0) {
                 (enemyStats.towers as any)[laneKey]++;
                 match.logs.push({ 
@@ -13982,9 +14264,6 @@ export class MinionLogic {
                     message: `🔥 미니언 군단이 ${laneKey.toUpperCase()} 타워를 파괴했습니다!`, 
                     type: 'TOWER', team: isBlue ? 'BLUE' : 'RED' 
                 });
-                
-                // 파괴 후 다음 타워 체력 세팅 (다음 타워 스펙으로 리셋)
-                // 현재 티어가 1이면 다음은 2차 타워 체력으로 설정
                 const currentBroken = (enemyStats.towers as any)[laneKey];
                 if (currentBroken < 3) {
                      const nextTierStats = (fieldTowers as any)[`t${currentBroken + 1}`];
@@ -14006,15 +14285,14 @@ export class MinionLogic {
 
     const dx = targetPos.x - m.x;
     const dy = targetPos.y - m.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
+    const distSq = dx*dx + dy*dy;
 
-    // [버그 수정] 거리 0일 때 증발 방지
-    if (dist < 2.0 || dist < 0.001) {
+    if (distSq < 4.0 || distSq < 0.00001) { 
       m.pathIdx = Math.min(m.pathIdx + 1, path.length - 1);
     } else {
-      const speed = MINION_SPEED;
-      m.x += (dx / dist) * speed * dt * 0.1;
-      m.y += (dy / dist) * speed * dt * 0.1;
+      const dist = Math.sqrt(distSq);
+      m.x += (dx / dist) * MINION_SPEED * dt * 0.1;
+      m.y += (dy / dist) * MINION_SPEED * dt * 0.1;
     }
   }
 
@@ -14052,6 +14330,243 @@ export class MinionLogic {
 }
 
 
+--- FILE: src/engine/match/logics/CombatLogic.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/logics/CombatLogic.ts
+// ==========================================
+import { LiveMatch, LivePlayer, RoleSettings, BattleSettings, Hero } from '../../../types';
+import { getDistance } from '../../data/MapData';
+import { applyRoleBonus } from '../systems/RoleManager';
+
+export const MINION_REWARD = {
+    'MELEE': { gold: 21, xp: 60 },
+    'RANGED': { gold: 14, xp: 30 },
+    'SIEGE': { gold: 60, xp: 90 },
+    'SUMMONED_COLOSSUS': { gold: 150, xp: 200 }
+};
+
+export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
+  const reduction = 100 / (100 + armor);
+  return rawDmg * reduction;
+};
+
+export const distributeRewards = (
+    match: LiveMatch, 
+    deadUnitPos: {x:number, y:number}, 
+    killer: LivePlayer | null, 
+    killerTeam: 'BLUE'|'RED', 
+    reward: { gold: number, xp: number },
+    heroes: Hero[] 
+) => {
+    // 1. 킬러 보상
+    if (killer) {
+        killer.cs++;
+        killer.gold += reward.gold;
+
+        // [신규] 수호기사(Support) 전용 로직: 타곤산 효과 (Relic Shield)
+        // 수호기사가 막타를 쳤다면, 가장 가까운 아군에게도 골드를 복사해줌
+        const killerHero = heroes.find(h => h.id === killer.heroId);
+        if (killerHero && killerHero.role === '수호기사') {
+            const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
+            // 나를 제외한 가장 가까운 아군 찾기
+            let nearestAlly = null;
+            let minDist = 15; // 공유 범위
+            
+            for (const ally of allies) {
+                if (ally !== killer && ally.currentHp > 0) {
+                    const d = getDistance(killer, ally);
+                    if (d < minDist) {
+                        minDist = d;
+                        nearestAlly = ally;
+                    }
+                }
+            }
+
+            if (nearestAlly) {
+                nearestAlly.gold += reward.gold; // 골드 공유
+                nearestAlly.cs++; // (선택사항) 원딜 CS도 올려줌 (기분 좋으라고)
+            }
+        }
+    }
+
+    // 2. 경험치 분배 (기존 로직)
+    const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
+    const beneficiaries = allies.filter(p => 
+        p.currentHp > 0 && 
+        p.respawnTimer <= 0 &&
+        getDistance(p, deadUnitPos) < 18 
+    );
+
+    if (beneficiaries.length > 0) {
+        const xpPerPerson = Math.floor(reward.xp / beneficiaries.length);
+        beneficiaries.forEach(p => {
+            (p as any).exp = ((p as any).exp || 0) + xpPerPerson;
+            
+            // (이전의 단순 공유 로직은 위 타곤산 로직과 겹치므로 삭제하거나 유지해도 됨)
+            // 여기선 타곤산 로직을 위해 '골드 공유' 부분은 제거하고 경험치만 남김
+        });
+    }
+};
+
+export const distributeAssist = (match: LiveMatch, killer: LivePlayer, victim: LivePlayer, isBlue: boolean) => {
+    const allies = isBlue ? match.blueTeam : match.redTeam;
+    const assists = allies.filter(p => p !== killer && p.currentHp > 0 && getDistance(p, victim) < 20);
+    
+    assists.forEach(p => {
+        p.assists++;
+        p.gold += 150; 
+        (p as any).exp = ((p as any).exp || 0) + 100;
+    });
+};
+
+export const calculateHeroDamage = (
+    attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
+    isBlue: boolean, settings: BattleSettings, roleSettings: RoleSettings, buffType: string
+) => {
+    const god = isBlue ? settings.dante : settings.izman;
+    const atkRatio = god?.atkRatio || 1.0;
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
+    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
+
+    const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
+    let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
+    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
+
+    const defGod = isBlue ? settings.izman : settings.dante; 
+    const defRatio = defGod?.defRatio || 1.0;
+    const itemArmor = defender.items.reduce((s:number, i:any) => s + (i.armor||0), 0);
+    const totalArmor = (defStats.armor + itemArmor) * defRatio;
+    
+    const itemPen = attacker.items.reduce((s:number, i:any) => s + (i.pen||0), 0);
+    const effectiveArmor = Math.max(0, totalArmor - (atkStats.pen + itemPen));
+    
+    const finalDamage = calcMitigatedDamage(rawDmg, effectiveArmor);
+    
+    const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
+    let result = finalDamage * damageMod;
+
+    if (buffType === 'COMBAT') result *= 1.1; 
+
+    return Math.floor(result);
+};
+
+export const calculateUnitDamage = (
+    attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: BattleSettings
+) => {
+    const god = isBlue ? settings.dante : settings.izman;
+    const atkRatio = god?.atkRatio || 1.0;
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
+    const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
+
+    return Math.floor(calcMitigatedDamage(totalAD, targetArmor));
+};
+
+
+--- FILE: src/engine/match/logics/TowerLogic.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/logics/TowerLogic.ts
+// ==========================================
+import { LivePlayer, Minion } from '../../../types';
+import { getDistance } from '../../data/MapData';
+import { calcMitigatedDamage } from './CombatLogic';
+
+export class TowerLogic {
+  /**
+   * 타워의 공격 대상을 선정합니다.
+   * 우선순위:
+   * 1. [도움 요청] 아군 영웅을 공격한 적 영웅
+   * 2. [일반] 가장 가까운 미니언
+   * 3. [일반] 가장 가까운 영웅
+   */
+  static selectTarget(
+    towerPos: { x: number, y: number },
+    enemies: { heroes: LivePlayer[], minions: Minion[] },
+    allies: LivePlayer[], // 보호해야 할 아군 영웅들
+    range: number,
+    currentTime: number
+  ): { unit: any, type: 'HERO' | 'MINION' } | null {
+    
+    // 1. 사거리 내 적 식별
+    const nearbyMinions = enemies.minions.filter(m => 
+        m.hp > 0 && getDistance(m, towerPos) <= range
+    );
+    const nearbyEnemyHeroes = enemies.heroes.filter(h => 
+        h.currentHp > 0 && h.respawnTimer <= 0 && getDistance(h, towerPos) <= range
+    );
+
+    if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
+
+    // 2. [어그로 0순위] 아군 영웅을 공격한 적 영웅 식별 (Call for Help)
+    const AGGRO_DURATION = 2.0; // 최근 2초 내 공격
+    
+    const aggroTarget = nearbyEnemyHeroes.find(enemy => {
+        if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
+        
+        const timeSinceAttack = currentTime - enemy.lastAttackTime;
+        if (timeSinceAttack > AGGRO_DURATION) return false;
+
+        // 적이 때린 대상이 '내 사거리 안' 혹은 '근처'에 있는 아군인지 확인
+        // (단순화: 맵 전체 아군 중 ID 매칭)
+        const victim = allies.find(a => a.heroId === enemy.lastAttackedTargetId);
+        return !!victim;
+    });
+
+    if (aggroTarget) {
+        return { unit: aggroTarget, type: 'HERO' };
+    }
+
+    // 3. [일반 우선순위] 미니언 > 영웅 (거리순)
+    if (nearbyMinions.length > 0) {
+        nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
+        return { unit: nearbyMinions[0], type: 'MINION' };
+    } 
+    else {
+        nearbyEnemyHeroes.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
+        return { unit: nearbyEnemyHeroes[0], type: 'HERO' };
+    }
+  }
+
+  /**
+   * 타워 데미지를 계산하고 적용합니다.
+   */
+  static applyDamage(
+    target: { unit: any, type: 'HERO' | 'MINION' },
+    towerStats: any,
+    dt: number,
+    isNexus: boolean,
+    hasMinionsNearby: boolean // 백도어 방지용
+  ) {
+    const atk = towerStats.atk || (isNexus ? 500 : 250);
+    // 초당 데미지 (Simulation Step 보정)
+    let damage = atk * dt;
+
+    // [백도어 방지] 미니언 없이 영웅만 있으면 데미지 3배
+    if (target.type === 'HERO' && !hasMinionsNearby) {
+        damage *= 3.0;
+    }
+
+    // 방어력 적용
+    let armor = 0;
+    if (target.type === 'HERO') {
+        // 영웅은 레벨 비례 방어력 (아이템은 복잡해서 약식 적용)
+        armor = (target.unit.level * 3) + 30;
+    } else {
+        // 미니언은 기본 방어력이 낮음
+        armor = 0; 
+    }
+
+    const realDamage = calcMitigatedDamage(damage, armor);
+
+    // 체력 차감
+    if (target.type === 'HERO') {
+        target.unit.currentHp -= realDamage;
+    } else {
+        target.unit.hp -= realDamage;
+    }
+  }
+}
+
+
 --- FILE: src/engine/match/utils/Collision.ts ---
 // ==========================================
 // FILE PATH: /src/engine/match/utils/Collision.ts
@@ -14060,31 +14575,33 @@ export class MinionLogic {
 export interface Point { x: number; y: number; }
 
 export class Collision {
-  // 원형 충돌 체크 (거리 기반)
-  static checkCircle(p1: Point, r1: number, p2: Point, r2: number): boolean {
+  // [최적화] 거리 제곱 계산 (루트 연산 제거)
+  static distSq(p1: Point, p2: Point): number {
     const dx = p1.x - p2.x;
     const dy = p1.y - p2.y;
-    const distSq = dx*dx + dy*dy;
+    return dx * dx + dy * dy;
+  }
+
+  // [최적화] 원형 충돌 체크
+  static checkCircle(p1: Point, r1: number, p2: Point, r2: number): boolean {
+    const d2 = this.distSq(p1, p2);
     const radSum = r1 + r2;
-    return distSq <= radSum * radSum;
+    return d2 <= radSum * radSum;
   }
 
-  // 점이 사거리 안에 있는지 체크
+  // [최적화] 사거리 체크 (거리 제곱 비교)
   static inRange(attacker: Point, target: Point, range: number): boolean {
-    const dx = attacker.x - target.x;
-    const dy = attacker.y - target.y;
-    return (dx*dx + dy*dy) <= (range * range);
+    return this.distSq(attacker, target) <= (range * range);
   }
 
-  // 가장 가까운 적 찾기 (제네릭 타입)
+  // [최적화] 가장 가까운 적 찾기
   static findNearest<T extends Point>(me: Point, targets: T[], maxRange: number = 999): T | null {
     let nearest: T | null = null;
     let minDistSq = maxRange * maxRange;
 
-    for (const t of targets) {
-      const dx = me.x - t.x;
-      const dy = me.y - t.y;
-      const dSq = dx*dx + dy*dy;
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      const dSq = this.distSq(me, t);
       
       if (dSq < minDistSq) {
         minDistSq = dSq;
@@ -14164,6 +14681,75 @@ export class Vector {
       x: v1.x + (v2.x - v1.x) * t,
       y: v1.y + (v2.y - v1.y) * t
     };
+  }
+}
+
+
+--- FILE: src/engine/match/utils/SpatialGrid.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/utils/SpatialGrid.ts
+// ==========================================
+import { Vector2 } from '../Vector';
+
+// 맵 크기 100x100 기준
+const MAP_SIZE = 100;
+// 셀 하나당 크기 (사거리와 비슷한 10~15 정도가 적당)
+const CELL_SIZE = 10;
+// 행/열 개수 (100 / 10 = 10개)
+const COLS = Math.ceil(MAP_SIZE / CELL_SIZE);
+
+export class SpatialGrid {
+  private cells: Map<number, any[]> = new Map();
+
+  constructor(units: any[]) {
+    // 생성과 동시에 그리드 구축 (O(N) - 매우 빠름)
+    this.build(units);
+  }
+
+  private build(units: any[]) {
+    this.cells.clear();
+    for (const unit of units) {
+      if (unit.currentHp <= 0) continue; // 죽은 유닛 제외
+      
+      const index = this.getCellIndex(unit.x, unit.y);
+      if (!this.cells.has(index)) {
+        this.cells.set(index, []);
+      }
+      this.cells.get(index)!.push(unit);
+    }
+  }
+
+  // 좌표를 셀 인덱스로 변환
+  private getCellIndex(x: number, y: number): number {
+    const col = Math.floor(Math.max(0, Math.min(MAP_SIZE - 1, x)) / CELL_SIZE);
+    const row = Math.floor(Math.max(0, Math.min(MAP_SIZE - 1, y)) / CELL_SIZE);
+    return row * COLS + col;
+  }
+
+  // 내 주변(자신이 속한 셀 + 인접 8개 셀)에 있는 유닛들만 반환
+  public getNearbyUnits(me: Vector2): any[] {
+    const centerIndex = this.getCellIndex(me.x, me.y);
+    const result: any[] = [];
+
+    const row = Math.floor(centerIndex / COLS);
+    const col = centerIndex % COLS;
+
+    // 인접 3x3 셀 탐색
+    for (let r = row - 1; r <= row + 1; r++) {
+      for (let c = col - 1; c <= col + 1; c++) {
+        if (r >= 0 && r < COLS && c >= 0 && c < COLS) {
+          const idx = r * COLS + c;
+          const unitsInCell = this.cells.get(idx);
+          if (unitsInCell) {
+            // for 루프가 concat보다 빠름
+            for (let i = 0; i < unitsInCell.length; i++) {
+                result.push(unitsInCell[i]);
+            }
+          }
+        }
+      }
+    }
+    return result;
   }
 }
 
@@ -14438,7 +15024,6 @@ import { BASES } from '../data/MapData';
 import { MinionSystem } from './systems/MinionSystem';
 import { JungleSystem } from './systems/JungleSystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
-// [추가] 거신병 로직 임포트
 import { ColossusLogic } from './logics/ColossusLogic';
 
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
@@ -14468,9 +15053,6 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
     if (!Array.isArray(m.logs)) m.logs = [];
 
-    if (typeof m.stats.blue.nexusHp !== 'number') m.stats.blue.nexusHp = Number(m.stats.blue.nexusHp);
-    if (typeof m.stats.red.nexusHp !== 'number') m.stats.red.nexusHp = Number(m.stats.red.nexusHp);
-
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
@@ -14497,13 +15079,9 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                const initPlayer = (p: any, isBlue: boolean) => {
                    const h = heroes.find(x => x.id === p.heroId);
                    if(h) { 
-                       p.level = 1;
-                       p.items = [];
-                       (p as any).exp = 0;
+                       p.level = 1; p.items = []; (p as any).exp = 0;
                        updateLivePlayerStats(p, h);
-                       p.currentHp = p.maxHp;
-                       p.currentMp = p.maxMp;
-                       p.respawnTimer = 0;
+                       p.currentHp = p.maxHp; p.currentMp = p.maxMp; p.respawnTimer = 0;
                        p.totalDamageDealt = 0;
                        p.x = isBlue ? BASES.BLUE.x : BASES.RED.x;
                        p.y = isBlue ? BASES.BLUE.y : BASES.RED.y;
@@ -14513,9 +15091,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                match.blueTeam.forEach(p => initPlayer(p, true));
                match.redTeam.forEach(p => initPlayer(p, false));
                
-               match.minions = [];
-               match.projectiles = [];
-               match.jungleMobs = [];
+               match.minions = []; match.projectiles = []; match.jungleMobs = [];
                break; 
            }
        }
@@ -14535,17 +15111,12 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
 
     const watcherSettings = safeField.watcher;
     processCombatPhase(
-        match, 
-        heroes, 
-        battleSettings, 
-        safeRole, 
+        match, heroes, battleSettings, safeRole, 
         watcherSettings?.buffType || 'COMBAT', 
         watcherSettings?.buffAmount || 20, 
         delta
     );
 
-    // [핵심] 미니언 업데이트 전에 거신병만 따로 업데이트
-    // 거신병은 minions 배열에 들어있지만, 별도 로직으로 처리해야 함
     if (match.minions) {
         match.minions.forEach(m => {
             if (m.type === 'SUMMONED_COLOSSUS') {
@@ -14554,14 +15125,159 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         });
     }
 
-    // 일반 미니언 업데이트 (MinionSystem 내부에서 거신병은 건너뛰도록 수정해둠)
-    MinionSystem.update(match, battleSettings, delta);
+    // [수정] heroes 파라미터 전달
+    MinionSystem.update(match, battleSettings, delta, heroes);
     
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);
 
     return match;
   });
+}
+
+
+--- FILE: src/engine/match/actions/FarmAction.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/actions/FarmAction.ts
+// ==========================================
+import { LiveMatch, Hero, LivePlayer, Minion, BattleSettings } from '../../../types';
+import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
+import { calculateUnitDamage } from '../systems/DamageCalculator'; // [수정]
+import { distributeRewards, MINION_REWARD } from '../systems/RewardSystem'; // [수정]
+
+export class FarmAction {
+  static tryFarm(
+    attacker: LivePlayer,
+    attackerHero: Hero,
+    match: LiveMatch,
+    enemies: { minions: Minion[] },
+    atkStats: any,
+    isBlue: boolean,
+    settings: BattleSettings,
+    heroes: Hero[]
+  ): boolean {
+    
+    if (!enemies.minions || enemies.minions.length === 0) return false;
+
+    // 1. 내 데미지 계산
+    const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
+
+    // 2. 처형 임계값 설정
+    let executeThreshold = myDamage * 2.5; 
+
+    if (attackerHero.role === '수호기사') {
+        if (Math.random() < 0.05) { 
+            executeThreshold = myDamage * 6.0; 
+        } else {
+            return false; 
+        }
+    }
+
+    // 3. 타겟 선정
+    const targetMinion = TargetEvaluator.selectFarmTarget(attacker, enemies.minions, executeThreshold);
+
+    if (targetMinion) {
+        if (targetMinion.hp <= executeThreshold) {
+            targetMinion.hp = 0;
+        } else {
+            targetMinion.hp -= myDamage;
+        }
+        
+        attacker.totalDamageDealt += myDamage;
+
+        if (targetMinion.hp <= 0) {
+            const reward = (MINION_REWARD as any)[targetMinion.type] || MINION_REWARD.MELEE;
+            
+            // [중요] RewardSystem 사용
+            distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
+
+            if (targetMinion.type === 'SUMMONED_COLOSSUS') {
+                match.logs.push({ 
+                    time: Math.floor(match.currentDuration), 
+                    message: `⚔️ [${attackerHero.name}]가 적의 거신병을 처치했습니다!`, 
+                    type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
+                });
+            }
+        }
+        return true; 
+    }
+
+    return false; 
+  }
+}
+
+
+--- FILE: src/engine/match/actions/HeroCombatAction.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/actions/HeroCombatAction.ts
+// ==========================================
+import { LiveMatch, Hero, LivePlayer, BattleSettings, RoleSettings } from '../../../types';
+import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
+import { calculateHeroDamage } from '../systems/DamageCalculator'; // [수정]
+import { distributeAssist } from '../systems/RewardSystem'; // [수정]
+
+export class HeroCombatAction {
+  static tryCombat(
+    attacker: LivePlayer,
+    attackerHero: Hero,
+    match: LiveMatch,
+    enemies: { heroes: LivePlayer[] },
+    atkStats: any,
+    isBlue: boolean,
+    settings: BattleSettings,
+    roleSettings: RoleSettings,
+    watcherBuffType: string,
+    heroes: Hero[]
+  ): boolean {
+    if (!enemies.heroes || enemies.heroes.length === 0) return false;
+
+    // 1. 타겟 선정
+    const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, enemies.heroes, heroes);
+    
+    if (defender) {
+        attacker.lastAttackTime = match.currentDuration;
+        attacker.lastAttackedTargetId = defender.heroId;
+
+        const defenderHero = heroes.find(h => h.id === defender.heroId);
+        if (defenderHero) {
+            // 2. 데미지 계산
+            const defArmor = (defender.level * 3) + (defenderHero.stats.armor || 30);
+            const defStats = { ...defenderHero.stats, armor: defArmor };
+
+            const damage = calculateHeroDamage(
+                attacker, defender, atkStats, defStats, attackerHero, 
+                isBlue, settings, roleSettings, watcherBuffType
+            );
+            
+            defender.currentHp -= damage;
+            attacker.totalDamageDealt += damage;
+
+            // 3. 처치 처리
+            if (defender.currentHp <= 0) {
+                attacker.kills++; 
+                defender.deaths++; 
+                attacker.gold += 300;
+                
+                // [중요] RewardSystem 사용
+                distributeAssist(match, attacker, defender, isBlue);
+
+                if (isBlue) match.score.blue++; else match.score.red++;
+                
+                match.logs.push({ 
+                    time: Math.floor(match.currentDuration), 
+                    message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, 
+                    type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
+                });
+                
+                defender.currentHp = 0;
+                defender.respawnTimer = 10 + (defender.level * 2);
+            }
+        }
+        return true; 
+    }
+
+    return false;
+  }
 }
 
 
@@ -14786,6 +15502,9 @@ export const importSaveFile = (file: File, heroes: Hero[]) => { return new Promi
 
 
 --- FILE: src/engine/CoreEngine.ts ---
+// ==========================================
+// FILE PATH: /src/engine/CoreEngine.ts
+// ==========================================
 import { GameState, Hero, Post } from '../types';
 import { updateLiveMatches } from './match/MatchUpdater';
 import { createLiveMatches } from './match/MatchCreator';
@@ -14796,12 +15515,9 @@ import { analyzeHeroMeta, calculateUserEcosystem } from './system/RankingSystem'
 import { updatePostInteractions, generatePostAsync } from './system/CommunityEngine';
 import { calculateTargetSentiment, smoothSentiment } from './system/SentimentEngine';
 
+const MAX_STEPS_PER_FRAME = 10; 
+
 export class CoreEngine {
-  /**
-   * [메인 진입점]
-   * 외부에서는 이 함수를 프레임당 1번만 호출합니다.
-   * 내부적으로 시간을 쪼개어 시뮬레이션 안정성을 확보합니다.
-   */
   static processTick(
     initialState: GameState,
     initialHeroes: Hero[],
@@ -14810,36 +15526,33 @@ export class CoreEngine {
     updateStateCallback: (updates: Partial<GameState>, newHeroes?: Hero[], newPosts?: Post[]) => void
   ) {
     try {
-      // 1. 시뮬레이션에 사용할 임시 상태 변수들 (매 루프마다 갱신됨)
       let currentState = { ...initialState };
       let currentHeroes = initialHeroes;
       let currentPosts = [...initialPosts];
       
       let remainingTime = totalDelta;
       
-      // [최적화] 배속에 따라 한 틱당 연산할 시간 간격(dt) 설정
-      // 배속이 높을수록 dt를 키워서 연산 횟수를 줄임 (정밀도와 성능의 타협)
-      let stepSize = 1.0; 
-      if (initialState.gameSpeed >= 60) stepSize = 2.0;      // 60배속: 2초 단위 연산
-      else if (initialState.gameSpeed >= 10) stepSize = 1.0; // 10배속: 1초 단위 연산
-      else stepSize = 0.5;                                   // 1~3배속: 0.5초 단위 연산 (부드러움)
+      // 배속에 따른 dt 조정
+      let stepSize = 0.5; 
+      if (initialState.gameSpeed >= 600) stepSize = 5.0;     
+      else if (initialState.gameSpeed >= 60) stepSize = 3.0; 
+      else if (initialState.gameSpeed >= 10) stepSize = 1.5; 
 
-      // 2. 내부 시뮬레이션 루프 (React 렌더링 없이 순수 JS 연산만 반복)
-      while (remainingTime > 0) {
+      let loopCount = 0;
+
+      while (remainingTime > 0 && loopCount < MAX_STEPS_PER_FRAME) {
         const dt = Math.min(remainingTime, stepSize);
         
-        // 단일 스텝 실행
         const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, dt);
         
-        // 결과 갱신
         currentState = { ...currentState, ...result.stateUpdates };
         if (result.newHeroes) currentHeroes = result.newHeroes;
         if (result.newPosts) currentPosts = result.newPosts;
 
         remainingTime -= dt;
+        loopCount++;
       }
 
-      // 3. 최종 결과만 React State에 반영 (1 Frame = 1 Render)
       updateStateCallback(currentState, currentHeroes, currentPosts);
 
     } catch (err) {
@@ -14847,9 +15560,6 @@ export class CoreEngine {
     }
   }
 
-  /**
-   * [내부 로직] 단일 시간 스텝(dt) 만큼 게임을 진행시킵니다.
-   */
   private static executeSingleStep(
     state: GameState,
     heroes: Hero[],
@@ -14858,7 +15568,7 @@ export class CoreEngine {
   ) {
     let { hour, minute, second, day, totalUsers, tierConfig, liveMatches, godStats, itemStats } = state;
 
-    // A. 시간 흐름 처리
+    // A. 시간 흐름
     second += deltaSeconds;
     if (second >= 60) {
       const extraMinutes = Math.floor(second / 60);
@@ -14879,36 +15589,34 @@ export class CoreEngine {
     const currentTotalMinutes = day * 1440 + hour * 60 + Math.floor(minute);
     const isNewMinute = Math.floor(minute) !== Math.floor(state.minute);
 
-    // 유저 풀 초기화 안전장치
     if (!userPool || userPool.length === 0) {
       if (heroes.length > 0) initUserPool(heroes, totalUsers);
       return { stateUpdates: { second, minute, hour, day }, newHeroes: heroes, newPosts: posts };
     }
 
-    // B. 유저 활동 시뮬레이션 (초당 1회 빈도로 제한하여 성능 확보)
-    if (Math.floor(second) % 2 === 0) {
+    // B. 유저 활동
+    if (Math.floor(second) % 5 === 0) {
        UserActivitySystem.updateTraffic(hour + (minute/60), userPool);
     }
 
-    // C. 매치 업데이트 (가장 무거운 로직)
-    let updatedMatches = liveMatches;
+    // C. 매치 업데이트 (분산 처리 제거 -> 매 프레임 전체 업데이트)
+    let updatedMatches = [...liveMatches];
     const nextGodStats = { ...godStats };
     const nextItemStats = { ...itemStats }; 
 
     try {
-      // 실제 매치 로직 수행
-      const updatedMatchesRaw = updateLiveMatches([...liveMatches], heroes, deltaSeconds);
+      // [수정] 모든 매치를 매 프레임 업데이트 (부드러움 확보)
+      const processedMatches = updateLiveMatches(updatedMatches, heroes, deltaSeconds);
       
-      // 로그 관리: 너무 많이 쌓이지 않게 자름
-      updatedMatches = updatedMatchesRaw.map(m => ({
+      updatedMatches = processedMatches.map(m => ({
           ...m,
-          logs: m.logs.length > 30 ? m.logs.slice(-30) : [...m.logs],
+          logs: m.logs.length > 15 ? m.logs.slice(-15) : [...m.logs],
       }));
 
-      // 종료된 매치 정산
+      // 종료 처리
       const isMatchEnded = (m: any) => (m.stats.blue.nexusHp <= 0 || m.stats.red.nexusHp <= 0);
-      const ongoingMatches = updatedMatches.filter(m => !isMatchEnded(m));
       const endedMatches = updatedMatches.filter(m => isMatchEnded(m));
+      updatedMatches = updatedMatches.filter(m => !isMatchEnded(m));
 
       endedMatches.forEach(match => {
         try {
@@ -14916,7 +15624,6 @@ export class CoreEngine {
           nextGodStats.totalMatches++;
           if (result.isBlueWin) nextGodStats.danteWins++; else nextGodStats.izmanWins++;
 
-          // 아이템 통계 갱신
           [...match.blueTeam, ...match.redTeam].forEach(p => {
               if(!p.items) return;
               p.items.forEach((item: any) => {
@@ -14933,29 +15640,23 @@ export class CoreEngine {
         }
       });
 
-      updatedMatches = ongoingMatches;
     } catch (matchError) {
       console.warn("Match Update Skipped:", matchError);
     }
 
-    // D. 매치 생성 (유저 풀 기반)
-    // 매 10초마다 체크 (부하 분산)
+    // D. 매치 생성 (최대 60개 유지)
     const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
     let finalMatches = updatedMatches;
     
-    // [최적화] 대기열 체크 빈도 조절
-    const shouldCheckQueue = (Math.floor(second) % 10 === 0);
-    const saturation = (updatedMatches.length * 10) / Math.max(1, userPool.length);
-
-    if (shouldCheckQueue && saturation < 0.9) {
+    if ((Math.floor(second) % 10 === 0) && updatedMatches.length < 60) { 
         const idleUsers = userPool.filter(u => u && u.status === 'IDLE');
         if (idleUsers.length >= 10) {
             const newMatches = createLiveMatches(heroes, onlineUsers, Date.now(), tierConfig);
-            finalMatches = [...updatedMatches, ...newMatches];
+            finalMatches = [...updatedMatches, ...newMatches.slice(0, 3)];
         }
     }
 
-    // E. 주기적 랭킹/통계 업데이트 (5분마다)
+    // E. 통계 업데이트
     let finalHeroes = heroes;
     let finalPosts = posts;
     let nextUserStatus = state.userStatus;
@@ -14967,29 +15668,16 @@ export class CoreEngine {
           try {
             finalHeroes = analyzeHeroMeta([...heroes]);
             nextUserStatus = calculateUserEcosystem(onlineUsers, userPool.length, tierConfig);
-
             userPool.sort((a, b) => (b.score || 0) - (a.score || 0));
-            userPool.forEach((u, idx) => {
-                if (u) {
-                    u.rank = idx + 1; 
-                    u.isChallenger = (u.score >= tierConfig.master && u.rank <= tierConfig.challengerRank);
-                }
-            });
-
+            userPool.forEach((u, idx) => { if(u) { u.rank = idx + 1; u.isChallenger = (u.score >= tierConfig.master && u.rank <= tierConfig.challengerRank); } });
             nextTopRankers = getTopRankers(finalHeroes, tierConfig);
             nextSentiment = smoothSentiment(nextSentiment, calculateTargetSentiment(state, finalHeroes, finalPosts));
             finalPosts = updatePostInteractions(finalPosts, currentTotalMinutes);
 
-            const isAIReady = state.aiConfig && state.aiConfig.enabled;
-            if (isAIReady && Math.random() < 0.1) {
-                generatePostAsync(Date.now(), finalHeroes, tierConfig, currentTotalMinutes, state.aiConfig, userPool, state.battleSettings, state.fieldSettings)
-                .then(aiPost => { 
-                    // 비동기 결과는 다음 틱에 반영되거나 무시됨 (구조상 한계이나 치명적이지 않음)
-                }).catch(() => {});
+            if (state.aiConfig && state.aiConfig.enabled && Math.random() < 0.1) {
+                generatePostAsync(Date.now(), finalHeroes, tierConfig, currentTotalMinutes, state.aiConfig, userPool, state.battleSettings, state.fieldSettings).then(()=>{}).catch(()=>{});
             }
-          } catch (updateError) {
-              console.warn("Periodic Update Skipped:", updateError);
-          }
+          } catch (updateError) {}
       }
     }
 
@@ -15407,28 +16095,22 @@ const initialGameState: GameState = {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     economy: { minionGold: 14, minionXp: 30 },
-    // [수정 완료] 요청하신 데미지 비율 적용
     siege: { 
         minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0,
-        
-        dmgToHero: 1.0,   // 영웅에겐 100%
-        dmgToT1: 0.01,    // 1% (거의 안 박힘)
-        dmgToT2: 0.01,    // 1%
-        dmgToT3: 0.01,    // 1%
-        dmgToNexus: 0.03, // 3%
-
-        colossusToHero: 0.3,   // 30%
-        colossusToT1: 0.4,     // 40%
-        colossusToT2: 0.2,     // 20%
-        colossusToT3: 0.1,     // 10%
-        colossusToNexus: 0.05  // 5%
+        dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1,
+        colossusToHero: 0.3, colossusToT1: 0.4, colossusToT2: 0.2, colossusToT3: 0.1, colossusToNexus: 0.05
     }
   },
+  
+  // [수정 완료] 타워는 하향, 넥서스는 원본 유지
   fieldSettings: {
     towers: {
-        t1: { hp: 10000, armor: 80, rewardGold: 300, atk: 350 },
-        t2: { hp: 15000, armor: 120, rewardGold: 450, atk: 450 },
-        t3: { hp: 20000, armor: 150, rewardGold: 600, atk: 550 },
+        // [하향] 타워: 50% 수준 (잘 부서짐)
+        t1: { hp: 5000, armor: 40, rewardGold: 300, atk: 350 },
+        t2: { hp: 7500, armor: 60, rewardGold: 450, atk: 450 },
+        t3: { hp: 10000, armor: 75, rewardGold: 600, atk: 550 },
+        
+        // [유지] 넥서스: 원본 수치 (강력함) - HP 30000, 방어 200
         nexus: { hp: 30000, armor: 200, rewardGold: 0, atk: 1000 }
     },
     colossus: { hp: 15000, armor: 80, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300 },
@@ -15462,31 +16144,28 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
         newField = { ...newField, positions: initialPositions };
     }
     
-    // [중요] 기존 세이브에 값이 없으면, 위에서 정의한 최신 siege 설정값으로 덮어씁니다.
     if (newBattle) {
         const defaultSiege = initialGameState.battleSettings.siege;
         const currentSiege = (newBattle as any).siege || {};
         newBattle.siege = { ...defaultSiege, ...currentSiege };
         
-        // 특정 키가 없는 경우 강제 업데이트 (기존 세이브 호환)
         if (newBattle.siege.dmgToT1 === undefined) {
              newBattle.siege = defaultSiege;
         }
     }
 
-    if ((newField as any).tower) {
-        const oldTower = (newField as any).tower;
-        newField = {
-            ...newField,
-            towers: {
-                t1: { ...oldTower, hp: 10000, atk: 350 },
-                t2: { ...oldTower, hp: 15000, atk: 450 },
-                t3: { ...oldTower, hp: 20000, atk: 550 },
-                nexus: { ...oldTower, hp: 30000, atk: 1000 }
-            }
-        };
-        if(!(newField.colossus as any).initialSpawnTime) (newField.colossus as any).initialSpawnTime = 300;
-        if(!(newField.watcher as any).initialSpawnTime) (newField.watcher as any).initialSpawnTime = 420;
+    // [강제 패치] 기존 세이브 로드 시에도 적용
+    if ((newField as any).towers) {
+        const t = (newField as any).towers;
+        
+        // 1. 타워는 너프 (50%)
+        if (t.t1.hp > 6000) { t.t1.hp = 5000; t.t1.armor = 40; }
+        if (t.t2.hp > 9000) { t.t2.hp = 7500; t.t2.armor = 60; }
+        if (t.t3.hp > 12000) { t.t3.hp = 10000; t.t3.armor = 75; }
+        
+        // 2. [복구] 넥서스는 다시 강력하게 복구 (이전 너프 취소)
+        // 만약 HP가 25000 이하라면(이전 실수로 낮춰진 경우) -> 30000으로 복구
+        if (t.nexus.hp < 25000) { t.nexus.hp = 30000; t.nexus.armor = 200; }
     }
 
     return { 
@@ -15707,6 +16386,9 @@ export interface UserStatus {
 
 
 --- FILE: src/types/index.ts ---
+// ==========================================
+// FILE PATH: /src/types/index.ts
+// ==========================================
 export * from './user';
 export * from './hero';
 export * from './match';
@@ -15779,10 +16461,9 @@ export interface Post { id: number; author: string; authorTier: string; title: s
 import { UserProfile, UserStatus } from './user';
 import { LiveMatch } from './match';
 
-// [중요] TeamStats 인터페이스에 laneHealth 추가
 export interface TeamStats {
   towers: { top: number; mid: number; bot: number };
-  laneHealth: { top: number; mid: number; bot: number }; // 추가됨
+  laneHealth: { top: number; mid: number; bot: number };
   colossus: number;
   watcher: number;
   fury: number;
@@ -15799,6 +16480,21 @@ export interface GameState {
   liveMatches: LiveMatch[]; 
   tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; roleSettings: RoleSettings; aiConfig: AIConfig; 
   itemStats: Record<string, ItemStatData>; customImages: Record<string, string>; 
+}
+
+// [수정] Minion 인터페이스에 targetId 추가 (기억력)
+export interface Minion {
+  id: string;
+  team: 'BLUE' | 'RED';
+  lane: 'TOP' | 'MID' | 'BOT';
+  type: 'MELEE' | 'RANGED' | 'SIEGE' | 'SUMMONED_COLOSSUS';
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  atk: number;
+  pathIdx: number;
+  targetId?: string; // 내가 때리고 있는 대상 ID
 }
 
 export interface HeroSlice { heroes: any[]; addHero: (hero: any) => void; deleteHero: (heroId: string) => void; updateHero: (id: string, updates: any) => void; resetHeroStats: () => void; }

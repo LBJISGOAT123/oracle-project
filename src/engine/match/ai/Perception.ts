@@ -5,11 +5,10 @@ import { LivePlayer, LiveMatch } from '../../../types';
 import { AIUtils } from './AIUtils';
 import { POI, getDistance } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
-import { Collision } from '../utils/Collision';
 
 export interface ThreatInfo {
   isThreatened: boolean;
-  enemyUnit: any; // LivePlayer | Minion
+  enemyUnit: any;
   distance: number;
 }
 
@@ -35,8 +34,9 @@ export class Perception {
 
     if (nearbyMinions.length > 0) return true; 
 
-    if (player.level < 10) return false;
-    const isTank = player.maxHp > 3000 && player.currentHp > player.maxHp * 0.8;
+    // 탱커나 고레벨이면 미니언 없이도 칠 수 있음
+    if (player.level >= 16) return true;
+    const isTank = player.maxHp > 3500 && player.currentHp > player.maxHp * 0.9;
     return isTank; 
   }
 
@@ -73,27 +73,35 @@ export class Perception {
     };
   }
 
+  // [수정] 귀환 판단 강화 (쫄보 로직)
   static needsRecall(player: LivePlayer): boolean {
-    const iq = Math.max(0, Math.min(100, player.stats.brain)) / 100;
-    const threshold = 0.15 + (iq * 0.25); 
-    const lowMp = player.maxMp > 0 && (player.currentMp / player.maxMp) < 0.1;
-    return AIUtils.hpPercent(player) < threshold || lowMp;
+    const hpPer = AIUtils.hpPercent(player);
+    const mpPer = AIUtils.mpPercent(player);
+    
+    // 1. 체력이 35% 미만이면 무조건 위험 (기존 15%는 너무 늦음)
+    if (hpPer < 0.35) return true;
+
+    // 2. 마나 의존도가 높은데 마나가 없으면 귀환
+    if (player.maxMp > 0 && mpPer < 0.15) return true;
+
+    // 3. 돈이 3000원 넘게 쌓였으면 템사러 감 (성장 가속)
+    if (player.gold > 3000 && hpPer < 0.8) return true;
+
+    return false;
   }
 
-  // [수정] 본진 위협 체크: 적 영웅 OR 적 거신병
   static isBaseUnderThreat(player: LivePlayer, match: LiveMatch, isBlue: boolean): ThreatInfo {
     const myBase = AIUtils.getMyBasePos(isBlue);
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const enemyMinions = match.minions || [];
     const myNexusHp = isBlue ? match.stats.blue.nexusHp : match.stats.red.nexusHp;
     
-    const emergencyMode = myNexusHp < (isBlue ? match.stats.blue.maxNexusHp : match.stats.red.maxNexusHp) * 0.3;
-    const threatRange = emergencyMode ? 40 : 25; 
+    const emergencyMode = myNexusHp < (isBlue ? match.stats.blue.maxNexusHp : match.stats.red.maxNexusHp) * 0.5;
+    const threatRange = emergencyMode ? 50 : 25; 
 
     let closestThreat: any = null;
     let minDist = 999;
 
-    // 1. 적 영웅 체크
     for (const enemy of enemies) {
       if (enemy.currentHp <= 0 || enemy.respawnTimer > 0) continue;
       const d = AIUtils.dist(myBase, {x: enemy.x, y: enemy.y});
@@ -103,7 +111,6 @@ export class Perception {
       }
     }
 
-    // 2. 적 거신병 체크 (추가)
     const enemyColossus = enemyMinions.find(m => 
         m.team !== (isBlue ? 'BLUE' : 'RED') && 
         m.type === 'SUMMONED_COLOSSUS' && 
@@ -113,7 +120,7 @@ export class Perception {
         const d = AIUtils.dist(myBase, {x: enemyColossus.x, y: enemyColossus.y});
         if (d < minDist) {
             minDist = d;
-            closestThreat = enemyColossus; // 거신병이 더 가까우면 얘를 막으러 감
+            closestThreat = enemyColossus;
         }
     }
 
@@ -140,7 +147,7 @@ export class Perception {
       for (const enemy of enemies) {
         if (enemy.currentHp > 0 && enemy.respawnTimer <= 0) {
           const dist = getDistance({x: tPos.x, y: tPos.y}, enemy);
-          if (dist < 12) {
+          if (dist < 15) {
              return { pos: tPos, enemy: enemy };
           }
         }
@@ -151,7 +158,7 @@ export class Perception {
 
   static findNearbyEnemy(player: LivePlayer, match: LiveMatch, isBlue: boolean): LivePlayer | null {
     const enemies = isBlue ? match.redTeam : match.blueTeam;
-    const sightRange = 15;
+    const sightRange = 18; // 시야 범위 약간 증가
     let target: LivePlayer | null = null;
     let minDist = 999;
 
@@ -175,17 +182,18 @@ export class Perception {
   static findAllyInTrouble(player: LivePlayer, match: LiveMatch, isBlue: boolean): LivePlayer | null {
     const allies = isBlue ? match.blueTeam : match.redTeam;
     const enemies = isBlue ? match.redTeam : match.blueTeam;
-    const sightRange = 25;
+    const sightRange = 30;
     const candidates = allies.filter(a => a !== player && a.currentHp > 0 && a.respawnTimer <= 0);
 
     for (const ally of candidates) {
       const distToAlly = AIUtils.dist(player, ally);
       if (distToAlly > sightRange) continue;
-      if (AIUtils.hpPercent(ally) < 0.5) return ally;
-      for (const enemy of enemies) {
-        if (enemy.currentHp > 0 && AIUtils.dist(ally, enemy) < 8) {
-          return ally;
-        }
+      if (AIUtils.hpPercent(ally) < 0.4) {
+          for (const enemy of enemies) {
+            if (enemy.currentHp > 0 && AIUtils.dist(ally, enemy) < 10) {
+              return ally;
+            }
+          }
       }
     }
     return null;

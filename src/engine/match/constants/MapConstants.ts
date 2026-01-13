@@ -10,6 +10,12 @@ export const BASES = {
   RED: { x: 95, y: 5 }
 };
 
+// [신규] 우물 구역 정의 (접근 시 레이저 발사)
+export const FOUNTAIN_AREAS = {
+  BLUE: { x: 0, y: 85, w: 15, h: 15 }, // 좌하단 구역
+  RED: { x: 85, y: 0, w: 15, h: 15 }   // 우상단 구역
+};
+
 export const MOVEMENT_SETTINGS = {
   SEPARATION_DIST: 2.0, 
   WAYPOINT_TOLERANCE: 3.0, 
@@ -17,25 +23,25 @@ export const MOVEMENT_SETTINGS = {
   MAX_FORCE: 0.5, 
 };
 
-// [이동] 웨이포인트 경로 (타워 위치 변경에 따라 미세 조정)
+// [이동] 웨이포인트 경로
 export const WAYPOINTS: Record<string, Vector2[]> = {
   TOP: [
     { x: 5, y: 95 }, { x: 5, y: 50 }, { x: 5, y: 20 }, { x: 10, y: 10 },
-    { x: 35, y: 8 }, { x: 60, y: 10 }, { x: 95, y: 5 } // 레드 탑 1/2차 타워 경유
+    { x: 35, y: 8 }, { x: 60, y: 10 }, { x: 95, y: 5 }
   ],
   MID: [
     { x: 5, y: 95 }, { x: 25, y: 75 }, { x: 50, y: 50 }, { x: 75, y: 25 }, { x: 95, y: 5 }
   ],
   BOT: [
     { x: 5, y: 95 }, { x: 50, y: 95 }, { x: 80, y: 95 }, { x: 90, y: 90 },
-    { x: 92, y: 70 }, { x: 92, y: 45 }, { x: 95, y: 5 } // 레드 봇 1/2차 타워 경유
+    { x: 92, y: 70 }, { x: 92, y: 45 }, { x: 95, y: 5 }
   ],
   JUNGLE: [ 
     { x: 20, y: 70 }, { x: 35, y: 65 }, { x: 45, y: 55 }, { x: 55, y: 45 }, { x: 65, y: 35 }, { x: 80, y: 30 }  
   ]
 };
 
-// [중요] Engine 내에서도 동일한 타워 좌표 사용
+// 타워 좌표
 export const TOWER_COORDS = {
   BLUE: {
     TOP: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}],

@@ -35,11 +35,12 @@ export const processGrowthPhase = (
         p.currentHp = Math.min(p.maxHp, p.currentHp + (hpRegen * dt));
     }
 
-    // 2. [정상화] 자연 골드/경험치 (현실적 수치)
-    // 분당 180골드 (초당 3)
+    // 2. 자연 골드/경험치
     p.gold += (3.0 * dt);
-    // 자연 경험치는 아주 조금만 (라인 서있으면 먹는건 CombatPhase 등에서 처리)
-    (p as any).exp = ((p as any).exp || 0) + (2.0 * dt);
+    
+    // [수정] 자연 경험치 2배 상향 (2.0 -> 4.0)
+    // 킬이 많이 나와서 라인 경험치를 못 먹는 상황을 보정합니다.
+    (p as any).exp = ((p as any).exp || 0) + (4.0 * dt);
 
     // 3. 레벨업 처리
     let reqExp = getRequiredExpForLevel(p.level);
@@ -66,7 +67,7 @@ export const processGrowthPhase = (
         reqExp = getRequiredExpForLevel(p.level);
     }
 
-    // 4. 비상 귀환
+    // 4. 비상 귀환 (유지)
     const isLowHp = p.currentHp < p.maxHp * 0.2; 
     const isLowMp = p.currentMp < p.maxMp * 0.1; 
     const hasLotsOfGold = p.gold > 2000; 
