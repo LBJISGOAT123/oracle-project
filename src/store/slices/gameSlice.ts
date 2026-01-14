@@ -22,27 +22,16 @@ const savedAI = loadSavedAIConfig();
 const initialPositions = {
   colossus: { x: 25, y: 28 }, 
   watcher: { x: 78, y: 72 },  
-  jungle: [
-    { x: 15, y: 42 }, 
-    { x: 50, y: 82 }, 
-    { x: 58, y: 22 }, 
-    { x: 82, y: 55 }  
-  ],
+  jungle: [ { x: 15, y: 42 }, { x: 50, y: 82 }, { x: 58, y: 22 }, { x: 82, y: 55 } ],
   towers: {
-    blue: {
-        top: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}], 
-        mid: [{x: 40, y: 60}, {x: 30, y: 70}, {x: 22, y: 78}],
-        bot: [{x: 75, y: 92}, {x: 50, y: 90}, {x: 25, y: 88}],
-        nexus: { x: 12, y: 88 }
-    },
-    red: {
-        top: [{x: 45, y: 10}, {x: 65, y: 12}, {x: 80, y: 15}],
-        mid: [{x: 60, y: 40}, {x: 70, y: 30}, {x: 78, y: 22}],
-        bot: [{x: 92, y: 65}, {x: 92, y: 45}, {x: 88, y: 25}],
-        nexus: { x: 88, y: 12 }
-    }
+    blue: { top: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}], mid: [{x: 40, y: 60}, {x: 30, y: 70}, {x: 22, y: 78}], bot: [{x: 75, y: 92}, {x: 50, y: 90}, {x: 25, y: 88}], nexus: { x: 12, y: 88 } },
+    red: { top: [{x: 45, y: 10}, {x: 65, y: 12}, {x: 80, y: 15}], mid: [{x: 60, y: 40}, {x: 70, y: 30}, {x: 78, y: 22}], bot: [{x: 92, y: 65}, {x: 92, y: 45}, {x: 88, y: 25}], nexus: { x: 88, y: 12 } }
   }
 };
+
+// [최적화] 화면 갱신 주기 제어 변수
+let lastUpdateTimestamp = 0;
+const UI_REFRESH_RATE = 33; // 약 30FPS 제한
 
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
@@ -53,45 +42,22 @@ const initialGameState: GameState = {
   godStats: { totalMatches: 0, izmanWins: 0, izmanAvgKills: '0.0', izmanAvgTime: '00:00', danteWins: 0, danteAvgKills: '0.0', danteAvgTime: '00:00', avgGameDuration: 0, guardianDeathRate: 0, godAwakenRate: 0 },
   itemStats: {},
   liveMatches: [],
-  tierConfig: { 
-    challengerRank: 200, 
-    master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300,
-    promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 }
-  },
+  tierConfig: { challengerRank: 200, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 } },
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
-    economy: { minionGold: 14, minionXp: 30 },
-    siege: { 
-        minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0,
-        dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1,
-        colossusToHero: 0.3, colossusToT1: 0.4, colossusToT2: 0.2, colossusToT3: 0.1, colossusToNexus: 0.05
-    }
+    economy: { minionGold: 14, minionXp: 30, killGold: 300, goldPerLevel: 20, bountyIncrement: 100, assistPool: 50, killXpBase: 40, killXpPerLevel: 20 },
+    siege: { minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1, colossusToHero: 0.3, colossusToT1: 0.4, colossusToT2: 0.2, colossusToT3: 0.1, colossusToNexus: 0.05 }
   },
-  
-  // [수정 완료] 타워는 하향, 넥서스는 원본 유지
   fieldSettings: {
-    towers: {
-        // [하향] 타워: 50% 수준 (잘 부서짐)
-        t1: { hp: 5000, armor: 40, rewardGold: 300, atk: 350 },
-        t2: { hp: 7500, armor: 60, rewardGold: 450, atk: 450 },
-        t3: { hp: 10000, armor: 75, rewardGold: 600, atk: 550 },
-        
-        // [유지] 넥서스: 원본 수치 (강력함) - HP 30000, 방어 200
-        nexus: { hp: 30000, armor: 200, rewardGold: 0, atk: 1000 }
-    },
-    colossus: { hp: 15000, armor: 80, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300 },
+    towers: { t1: { hp: 5000, armor: 40, rewardGold: 300, atk: 350 }, t2: { hp: 7500, armor: 60, rewardGold: 450, atk: 450 }, t3: { hp: 10000, armor: 75, rewardGold: 600, atk: 550 }, nexus: { hp: 30000, armor: 60, rewardGold: 0, atk: 1000 } },
+    colossus: { hp: 15000, armor: 100, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300, dmgFromHero: 100, dmgFromMinion: 5, dmgFromTower: 30 },
     watcher: { hp: 20000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, initialSpawnTime: 420, respawnTime: 420 },
     jungle: { density: 50, yield: 50, attack: 30, defense: 20, threat: 0, xp: 160, gold: 80, initialSpawnTime: 90, respawnTime: 90 },
     positions: initialPositions
   },
-  roleSettings: {
-    executor: { damage: 10, defense: 10 },
-    tracker: { gold: 20, smiteChance: 1.5 },
-    prophet: { cdrPerLevel: 2 },
-    slayer: { structureDamage: 30 },
-    guardian: { survivalRate: 20 }
-  },
+  roleSettings: { executor: { damage: 10, defense: 10 }, tracker: { gold: 20, smiteChance: 1.5 }, prophet: { cdrPerLevel: 2 }, slayer: { structureDamage: 30 }, guardian: { survivalRate: 20 } },
+  growthSettings: { hp: { early: 3, mid: 5, late: 7 }, ad: { early: 5, mid: 10, late: 15 }, ap: { early: 5, mid: 10, late: 15 }, armor: { early: 2, mid: 3, late: 4 }, baseAtk: { early: 2, mid: 3, late: 4 }, regen: { early: 1, mid: 2, late: 3 }, respawnPerLevel: 3.0, recallTime: 10.0 },
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
   customImages: INITIAL_CUSTOM_IMAGES 
 };
@@ -102,43 +68,7 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
   setSpeed: (s) => set((state) => ({ gameState: { ...state.gameState, gameSpeed: s } })),
   togglePlay: () => set((state) => ({ gameState: { ...state.gameState, isPlaying: !state.gameState.isPlaying } })),
   
-  setGameState: (updates) => set((state) => {
-    const newImages = updates.customImages || state.gameState.customImages;
-    let newField = updates.fieldSettings || state.gameState.fieldSettings;
-    let newBattle = updates.battleSettings || state.gameState.battleSettings;
-
-    if (newField && !newField.positions) {
-        newField = { ...newField, positions: initialPositions };
-    }
-    
-    if (newBattle) {
-        const defaultSiege = initialGameState.battleSettings.siege;
-        const currentSiege = (newBattle as any).siege || {};
-        newBattle.siege = { ...defaultSiege, ...currentSiege };
-        
-        if (newBattle.siege.dmgToT1 === undefined) {
-             newBattle.siege = defaultSiege;
-        }
-    }
-
-    // [강제 패치] 기존 세이브 로드 시에도 적용
-    if ((newField as any).towers) {
-        const t = (newField as any).towers;
-        
-        // 1. 타워는 너프 (50%)
-        if (t.t1.hp > 6000) { t.t1.hp = 5000; t.t1.armor = 40; }
-        if (t.t2.hp > 9000) { t.t2.hp = 7500; t.t2.armor = 60; }
-        if (t.t3.hp > 12000) { t.t3.hp = 10000; t.t3.armor = 75; }
-        
-        // 2. [복구] 넥서스는 다시 강력하게 복구 (이전 너프 취소)
-        // 만약 HP가 25000 이하라면(이전 실수로 낮춰진 경우) -> 30000으로 복구
-        if (t.nexus.hp < 25000) { t.nexus.hp = 30000; t.nexus.armor = 200; }
-    }
-
-    return { 
-        gameState: { ...state.gameState, ...updates, fieldSettings: newField, battleSettings: newBattle, customImages: newImages } 
-    };
-  }),
+  setGameState: (updates) => set((state) => ({ gameState: { ...state.gameState, ...updates } })),
 
   tick: (deltaSeconds: number) => {
     const state = get();
@@ -150,11 +80,23 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
       state.communityPosts,
       deltaSeconds,
       (updates, newHeroes, newPosts) => {
-        set((current) => ({
-          gameState: { ...current.gameState, ...updates },
-          heroes: newHeroes || current.heroes,
-          communityPosts: newPosts || current.communityPosts
-        }));
+        const now = Date.now();
+        
+        // [수정] 렌더링 쓰로틀링 (Throttling) 적용
+        // 33ms(30FPS)가 지나지 않았으면 화면 갱신을 건너뜀
+        // 단, 게임 속도가 5배속 미만으로 느릴 땐 부드러움을 위해 매번 갱신
+        if (now - lastUpdateTimestamp >= UI_REFRESH_RATE || state.gameState.gameSpeed < 5) {
+            set((current) => ({
+              gameState: { ...current.gameState, ...updates },
+              heroes: newHeroes || current.heroes,
+              communityPosts: newPosts || current.communityPosts
+            }));
+            lastUpdateTimestamp = now;
+        } else {
+            // [중요] 여기서는 set을 호출하지 않고 넘어감 (상태 업데이트 생략)
+            // 다음 프레임에서 누적된 결과가 한 번에 반영됨
+            // Replit 환경 등에서 충돌을 방지하기 위함
+        }
       }
     );
   },

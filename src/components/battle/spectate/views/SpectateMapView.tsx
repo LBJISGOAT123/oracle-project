@@ -9,6 +9,7 @@ import { MinionRender } from '../map/objects/MinionRender';
 import { JungleRender } from '../map/objects/JungleRender';
 import { ProjectileRender } from '../map/objects/ProjectileRender';
 import { LiveMatch } from '../../../../../types';
+import { ObjectStatBox, NeutralObjPanel } from '../SpectateUI'; // UI 컴포넌트 재사용
 
 interface Props {
   match: LiveMatch;
@@ -28,19 +29,16 @@ export const SpectateMapView: React.FC<Props> = ({
 
   useEffect(() => {
     const animate = () => {
-      // 영웅 이동 보간
       const allPlayers = [...match.blueTeam, ...match.redTeam];
       allPlayers.forEach(p => {
         updateElementPos(`unit-${p.heroId}`, p.x, p.y, 'HERO'); 
       });
 
-      // 미니언 이동 보간
       if (match.minions) {
         match.minions.forEach(m => {
           updateElementPos(`minion-${m.id}`, m.x, m.y, 'MINION');
         });
       }
-
       requestRef.current = requestAnimationFrame(animate);
     };
 
@@ -81,7 +79,6 @@ export const SpectateMapView: React.FC<Props> = ({
     return () => { if(requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [match]); 
 
-  // 모바일 탭 제어 (리스트 보기일 땐 숨김)
   if (isMobile && mobileTab !== 'MAP') return null;
 
   return (
@@ -89,40 +86,32 @@ export const SpectateMapView: React.FC<Props> = ({
         width: '100%',
         height: '100%',
         display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
+        flexDirection: 'column', // 세로 배치로 변경
         background: '#050505',
-        overflow: 'hidden',
-        position: 'relative'
+        overflowY: 'auto', // 전체 스크롤 허용
+        overflowX: 'hidden'
     }}>
-      {/* 
-         [크기 고정 래퍼]
-         모바일 세로: 가로 100% 채움
-         PC/가로모드: 높이 100% 채우고 가로 비율 맞춤
-      */}
+      
+      {/* 1. 맵 영역 */}
       <div style={{
-          position: 'relative',
           width: '100%',
-          maxWidth: '100vh', // 가로가 너무 길어지는 것 방지 (정사각형 유지)
-          aspectRatio: '1/1', // 최신 브라우저 지원
-          margin: '0 auto'
+          maxWidth: '100vh', 
+          aspectRatio: '1/1', 
+          margin: '0 auto',
+          position: 'relative',
+          flexShrink: 0 // 스크롤 시 맵 크기 유지
       }}>
-        {/* [호환성 래퍼] aspectRatio 미지원 브라우저 대비 및 레이아웃 강제 */}
         <div style={{
             width: '100%',
-            paddingBottom: '100%', // 1:1 비율 강제 (Width 기준 Height 설정)
+            paddingBottom: '100%',
             position: 'relative',
             background: '#161b22',
-            border: '1px solid #333',
-            boxShadow: '0 0 50px rgba(0,0,0,0.5)',
-            overflow: 'hidden' // 맵 밖으로 나가는 유닛 숨김
+            borderBottom: '1px solid #333',
+            overflow: 'hidden' 
         }}>
-            {/* 실제 맵 컨텐츠 (Absolute로 꽉 채움) */}
             <div style={{ position: 'absolute', inset: 0 }}>
                 <SpectateMap />
-                
                 <JungleRender mobs={match.jungleMobs} />
-
                 {['TOP', 'MID', 'BOT'].map(lane => (
                 [1, 2, 3].map(tier => (
                     <React.Fragment key={`${lane}-${tier}`}>
@@ -133,26 +122,37 @@ export const SpectateMapView: React.FC<Props> = ({
                 ))}
                 <NexusRender side="BLUE" stats={match.stats} />
                 <NexusRender side="RED" stats={match.stats} />
-                
                 <MonsterRender type="colossus" objectives={match.objectives} />
                 <MonsterRender type="watcher" objectives={match.objectives} />
-
                 <MinionRender minions={match.minions} />
-
                 {[...match.blueTeam, ...match.redTeam].map(p => (
                 <UnitRender 
                     key={p.heroId} 
                     player={p} 
                     isBlue={match.blueTeam.includes(p)} 
                     isSelected={selectedHeroId === p.heroId} 
-                    onClick={() => { onSelectHero(p.heroId); if(isMobile) setMobileTab('LIST'); }} 
+                    onClick={() => onSelectHero(p.heroId)} 
                 />
                 ))}
-
                 <ProjectileRender projectiles={match.projectiles} />
             </div>
         </div>
       </div>
+
+      {/* 2. 하단 정보 패널 (스크롤로 보임) */}
+      <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#121212' }}>
+        <div style={{ display: 'flex', gap: '6px' }}>
+            <ObjectStatBox stats={match.stats.blue} color="#58a6ff" side="BLUE" godName="단테" />
+            <ObjectStatBox stats={match.stats.red} color="#e84057" side="RED" godName="이즈마한" />
+        </div>
+        <NeutralObjPanel colossus={match.objectives?.colossus} watcher={match.objectives?.watcher} />
+        
+        {/* 안내 문구 */}
+        <div style={{ textAlign:'center', color:'#555', fontSize:'11px', marginTop:'10px' }}>
+            영웅 아이콘을 클릭하면 상세 정보를 볼 수 있습니다.
+        </div>
+      </div>
+
     </div>
   );
 };

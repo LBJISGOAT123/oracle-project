@@ -20,10 +20,10 @@ export const calculateHeroDamage = (
     const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
     const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
 
-    // 2. 크리티컬
+    // 2. 크리티컬 (1.85배로 소폭 상향)
     const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
     let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
-    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
+    let rawDmg = totalAD * (isCrit ? 1.85 : 1.0);
 
     // 3. 방어력
     const defGod = isBlue ? settings.izman : settings.dante; 
@@ -44,12 +44,11 @@ export const calculateHeroDamage = (
 
     if (buffType === 'COMBAT') result *= 1.1; 
 
-    // [핵심 수정] 과잉 킬 방지를 위해 영웅 간 데미지 30% 감소
-    // 전투가 길어지게 하여 도망칠 기회를 줌
-    return Math.floor(result * 0.7);
+    // [핵심 수정] 데미지 계수 0.85로 상향 (기존 0.7)
+    return Math.floor(result * 0.85);
 };
 
-// [영웅 -> 미니언] 데미지 계산 (너프 없음)
+// [영웅 -> 미니언] 데미지 계산
 export const calculateUnitDamage = (
     attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: BattleSettings
 ) => {

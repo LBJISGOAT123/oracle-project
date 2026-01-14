@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/engine/match/MatchCreator.ts
+// ==========================================
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
 import { userPool, getTierNameHelper } from '../system/UserManager';
 import { useGameStore } from '../../store/useGameStore';
@@ -16,8 +19,7 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
   const blueBase = positions.towers.blue.nexus;
   const redBase = positions.towers.red.nexus;
   
-  // 1차 타워 체력 및 넥서스 체력 로드
-  const t1Hp = state.fieldSettings.towers?.t1?.hp || 10000;
+  const t1Hp = state.fieldSettings.towers?.t1?.hp || 5000;
   const nexusHp = state.fieldSettings.towers?.nexus?.hp || 30000;
 
   for (let i = 0; i < matchesToMake; i++) {
@@ -35,7 +37,10 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
         level: 1, items: [], 
         x: base.x, y: base.y, 
         lane: lane, buffs: [], mmr: user.hiddenMmr, respawnTimer: 0,
-        stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 }
+        stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 },
+        // [신규] 현상금 시스템 초기화
+        killStreak: 0,
+        bounty: 0
       };
     };
 
@@ -59,7 +64,6 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       startTime: currentTime, duration: 3600, currentDuration: 0, 
       score: { blue: 0, red: 0 }, 
       stats: {
-        // [중요] laneHealth 초기값 설정
         blue: { 
             towers: {top:0,mid:0,bot:0}, laneHealth: {top:t1Hp, mid:t1Hp, bot:t1Hp},
             colossus: 0, watcher: 0, fury: 0, nexusHp: nexusHp, maxNexusHp: nexusHp, activeBuffs: { siegeUnit: false, voidPower: false } 

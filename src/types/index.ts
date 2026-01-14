@@ -19,7 +19,16 @@ export interface Item {
 export interface ItemStatData { itemId: string; totalPicks: number; totalWins: number; totalKills: number; totalDeaths: number; totalAssists: number; }
 
 export interface ObjectStats { hp: number; armor: number; rewardGold: number; atk?: number; }
-export interface ColossusSettings extends ObjectStats { attack: number; initialSpawnTime: number; respawnTime: number; }
+
+export interface ColossusSettings extends ObjectStats { 
+  attack: number; 
+  initialSpawnTime: number; 
+  respawnTime: number;
+  dmgFromHero: number;   
+  dmgFromMinion: number; 
+  dmgFromTower: number;  
+}
+
 export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; initialSpawnTime: number; respawnTime: number; }
 export interface JungleSettings { density: number; threat: number; yield: number; attack: number; defense: number; xp: number; gold: number; initialSpawnTime: number; respawnTime: number; }
 
@@ -50,12 +59,42 @@ export interface GodSettings {
   minions: { melee: MinionStats; ranged: MinionStats; siege: MinionStats; };
   servantGold: number; servantXp: number; 
 }
-export interface EconomySettings { minionGold: number; minionXp: number; }
+
+// [수정] 경제 설정 확장 (현상금 시스템)
+export interface EconomySettings { 
+  minionGold: number; 
+  minionXp: number;
+  
+  killGold: number;       // 기본 킬 골드
+  goldPerLevel: number;   // [신규] 적 레벨당 추가 골드
+  bountyIncrement: number;// [신규] 연속 킬당 현상금 증가량
+  
+  assistPool: number;     
+  killXpBase: number;     
+  killXpPerLevel: number; 
+}
 
 export interface SiegeSettings {
   minionDmg: number; cannonDmg: number; superDmg: number;
   dmgToHero: number; dmgToT1: number; dmgToT2: number; dmgToT3: number; dmgToNexus: number;
   colossusToHero: number; colossusToT1: number; colossusToT2: number; colossusToT3: number; colossusToNexus: number;
+}
+
+export interface GrowthIntervals {
+  early: number; 
+  mid: number;   
+  late: number;  
+}
+
+export interface GrowthSettings {
+  hp: GrowthIntervals;
+  ad: GrowthIntervals;
+  ap: GrowthIntervals;
+  armor: GrowthIntervals;
+  baseAtk: GrowthIntervals;
+  regen: GrowthIntervals;
+  respawnPerLevel: number; 
+  recallTime: number;      
 }
 
 export interface BattleSettings { 
@@ -71,18 +110,7 @@ export interface Comment { id: number; author: string; authorTier: string; conte
 export interface Post { id: number; author: string; authorTier: string; title: string; content: string; category: '공략' | '유머' | '징징' | '분석' | '잡담' | '질문' | '자랑' | '공지'; views: number; upvotes: number; downvotes: number; comments: number; commentList: Comment[]; createdAt: number; potential: number; isBest: boolean; displayTime: string; }
 
 import { UserProfile, UserStatus } from './user';
-import { LiveMatch } from './match';
-
-export interface TeamStats {
-  towers: { top: number; mid: number; bot: number };
-  laneHealth: { top: number; mid: number; bot: number };
-  colossus: number;
-  watcher: number;
-  fury: number;
-  nexusHp: number;
-  maxNexusHp: number;
-  activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
-}
+import { LiveMatch, LivePlayer } from './match';
 
 export interface GameState { 
   season: number; day: number; hour: number; minute: number; second: number; 
@@ -90,11 +118,12 @@ export interface GameState {
   ccu: number; totalUsers: number; 
   userStatus: UserStatus; topRankers: UserProfile[]; godStats: GodStats; 
   liveMatches: LiveMatch[]; 
-  tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; roleSettings: RoleSettings; aiConfig: AIConfig; 
+  tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; 
+  roleSettings: RoleSettings; growthSettings: GrowthSettings; 
+  aiConfig: AIConfig; 
   itemStats: Record<string, ItemStatData>; customImages: Record<string, string>; 
 }
 
-// [수정] Minion 인터페이스에 targetId 추가 (기억력)
 export interface Minion {
   id: string;
   team: 'BLUE' | 'RED';
@@ -106,7 +135,8 @@ export interface Minion {
   maxHp: number;
   atk: number;
   pathIdx: number;
-  targetId?: string; // 내가 때리고 있는 대상 ID
+  targetId?: string; 
+  armor?: number; 
 }
 
 export interface HeroSlice { heroes: any[]; addHero: (hero: any) => void; deleteHero: (heroId: string) => void; updateHero: (id: string, updates: any) => void; resetHeroStats: () => void; }
@@ -118,6 +148,7 @@ export interface SettingSlice {
   updateTierConfig: (config: TierConfig) => void; 
   updateAIConfig: (config: Partial<AIConfig>) => void; 
   updateRoleSettings: (settings: Partial<RoleSettings>) => void; 
+  updateGrowthSettings: (settings: Partial<GrowthSettings>) => void; 
   setCustomImage: (id: string, imageData: string) => void; 
   removeCustomImage: (id: string) => void; 
   loadModData: (modData: any) => void; 

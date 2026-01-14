@@ -16,6 +16,9 @@ const getTowerPos = (lane: string, tier: number, isBlueSide: boolean) => {
   return coords.NEXUS;
 };
 
+const LOGIC_TOWER_RANGE = 12; 
+const LOGIC_NEXUS_RANGE = 15;
+
 export const processSiegePhase = (
   match: LiveMatch, 
   heroes: Hero[], 
@@ -24,6 +27,7 @@ export const processSiegePhase = (
   battleSettings: BattleSettings, 
   dt: number
 ) => {
+  // 1. [공격] 챔피언 -> 타워
   const allPlayers = [...match.blueTeam, ...match.redTeam];
   
   allPlayers.forEach(p => {
@@ -36,12 +40,6 @@ export const processSiegePhase = (
     const hero = heroes.find(h => h.id === p.heroId);
     if (!hero) return;
 
-    // [수정] 공격 속도 시뮬레이션 적용
-    // 매 프레임 dt를 곱하는 대신, 확률적으로 '평타 한 방'을 때리게 변경하여 데미지 증발 방지
-    // speed 300 기준 초당 약 1.2회 공격
-    if (Math.random() > dt * (hero.stats.speed / 250)) return;
-
-    // 타워 공격
     if (p.lane !== 'JUNGLE') {
         const laneKey = p.lane.toLowerCase();
         const brokenCount = (enemyStats.towers as any)[laneKey];
@@ -51,16 +49,13 @@ export const processSiegePhase = (
             const towerPos = getTowerPos(p.lane, targetTier, !isBlue);
             const dist = getDistance(p, towerPos);
 
-            if (dist <= 10) {
+            if (dist <= (hero.stats.range / 100) + 2) {
                 const tStats = (fieldSettings.towers as any)[`t${targetTier}`];
                 const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
-                
                 const myStats = isBlue ? match.stats.blue : match.stats.red;
                 const buffFactor = myStats.activeBuffs.siegeUnit ? 1.5 : 1.0;
-
-                // [핵심] dt를 곱하지 않음 -> 영웅의 강력한 한 방이 그대로 들어감
                 const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-                const realDmg = calcMitigatedDamage(rawDmg, tStats.armor);
+                const realDmg = calcMitigatedDamage(rawDmg, tStats.armor) * dt;
                 
                 if (!(enemyStats as any).laneHealth) {
                     (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
@@ -95,58 +90,55 @@ export const processSiegePhase = (
             const nStats = fieldSettings.towers.nexus;
             const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
             const buffFactor = (isBlue ? match.stats.blue : match.stats.red).activeBuffs.siegeUnit ? 2.5 : 1.0;
-            
             const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-            const realDmg = calcMitigatedDamage(rawDmg, nStats.armor);
-
+            const realDmg = calcMitigatedDamage(rawDmg, nStats.armor) * dt;
             enemyStats.nexusHp -= realDmg;
         }
     }
   });
 
-  // [기존 로직 유지] 구조물 방어 (타워가 적을 공격)
+  // 2. [방어] 타워 -> 적
   const lanes = ['TOP', 'MID', 'BOT'];
   const teams = ['BLUE', 'RED'] as const;
 
   teams.forEach(defendingTeam => {
       const isBlueDef = defendingTeam === 'BLUE';
       const myStats = isBlueDef ? match.stats.blue : match.stats.red;
-      
       const allies = isBlueDef ? match.blueTeam : match.redTeam; 
       const enemies = {
           heroes: isBlueDef ? match.redTeam : match.blueTeam,
           minions: (match.minions || []).filter(m => m.team !== defendingTeam)
       };
 
-      // A. 레인 타워
+      // 레인 타워
       lanes.forEach(lane => {
           const laneKey = lane.toLowerCase();
           const brokenCount = (myStats.towers as any)[laneKey];
           
-          if (brokenCount < 3) {
-              const currentTier = brokenCount + 1;
-              const towerPos = getTowerPos(lane, currentTier, isBlueDef);
-              const towerStats = (fieldSettings.towers as any)[`t${currentTier}`];
+          [1, 2, 3].forEach(tier => {
+              if (tier > brokenCount) { 
+                  const towerPos = getTowerPos(lane, tier, isBlueDef);
+                  const towerStats = (fieldSettings.towers as any)[`t${tier}`];
 
-              const target = TowerLogic.selectTarget(towerPos, enemies, allies, 12, match.currentDuration);
-              if (target) {
-                  const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, towerPos) <= 12);
-                  TowerLogic.applyDamage(target, towerStats, dt, false, hasMinions);
+                  const target = TowerLogic.selectTarget(towerPos, enemies, allies, LOGIC_TOWER_RANGE, match.currentDuration);
+                  if (target) {
+                      const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, towerPos) <= LOGIC_TOWER_RANGE);
+                      // [수정] match, defendingTeam 인자 추가
+                      TowerLogic.applyDamage(match, target, towerStats, dt, false, hasMinions, defendingTeam);
+                  }
               }
-          }
+          });
       });
 
-      // B. 넥서스 타워
-      const inhibitorsDown = myStats.towers.top >= 3 || myStats.towers.mid >= 3 || myStats.towers.bot >= 3;
-      if (inhibitorsDown) {
-          const nexusPos = isBlueDef ? BASES.BLUE : BASES.RED;
-          const nexusStats = fieldSettings.towers.nexus;
-          
-          const target = TowerLogic.selectTarget(nexusPos, enemies, allies, 15, match.currentDuration);
-          if (target) {
-              const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, nexusPos) <= 15);
-              TowerLogic.applyDamage(target, nexusStats, dt, true, hasMinions);
-          }
+      // 넥서스 타워
+      const nexusPos = isBlueDef ? BASES.BLUE : BASES.RED;
+      const nexusStats = fieldSettings.towers.nexus;
+      
+      const target = TowerLogic.selectTarget(nexusPos, enemies, allies, LOGIC_NEXUS_RANGE, match.currentDuration);
+      if (target) {
+          const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, nexusPos) <= LOGIC_NEXUS_RANGE);
+          // [수정] match, defendingTeam 인자 추가
+          TowerLogic.applyDamage(match, target, nexusStats, dt, true, hasMinions, defendingTeam);
       }
   });
 };

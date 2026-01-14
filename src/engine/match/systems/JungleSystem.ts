@@ -42,8 +42,6 @@ export class JungleSystem {
              killer.gold += Math.floor(((mob as any).rewardGold || 50) * bonus);
              (killer as any).exp = ((killer as any).exp || 0) + Math.floor(((mob as any).rewardXp || 80) * bonus);
              
-             // [수정] 정글 CS 지급 (대형몹은 4점, 소형은 1점) - 실제 롤 방식
-             // isBuffMob(레드/블루/두꺼비 등)은 4점, 나머지는 1점
              killer.cs += (mob as any).isBuffMob ? 4 : 1;
              
              if ((mob as any).isBuffMob && (mob as any).buffs) {
@@ -53,7 +51,6 @@ export class JungleSystem {
                     if(!killer.buffs) killer.buffs = [];
                     killer.buffs.push(`${b.type}:${b.value}`);
                 });
-                // 정글몹 처치 로그는 너무 자주 뜨면 시끄러우므로 중요 버프몹만
                 if (Math.random() < 0.3) {
                     match.logs.push({
                         time: Math.floor(match.currentDuration),
@@ -74,31 +71,23 @@ export class JungleSystem {
     const state = useGameStore.getState().gameState;
     const settings = state.fieldSettings.jungle as any;
     const camps = settings?.camps || DEFAULT_JUNGLE_CONFIG.camps;
-    const positions = state.fieldSettings.positions;
     
-    const CAMP_POSITIONS: Record<JungleCampType, {x:number, y:number}> = {
-        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, 
-        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, 
-        TOP_RED:  positions.jungle[2] || { x: 58, y: 22 },
-        BOT_RED:  positions.jungle[3] || { x: 82, y: 55 }
-    };
-
     const mobs: JungleMob[] = [];
 
     (Object.keys(camps) as JungleCampType[]).forEach(campKey => {
         const campConfig = camps[campKey];
-        const basePos = CAMP_POSITIONS[campKey];
 
         campConfig.monsters.forEach((m: any, idx: number) => {
-            const worldX = basePos.x + (m.x - 50) * 0.12; 
-            const worldY = basePos.y + (m.y - 50) * 0.12;
-
+            // [핵심 수정] 좌표 왜곡 로직 삭제 (basePos + offset... 제거)
+            // 에디터에서 설정한 좌표(m.x, m.y)가 곧 월드 좌표(0~100)입니다.
+            // 그대로 대입하면 위치가 정확히 일치합니다.
+            
             mobs.push({
                 id: `j_${campKey}_${m.spotId}`,
                 campId: idx,
                 type: m.stats.isBuffMob ? 'GOLEM' : 'WOLF',
-                x: worldX,
-                y: worldY,
+                x: m.x, // 있는 그대로 사용
+                y: m.y, // 있는 그대로 사용
                 hp: m.stats.hp,
                 maxHp: m.stats.hp,
                 atk: m.stats.atk,

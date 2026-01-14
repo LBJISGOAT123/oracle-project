@@ -4,7 +4,7 @@
 import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
 import { WAYPOINTS, TOWER_COORDS } from '../constants/MapConstants';
 import { Collision } from '../utils/Collision';
-import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
+import { SpatialGrid } from '../utils/SpatialGrid';
 import { 
     distributeRewards, 
     calcMitigatedDamage, 
@@ -15,7 +15,6 @@ const MINION_SPEED = 15;
 
 export class MinionLogic {
 
-  // [수정] cachedEnemies -> enemyGrids (SpatialGrid 객체)
   static processSingleMinion(
       m: Minion, 
       match: LiveMatch, 
@@ -29,7 +28,7 @@ export class MinionLogic {
 
     // 타겟이 있으면 이동 멈춤 (Sticky Target)
     if (m.targetId) {
-       // ... (기존 타겟 유효성 검사 로직이 필요하지만, 성능상 생략하고 공격 시도에서 체크)
+       // 타겟 유효성 검사는 attackTarget 내부에서 수행
     }
 
     const isBlue = m.team === 'BLUE';
@@ -78,6 +77,7 @@ export class MinionLogic {
         return;
     }
 
+    // 공격 속도 시뮬레이션 (dt 기반 확률 체크)
     if (Math.random() > dt * 1.5) return; 
 
     const s = settings.siege || { minionDmg: 1.0, cannonDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1 };
@@ -96,24 +96,31 @@ export class MinionLogic {
     else if (type === 'STRUCTURE') {
         if (target.isNexus) {
             targetFactor = s.dmgToNexus ?? 0.1;
-            targetArmor = fieldTowers.nexus?.armor || 200;
+            targetArmor = fieldTowers.nexus?.armor || 60; // 200 -> 60 반영
         } else {
             const laneKey = m.lane.toLowerCase();
             const enemyStats = isBlue ? match.stats.red : match.stats.blue;
             const tier = ((enemyStats.towers as any)[laneKey] || 0) + 1;
             
-            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 80; }
-            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 120; }
-            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 150; }
+            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 40; }
+            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 60; }
+            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 75; }
         }
     }
 
     if (type === 'MINION') {
-        sourceFactor *= 0.3; 
+        // [핵심 수정] 타겟이 거신병(SUMMONED_COLOSSUS)이면 데미지 대폭 감소
+        if (target.type === 'SUMMONED_COLOSSUS') {
+            sourceFactor *= 0.05; // 데미지 95% 감소 (거신병 보호)
+        } else {
+            sourceFactor *= 0.3; // 일반 미니언끼리는 30% 데미지
+        }
     }
 
     const rawAtk = m.atk || 10;
     const mitigatedDmg = calcMitigatedDamage(rawAtk, targetArmor);
+    
+    // 최종 데미지 (기본 3배 보정 포함)
     const finalDmg = Math.max(1, mitigatedDmg * sourceFactor * targetFactor * 3.0);
 
     if (type === 'MINION' || type === 'HERO') {

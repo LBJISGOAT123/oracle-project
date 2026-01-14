@@ -11,7 +11,11 @@ import { analyzeHeroMeta, calculateUserEcosystem } from './system/RankingSystem'
 import { updatePostInteractions, generatePostAsync } from './system/CommunityEngine';
 import { calculateTargetSentiment, smoothSentiment } from './system/SentimentEngine';
 
-const MAX_STEPS_PER_FRAME = 10; 
+// [핵심] 
+// 1. 고정 타임 스텝: 0.1초 (10 FPS 정밀도)
+// 2. 최대 루프: 36000 (1시간을 0.1초로 쪼개도 소화 가능하도록 대폭 상향)
+const FIXED_STEP = 0.1; 
+const MAX_STEPS = 36000; 
 
 export class CoreEngine {
   static processTick(
@@ -27,26 +31,28 @@ export class CoreEngine {
       let currentPosts = [...initialPosts];
       
       let remainingTime = totalDelta;
-      
-      // 배속에 따른 dt 조정
-      let stepSize = 0.5; 
-      if (initialState.gameSpeed >= 600) stepSize = 5.0;     
-      else if (initialState.gameSpeed >= 60) stepSize = 3.0; 
-      else if (initialState.gameSpeed >= 10) stepSize = 1.5; 
-
       let loopCount = 0;
 
-      while (remainingTime > 0 && loopCount < MAX_STEPS_PER_FRAME) {
-        const dt = Math.min(remainingTime, stepSize);
+      // [수정] 남은 시간이 FIXED_STEP보다 작아질 때까지 무조건 반복
+      // "1분"을 누르면 이 루프가 600번 돕니다. (컴퓨터에겐 순식간임)
+      while (remainingTime >= FIXED_STEP && loopCount < MAX_STEPS) {
         
-        const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, dt);
+        // 무조건 0.1초씩만 진행
+        const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, FIXED_STEP);
         
         currentState = { ...currentState, ...result.stateUpdates };
         if (result.newHeroes) currentHeroes = result.newHeroes;
         if (result.newPosts) currentPosts = result.newPosts;
 
-        remainingTime -= dt;
+        remainingTime -= FIXED_STEP;
         loopCount++;
+      }
+
+      // 0.1초 미만의 자투리 시간 처리 (예: 0.04초)
+      // 이 정도는 순간이동해도 타워 사거리를 못 벗어나므로 안전함
+      if (remainingTime > 0) {
+           const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, remainingTime);
+           currentState = { ...currentState, ...result.stateUpdates };
       }
 
       updateStateCallback(currentState, currentHeroes, currentPosts);
@@ -90,18 +96,17 @@ export class CoreEngine {
       return { stateUpdates: { second, minute, hour, day }, newHeroes: heroes, newPosts: posts };
     }
 
-    // B. 유저 활동
-    if (Math.floor(second) % 5 === 0) {
+    // B. 유저 활동 (1분 단위)
+    if (isNewMinute) {
        UserActivitySystem.updateTraffic(hour + (minute/60), userPool);
     }
 
-    // C. 매치 업데이트 (분산 처리 제거 -> 매 프레임 전체 업데이트)
+    // C. 매치 업데이트
     let updatedMatches = [...liveMatches];
     const nextGodStats = { ...godStats };
     const nextItemStats = { ...itemStats }; 
 
     try {
-      // [수정] 모든 매치를 매 프레임 업데이트 (부드러움 확보)
       const processedMatches = updateLiveMatches(updatedMatches, heroes, deltaSeconds);
       
       updatedMatches = processedMatches.map(m => ({
@@ -109,7 +114,6 @@ export class CoreEngine {
           logs: m.logs.length > 15 ? m.logs.slice(-15) : [...m.logs],
       }));
 
-      // 종료 처리
       const isMatchEnded = (m: any) => (m.stats.blue.nexusHp <= 0 || m.stats.red.nexusHp <= 0);
       const endedMatches = updatedMatches.filter(m => isMatchEnded(m));
       updatedMatches = updatedMatches.filter(m => !isMatchEnded(m));
@@ -140,15 +144,15 @@ export class CoreEngine {
       console.warn("Match Update Skipped:", matchError);
     }
 
-    // D. 매치 생성 (최대 60개 유지)
-    const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
-    let finalMatches = updatedMatches;
-    
-    if ((Math.floor(second) % 10 === 0) && updatedMatches.length < 60) { 
-        const idleUsers = userPool.filter(u => u && u.status === 'IDLE');
-        if (idleUsers.length >= 10) {
-            const newMatches = createLiveMatches(heroes, onlineUsers, Date.now(), tierConfig);
-            finalMatches = [...updatedMatches, ...newMatches.slice(0, 3)];
+    // D. 매치 생성
+    if (Math.floor(second) % 10 === 0 && Math.floor(second - deltaSeconds) % 10 !== 0) { 
+        if (updatedMatches.length < 60) {
+            const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
+            const idleUsers = userPool.filter(u => u && u.status === 'IDLE');
+            if (idleUsers.length >= 10) {
+                const newMatches = createLiveMatches(heroes, onlineUsers, Date.now(), tierConfig);
+                updatedMatches = [...updatedMatches, ...newMatches.slice(0, 3)];
+            }
         }
     }
 
@@ -162,6 +166,7 @@ export class CoreEngine {
     if (isNewMinute && Math.floor(minute) % 5 === 0) { 
       if (userPool.length > 0) {
           try {
+            const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
             finalHeroes = analyzeHeroMeta([...heroes]);
             nextUserStatus = calculateUserEcosystem(onlineUsers, userPool.length, tierConfig);
             userPool.sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -180,13 +185,12 @@ export class CoreEngine {
     return {
       stateUpdates: {
         second, minute, hour, day,
-        ccu: onlineUsers,
         totalUsers: userPool.length, 
         userStatus: nextUserStatus,
         topRankers: nextTopRankers,
         godStats: nextGodStats, 
         itemStats: nextItemStats, 
-        liveMatches: finalMatches,
+        liveMatches: updatedMatches,
         userSentiment: nextSentiment
       },
       newHeroes: finalHeroes,

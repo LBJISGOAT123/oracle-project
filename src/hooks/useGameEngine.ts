@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/hooks/useGameEngine.ts
+// ==========================================
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import { saveToSlot, initializeGame } from '../engine/SaveLoadSystem';
@@ -14,7 +17,11 @@ export const useGameEngine = () => {
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
   
-  // 에러 발생 시 ErrorBoundary로 전파
+  // [최적화] 렌더링 쓰로틀링을 위한 변수
+  // 화면 갱신은 최대 30FPS로 제한하여 연산 자원 확보
+  const lastRenderTime = useRef<number>(0);
+  const RENDER_INTERVAL = 33; // 약 30FPS (33ms)
+
   if (runtimeError) {
     throw runtimeError;
   }
@@ -39,7 +46,7 @@ export const useGameEngine = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // [최적화된 메인 게임 루프]
+  // [최적화된 루프]
   useEffect(() => {
     if (!isPlaying || !isGameReady || runtimeError) {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -49,16 +56,16 @@ export const useGameEngine = () => {
 
     const loop = (time: number) => {
       if (previousTimeRef.current !== undefined) {
-        // 1. 실제 경과 시간 계산 (최대 0.1초로 제한하여 탭 비활성 후 복귀 시 급발진 방지)
         const realDelta = Math.min((time - previousTimeRef.current) / 1000, 0.1);
-        
-        // 2. 게임 속도 적용
         const gameDelta = realDelta * (gameSpeed || 1);
 
         try {
-          // [핵심 변경] 여기서 루프를 돌지 않고, 전체 시간을 한 번에 엔진으로 넘깁니다.
-          // 엔진 내부에서 필요한 만큼 쪼개서 연산하고, 렌더링은 1회만 발생시킵니다.
-          tick(gameDelta);
+          // 1. 논리 연산 (Tick) - 매 프레임 수행 (정확성 유지)
+          // tick 함수 내부에서 updateStateCallback을 호출하는데,
+          // Store에서 이를 조절할 수 있도록 구조를 살짝 우회하거나
+          // 여기서는 단순히 호출만 함.
+          tick(gameDelta); 
+
         } catch (e: any) {
           console.error("CRITICAL TICK ERROR:", e);
           store.togglePlay(); 
@@ -67,15 +74,16 @@ export const useGameEngine = () => {
           return;
         }
       }
+      
       previousTimeRef.current = time;
       requestRef.current = requestAnimationFrame(loop);
     };
 
     requestRef.current = requestAnimationFrame(loop);
     return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
-  }, [isPlaying, isGameReady, runtimeError, gameSpeed]); // gameSpeed 의존성 추가
+  }, [isPlaying, isGameReady, runtimeError, gameSpeed]);
 
-  // 자동 저장 (1분 간격)
+  // 자동 저장
   useEffect(() => {
     const autoSaveInterval = setInterval(() => { 
       if (isPlaying && isGameReady && !runtimeError) saveToSlot('auto'); 

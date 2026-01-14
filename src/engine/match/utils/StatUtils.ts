@@ -1,16 +1,45 @@
-import { HeroStats, Item, Hero } from '../../../types';
+// ==========================================
+// FILE PATH: /src/engine/match/utils/StatUtils.ts
+// ==========================================
+import { HeroStats, Item, Hero, GrowthIntervals } from '../../../types';
+import { useGameStore } from '../../../store/useGameStore';
 
 export const getLevelScaledStats = (baseStats: HeroStats, level: number): HeroStats => {
-  const scale = (val: number, rate: number) => Math.floor(val * (1 + (level - 1) * rate));
+  const state = useGameStore.getState().gameState;
+  const defaults = { early: 5, mid: 10, late: 15 };
+  const g = state?.growthSettings || { 
+      hp: defaults, ad: defaults, ap: defaults, 
+      armor: {early:2,mid:3,late:4}, baseAtk: {early:2,mid:3,late:4}, regen: {early:1,mid:2,late:2} 
+  };
+
+  const getMultiplier = (targetLevel: number, intervals: GrowthIntervals) => {
+    if (targetLevel <= 1) return 0;
+    
+    let totalPercent = 0;
+    // 2레벨부터 현재 레벨까지 누적 계산
+    for (let i = 2; i <= targetLevel; i++) {
+        if (i <= 6) totalPercent += intervals.early;       
+        else if (i <= 12) totalPercent += intervals.mid;   
+        else totalPercent += intervals.late;               
+    }
+    return totalPercent / 100;
+  };
+
+  const scale = (val: number, intervals: GrowthIntervals) => {
+    if (!intervals) return val;
+    const multiplier = getMultiplier(level, intervals);
+    return Math.floor(val * (1 + multiplier));
+  };
+
   return {
     ...baseStats,
-    hp: scale(baseStats.hp, 0.05),        
-    ad: scale(baseStats.ad, 0.15),        
-    ap: scale(baseStats.ap, 0.15),        
-    armor: scale(baseStats.armor, 0.03),  
-    baseAtk: scale(baseStats.baseAtk, 0.04),
-    regen: scale(baseStats.regen, 0.02),
-    pen: scale(baseStats.pen, 0.03),      
+    hp: scale(baseStats.hp, g.hp),        
+    ad: scale(baseStats.ad, g.ad),        
+    ap: scale(baseStats.ap, g.ap),        
+    armor: scale(baseStats.armor, g.armor),  
+    baseAtk: scale(baseStats.baseAtk, g.baseAtk),
+    regen: scale(baseStats.regen, g.regen),
+    pen: baseStats.pen, 
   };
 };
 

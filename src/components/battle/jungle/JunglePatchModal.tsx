@@ -7,7 +7,7 @@ import { JungleCampType, JungleCampConfig, JungleMonsterStats } from '../../../t
 import { DEFAULT_JUNGLE_CONFIG } from '../../../data/jungle/jungleDefaults';
 import { X, Save, RotateCcw } from 'lucide-react';
 import { MonsterEditor } from './MonsterEditor';
-import { JungleMapArea } from './JungleMapArea'; // 분리된 모듈
+import { JungleMapArea } from './JungleMapArea'; 
 
 interface Props { campType: JungleCampType; onClose: () => void; }
 
@@ -15,9 +15,11 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
   const { gameState, updateFieldSettings } = useGameStore();
   
   const currentJungle = gameState.fieldSettings.jungle as any;
-  const currentCamp = currentJungle?.camps?.[campType] || DEFAULT_JUNGLE_CONFIG.camps[campType];
+  // 기존 설정이 있으면 가져오고, 없으면 기본값 사용 (깊은 복사로 참조 끊기)
+  const currentCamp = currentJungle?.camps?.[campType] || JSON.parse(JSON.stringify(DEFAULT_JUNGLE_CONFIG.camps[campType]));
 
-  const [campConfig, setCampConfig] = useState<JungleCampConfig>(JSON.parse(JSON.stringify(currentCamp)));
+  // [수정] 초기 상태 로드 시 좌표 보정 로직 제거 (있는 그대로 로드)
+  const [campConfig, setCampConfig] = useState<JungleCampConfig>(currentCamp);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(campConfig.monsters[0]?.spotId || null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -38,11 +40,14 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
   };
 
   const handlePosUpdate = (spotId: string, x: number, y: number) => {
+    // [수정] 좌표 소수점 1자리까지만 저장 (너무 긴 소수점 방지)
+    const fixedX = Number(x.toFixed(1));
+    const fixedY = Number(y.toFixed(1));
+
     setCampConfig(prev => ({
         ...prev,
-        monsters: prev.monsters.map(m => m.spotId === spotId ? { ...m, x, y } : m)
+        monsters: prev.monsters.map(m => m.spotId === spotId ? { ...m, x: fixedX, y: fixedY } : m)
     }));
-    // 위치 이동 시 해당 몹 자동 선택
     setSelectedSpotId(spotId);
   };
 
@@ -52,13 +57,13 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
         camps: { ...(currentJungle.camps || DEFAULT_JUNGLE_CONFIG.camps), [campType]: campConfig }
     };
     updateFieldSettings({ jungle: newJungleSettings });
-    // [수정] 이 부분의 역슬래시가 에러 원인이었습니다.
-    alert(`${campConfig.name} 설정이 저장되었습니다.`);
+    alert(`${campConfig.name} 설정이 저장되었습니다.\n(다음 게임부터 적용됩니다)`);
     onClose();
   };
 
   const handleReset = () => {
     if(confirm('기본 설정으로 초기화하시겠습니까? (위치 포함)')) {
+        // 기본값 깊은 복사
         const resetData = JSON.parse(JSON.stringify(DEFAULT_JUNGLE_CONFIG.camps[campType]));
         setCampConfig(resetData);
         setSelectedSpotId(resetData.monsters[0]?.spotId);
@@ -76,7 +81,6 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
           borderRadius: isMobile ? '0' : '16px', overflow: 'hidden', display:'flex', flexDirection:'column', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' 
       }}>
         
-        {/* 헤더 */}
         <div style={{ padding: '15px 20px', background: '#21262d', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <h3 style={{ margin: 0, color: '#2ecc71', fontSize: '16px', display:'flex', alignItems:'center', gap:'8px' }}>
             🌲 {isMobile ? campConfig.name.split('(')[0] : campConfig.name}
@@ -84,10 +88,9 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding:'5px' }}><X size={24}/></button>
         </div>
 
-        {/* 바디 (맵 + 에디터) */}
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             
-            {/* 1. 맵 영역 (모듈화됨) */}
+            {/* 1. 맵 영역 */}
             <div style={{ 
                 flex: isMobile ? 'none' : 1, 
                 height: isMobile ? '45vh' : 'auto',
@@ -114,7 +117,6 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
 
         </div>
 
-        {/* 푸터 */}
         <div style={{ padding: '15px', borderTop: '1px solid #30363d', display: 'flex', gap:'10px', flexShrink: 0, background:'#161b22' }}>
           <button onClick={handleReset} style={{ flex:1, background: '#3f1515', color: '#ff6b6b', border: '1px solid #5a1e1e', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display:'flex', justifyContent:'center', alignItems:'center', gap:'6px', fontSize:'14px' }}>
             <RotateCcw size={16}/> 초기화

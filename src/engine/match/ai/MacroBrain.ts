@@ -1,13 +1,16 @@
 // ==========================================
 // FILE PATH: /src/engine/match/ai/MacroBrain.ts
 // ==========================================
-import { LivePlayer, LiveMatch, Hero } from '../../../types';
+import { LivePlayer, LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
 import { Perception } from './Perception';
 import { AIUtils } from './AIUtils';
 import { PathSystem } from '../systems/PathSystem';
 import { GankEvaluator } from './evaluators/GankEvaluator';
+import { KillEvaluator } from './evaluators/KillEvaluator';
 import { BASES } from '../constants/MapConstants';
 import { LaningLogic } from '../logics/LaningLogic';
+import { RoamingLogic } from '../logics/RoamingLogic';
+import { useGameStore } from '../../../store/useGameStore';
 
 export type MacroAction = 'RECALL' | 'DEFEND' | 'FIGHT' | 'FARM' | 'PUSH' | 'WAIT' | 'OBJECTIVE' | 'SUPPORT' | 'GANK' | 'FLEE' | 'FINISH' | 'LANING';
 
@@ -25,132 +28,145 @@ export class MacroBrain {
     const enemyBase = isBlue ? BASES.RED : BASES.BLUE;
     const distToBase = AIUtils.dist(player, myBase);
 
-    // [0] 우물 복귀 완료 (회복)
+    const { battleSettings, roleSettings } = useGameStore.getState().gameState;
+    const globalHeroes = useGameStore.getState().heroes;
+
+    // [0] 우물 복귀 완료
     if (distToBase < 5) {
       const hpP = AIUtils.hpPercent(player);
       const mpP = AIUtils.mpPercent(player);
-      // 풀피, 풀마나가 아니면 나가지 마
-      if (hpP < 0.98 || (player.maxMp > 0 && mpP < 0.95)) {
+      if (hpP < 0.95 || (player.maxMp > 0 && mpP < 0.95)) {
         return { action: 'RECALL', targetPos: myBase, reason: '우물 회복 중' };
       }
     }
 
-    // [1] 생존 판단 (강화됨)
+    // [1] 긴급 생존: 타워 어그로
+    if (Perception.isUnderTowerAggro(player, match)) {
+        return { action: 'FLEE', targetPos: myBase, reason: '🚨 타워 어그로! 긴급 탈출!' };
+    }
+
+    // [2] 긴급 생존: 수적 열세 (Outnumbered) - 잘리기 방지
+    // 주변(25범위)에 적은 2명 이상인데 아군은 나 혼자면 도망
+    const nearby = Perception.analyzeNearbySituation(player, match, 25);
+    if (nearby.enemies.length >= 2 && nearby.allies.length === 0) {
+        // 내가 압도적으로 잘 컸으면(레벨+3) 싸워볼만 함
+        const avgEnemyLvl = nearby.enemies.reduce((s, e) => s + e.level, 0) / nearby.enemies.length;
+        if (player.level < avgEnemyLvl + 3) {
+            return { action: 'FLEE', targetPos: myBase, reason: '🏃‍♂️ 1vs다수! 도망쳐!' };
+        }
+    }
+
+    // [3] 자살 방지 (타워 다이브 금지)
+    const myPos = { x: player.x, y: player.y };
+    if (Perception.isSuicideMove(player, myPos, match)) {
+        return { action: 'FLEE', targetPos: myBase, reason: '🚫 타워 위험! 긴급 회피!' };
+    }
+
+    // [4] 스노우볼링 (Push)
+    const pushScore = Perception.getPushPriority(player, match);
+    if (pushScore >= 60 && AIUtils.hpPercent(player) > 0.2) {
+        const towerPos = AIUtils.getNextObjectivePos(player, match, isBlue);
+        if (!Perception.isSuicideMove(player, towerPos, match)) {
+            return { action: 'PUSH', targetPos: towerPos, reason: '🔥 수적 우위! 진격하라!' };
+        }
+    }
+
+    // [5] 킬 캐치 (Kill)
+    let bestKillTarget: LivePlayer | null = null;
+    let bestKillScore = 0;
+
+    for (const enemy of nearby.enemies) {
+        const killScore = KillEvaluator.evaluateKillChance(player, enemy, globalHeroes, match, battleSettings, roleSettings);
+        if (killScore > 500 && KillEvaluator.isWorthTrading(player, enemy)) {
+            if (killScore > bestKillScore) {
+                bestKillScore = killScore;
+                bestKillTarget = enemy;
+            }
+        }
+    }
+
+    if (bestKillTarget) {
+        const targetPos = { x: bestKillTarget.x, y: bestKillTarget.y };
+        if (Perception.isSuicideMove(player, targetPos, match)) {
+             if (player.stats.brain > 30) {
+                 return { action: 'WAIT', targetPos: { x: player.x, y: player.y }, reason: '킬각이나 타워 위험 (대기)' };
+             }
+        }
+        return { action: 'FIGHT', targetPos: targetPos, targetUnit: bestKillTarget, reason: `🩸 킬각 포착!` };
+    }
+
+    // [6] 생존 (Recall)
     if (Perception.needsRecall(player)) {
-      // 적이 근처에 있으면 일단 튀어 (FLEE), 아니면 귀환 (RECALL)
-      const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
-      if (nearbyEnemy && AIUtils.dist(player, nearbyEnemy) < 12) {
-         return { action: 'FLEE', targetPos: myBase, reason: '생존 본능 (도주)' };
+      if (distToBase < 25) return { action: 'FLEE', targetPos: myBase, reason: '우물로 도보 이동' };
+      if (nearby.enemies.length > 0 && AIUtils.dist(player, nearby.enemies[0]) < 15) {
+         return { action: 'FLEE', targetPos: myBase, reason: '교전 이탈' };
       }
       return { action: 'RECALL', targetPos: myBase, reason: '정비 필요' };
     }
 
-    const situation = Perception.analyzeSituation(player, match);
-    const enemyNexusHp = isBlue ? match.stats.red.nexusHp : match.stats.blue.nexusHp;
-    const distToEnemyBase = AIUtils.dist(player, enemyBase);
-
-    // [2] 넥서스 점사 (끝내기 각)
-    if (situation.isNexusVulnerable && distToEnemyBase < 30) {
-        // 적이 다 죽었거나, 넥서스 피가 적으면 무시하고 점사
-        if (situation.isEnemyWipedOut || enemyNexusHp < 5000) {
-            return { action: 'FINISH', targetPos: enemyBase, reason: '넥서스 점사' };
+    // [7] 라인전 & 로밍
+    if (player.lane !== 'JUNGLE' && match.currentDuration < 900) {
+        const laningDecision = LaningLogic.decide(player, match, hero);
+        if (laningDecision && Perception.isSuicideMove(player, laningDecision.targetPos, match)) {
+             return { action: 'WAIT', targetPos: myBase, reason: '라인전: 무리하지 않음' };
         }
+        if (laningDecision?.action === 'WAIT' || !laningDecision) {
+            const roamDecision = RoamingLogic.checkRoaming(player, match, hero);
+            if (roamDecision) return roamDecision;
+        }
+        if (laningDecision) return laningDecision;
     }
 
-    // [3] 본진/타워 수비 (최우선 방어)
+    // --- 중후반 운영 ---
+    
+    // [8] 끝내기
+    const situation = Perception.analyzeSituation(player, match);
+    if (situation.isEnemyWipedOut && AIUtils.hpPercent(player) > 0.3 && situation.isNexusVulnerable) {
+        return { action: 'FINISH', targetPos: enemyBase, reason: '적 전멸! 끝내자!' };
+    }
+
+    // [9] 수비
     const baseThreat = Perception.isBaseUnderThreat(player, match, isBlue);
     if (baseThreat.isThreatened && baseThreat.enemyUnit) {
       return { action: 'DEFEND', targetPos: { x: baseThreat.enemyUnit.x, y: baseThreat.enemyUnit.y }, targetUnit: baseThreat.enemyUnit, reason: '본진 방어' };
     }
-    
-    // 딸피가 아니면 타워 수비
-    if (AIUtils.hpPercent(player) > 0.6) {
-      const towerThreat = Perception.findThreatenedStructure(player, match, isBlue);
-      if (towerThreat) {
-        // 내 라인 타워거나, 정글러거나, 아주 가까우면 수비
-        if (player.lane === 'JUNGLE' || AIUtils.dist(player, towerThreat.pos) < 30) {
-           return { action: 'DEFEND', targetPos: towerThreat.pos, targetUnit: towerThreat.enemy, reason: '타워 수비' };
-        }
-      }
-    }
 
-    // [4] 라인전 로직 (초반 8분)
-    // 기존 기능 유지 (LaningLogic)
-    const laningDecision = LaningLogic.decide(player, match, hero);
-    if (laningDecision) {
-        return laningDecision;
-    }
-
-    // [5] 교전 판단 (FIGHT vs FLEE) - 여기가 과잉 킬의 원흉이었음
-    const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
-    if (nearbyEnemy) {
-      const myPower = AIUtils.getCombatPower(player);
-      const enemyPower = AIUtils.getCombatPower(nearbyEnemy);
-      
-      // [수정] 무지성 돌격 방지
-      // 내 전투력이 적보다 1.2배 이상 높거나, 뇌지컬이 낮아서(aggro) 덤비는 경우만 싸움
-      // 뇌지컬이 높을수록(100에 가까울수록) 킬각을 신중하게 잼
-      const aggro = (100 - player.stats.brain) * 5; // 기존 10에서 5로 감소 (덜 던짐)
-      
-      // [신규] 적 숫자가 더 많으면(1vs2 등) 무조건 도망
-      const alliesNearby = (isBlue ? match.blueTeam : match.redTeam).filter(a => a !== player && AIUtils.dist(player, a) < 15 && a.currentHp > 0).length;
-      const enemiesNearby = (isBlue ? match.redTeam : match.blueTeam).filter(e => e !== nearbyEnemy && AIUtils.dist(player, e) < 15 && e.currentHp > 0).length;
-
-      if (enemiesNearby > alliesNearby) {
-          return { action: 'FLEE', targetPos: myBase, reason: '수적 열세 (도주)' };
-      }
-
-      if (myPower + aggro >= enemyPower * 1.1) {
-        return { action: 'FIGHT', targetPos: { x: nearbyEnemy.x, y: nearbyEnemy.y }, targetUnit: nearbyEnemy, reason: '유리한 교전' };
-      } else {
-        // 불리하면 빤스런
-        return { action: 'FLEE', targetPos: myBase, reason: '불리함 (후퇴)' };
-      }
-    }
-
-    // [6] 갱킹 & 로밍
-    if (AIUtils.hpPercent(player) > 0.7) {
+    // [10] 정글
+    if (player.lane === 'JUNGLE' && AIUtils.hpPercent(player) > 0.6) {
         const gankTarget = GankEvaluator.evaluate(player, match, hero);
-        if (gankTarget) {
-            return { action: 'GANK', targetPos: { x: gankTarget.x, y: gankTarget.y }, targetUnit: gankTarget, reason: '갱킹/로밍' };
-        }
+        if (gankTarget) return { action: 'GANK', targetPos: { x: gankTarget.x, y: gankTarget.y }, targetUnit: gankTarget, reason: '갱킹 시도' };
     }
 
-    // [7] 오브젝트 (바론/용)
+    // [11] 오브젝트
     const activeObj = Perception.findActiveObjective(match);
     if (activeObj) {
       const isJungler = player.lane === 'JUNGLE';
       const distanceToObj = AIUtils.dist(player, activeObj.pos);
-      // 정글러거나, 가까이 있으면 합류
-      if ((isJungler && AIUtils.hpPercent(player) > 0.6) || (distanceToObj < 30)) {
-          return { action: 'OBJECTIVE', targetPos: activeObj.pos, reason: '오브젝트' };
+      if ((isJungler || distanceToObj < 40) && AIUtils.hpPercent(player) > 0.5) {
+          return { action: 'OBJECTIVE', targetPos: activeObj.pos, reason: '오브젝트 합류' };
       }
     }
 
-    // [8] 라인 푸쉬 (기본 행동)
+    // [12] 교전 (일반)
+    const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
+    if (nearbyEnemy) {
+        if (Perception.isSuicideMove(player, {x: nearbyEnemy.x, y: nearbyEnemy.y}, match)) {
+             if (player.stats.brain > 30) return { action: 'FLEE', targetPos: myBase, reason: '적 타워 유인 무시' };
+        }
+        return { action: 'FIGHT', targetPos: { x: nearbyEnemy.x, y: nearbyEnemy.y }, targetUnit: nearbyEnemy, reason: '교전' };
+    }
+
+    // [13] 운영
     if (player.lane !== 'JUNGLE') {
         const towerPos = AIUtils.getNextObjectivePos(player, match, isBlue);
-        const distToTower = AIUtils.dist(player, towerPos);
-        
-        // 타워 근처면 공성 여부 판단
-        if (distToTower < 18) {
-            if (Perception.isSafeToSiege(player, match, towerPos)) {
-                return { action: 'PUSH', targetPos: towerPos, reason: '공성' };
-            } else {
-                // 미니언 없으면 뒤에서 대기 (무리한 다이브 방지)
-                const safePos = { 
-                    x: towerPos.x + (isBlue ? -8 : 8), 
-                    y: towerPos.y + (isBlue ? -8 : 8) 
-                };
-                return { action: 'WAIT', targetPos: safePos, reason: '미니언 대기' };
-            }
+        if (Perception.isSafeToSiege(player, match, towerPos) || pushScore > 30) {
+            return { action: 'PUSH', targetPos: towerPos, reason: '공성' };
         } else {
-            const nextPath = PathSystem.getNextWaypoint(player, isBlue);
-            return { action: 'FARM', targetPos: nextPath, reason: '라인 복귀' };
+            const waitPos = { x: towerPos.x + (isBlue ? -5 : 5), y: towerPos.y + (isBlue ? -5 : 5) };
+            return { action: 'WAIT', targetPos: waitPos, reason: '웨이브 대기' };
         }
     }
 
-    // 정글러는 정글링
     const nextPath = PathSystem.getNextWaypoint(player, isBlue);
     return { action: 'FARM', targetPos: nextPath, reason: '정글링' };
   }

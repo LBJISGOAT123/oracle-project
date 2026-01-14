@@ -7,33 +7,28 @@ import { IDBStorage } from '../utils/IDBStorage';
 const META_KEY = 'GW_SAVE_META';
 const PENDING_LOAD_KEY = 'GW_PENDING_LOAD';
 
-// [저장]
 export const saveToSlot = async (slotId: string): Promise<boolean> => {
   const store = useGameStore.getState();
   const state = store.gameState;
 
-  // 저장 용량 최적화 (불필요한 로그/오브젝트 제외)
   const optimizedMatches = state.liveMatches.map(m => ({
     ...m, 
     logs: [], timeline: [], minions: [], projectiles: [], jungleMobs: []    
   }));
 
   const saveData = {
-    version: 20, // 버전 변경 (구버전 데이터와 구분)
+    version: 24, // 버전 업
     time: { season: state.season, day: state.day, hour: state.hour, minute: state.minute },
     config: {
       battle: state.battleSettings,
       field: state.fieldSettings,
       role: state.roleSettings,
       tier: state.tierConfig,
-      ai: state.aiConfig
+      ai: state.aiConfig,
+      growth: state.growthSettings 
     },
     customImages: state.customImages,
-    // 영웅 데이터는 변동사항만 저장
-    heroes: store.heroes.map(h => ({
-      id: h.id, record: h.record, concept: h.concept, name: h.name
-    })),
-    // [중요] 현재 유저 풀 전체를 원본 그대로 저장
+    heroes: store.heroes.map(h => ({ id: h.id, record: h.record, concept: h.concept, name: h.name })),
     users: userPool, 
     itemStats: state.itemStats,
     shopItems: store.shopItems,
@@ -60,7 +55,6 @@ export const saveToSlot = async (slotId: string): Promise<boolean> => {
   }
 };
 
-// [로드 트리거]
 export const loadFromSlot = async (slotId: string, defaultHeroes: Hero[]): Promise<boolean> => {
   try {
     let data = await IDBStorage.getItem(slotId);
@@ -78,7 +72,6 @@ export const loadFromSlot = async (slotId: string, defaultHeroes: Hero[]): Promi
   }
 };
 
-// [초기화]
 export const initializeGame = async (heroes: Hero[]) => {
   const pendingSlot = localStorage.getItem(PENDING_LOAD_KEY);
   if (pendingSlot) {
@@ -94,56 +87,40 @@ export const initializeGame = async (heroes: Hero[]) => {
         console.error("Critical Load Error:", e);
     }
   }
-  // 데이터가 없으면 새 게임 시작
   if (userPool.length === 0) initUserPool(heroes, 3000);
 };
 
-// [핵심] 데이터 무결성 검증 및 적용 (Data Integrity Check)
 const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
     const store = useGameStore.getState();
     
-    // 1. 영웅 데이터 복구
     const loadedHeroMap = new Map(data.heroes?.map((h: any) => [h.id, h]) || []);
     const restoredHeroes = defaultHeroes.map(def => {
         const saved = loadedHeroMap.get(def.id);
         return saved ? { ...def, ...saved } : def;
     });
 
-    // 2. 유저 풀(Master Data) 복구
-    // - 저장된 유저가 있으면 그걸 쓰고, 없으면 새로 만듭니다.
-    // - 일단 모든 유저 상태를 'OFFLINE'으로 초기화합니다. (매치 검증 후 INGAME으로 변경)
     let restoredUsers: UserProfile[] = [];
     if (data.users && Array.isArray(data.users)) {
         restoredUsers = data.users.map((u: any) => ({
             ...u,
             heroStats: u.heroStats || {},
             history: u.history || [],
-            status: 'OFFLINE' // 초기화
+            status: 'OFFLINE' 
         }));
     } else {
-        // 유저 데이터 유실 시 새 유저 생성 (비상 조치)
         initUserPool(restoredHeroes, 3000);
         restoredUsers = [...userPool];
     }
 
-    // [검증용] 실제 존재하는 유저 이름 Set
     const validUserNames = new Set(restoredUsers.map(u => u.name));
-
-    // 3. 매치 데이터 검증 (가짜 매치 박멸)
     const validMatches: LiveMatch[] = [];
-    let droppedMatches = 0;
-
     const rawMatches = (data.liveMatches || []);
     
     rawMatches.forEach((m: any) => {
-        // 매치에 포함된 10명의 플레이어 이름
         const participants = [...(m.blueTeam || []), ...(m.redTeam || [])];
-        
-        // [엄격 검증] 10명 전원이 실제 유저 풀에 존재하는가?
         const isValidMatch = participants.length === 10 && participants.every((p: any) => validUserNames.has(p.name));
 
         if (isValidMatch) {
-            // 유효한 매치만 복구 (필수 배열 초기화 포함)
             validMatches.push({
                 ...m,
                 minions: [], projectiles: [], jungleMobs: [], logs: [], timeline: [],
@@ -158,24 +135,40 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
                     watcher: { hp: 0, maxHp: 10000, status: 'DEAD', nextSpawnTime: m.currentDuration+120 }
                 }
             });
-
-            // 검증된 유저들의 상태를 'INGAME'으로 변경
             participants.forEach((p: any) => {
                 const u = restoredUsers.find(user => user.name === p.name);
                 if (u) u.status = 'INGAME';
             });
-        } else {
-            // 유령 매치(가짜 데이터)는 버림
-            droppedMatches++;
         }
     });
 
-    console.log(`🧹 [Integrity Check] 유효 매치: ${validMatches.length} / 삭제된 가짜 매치: ${droppedMatches}`);
-
-    // 유저 풀 전역 교체
     replaceUserPool(restoredUsers);
 
-    // 4. 스토어 상태 적용
+    let loadedGrowth = data.config?.growth;
+    if (loadedGrowth && typeof loadedGrowth.hp === 'number') {
+        const convert = (val: number) => ({ early: Math.floor(val*0.6), mid: val, late: Math.floor(val*1.4) });
+        loadedGrowth = {
+            hp: convert(loadedGrowth.hp),
+            ad: convert(loadedGrowth.ad),
+            ap: convert(loadedGrowth.ap),
+            armor: convert(loadedGrowth.armor),
+            baseAtk: convert(loadedGrowth.baseAtk),
+            regen: convert(loadedGrowth.regen),
+            respawnPerLevel: 3.0,
+            recallTime: 10.0
+        };
+    }
+    if (!loadedGrowth) {
+        loadedGrowth = { 
+            hp: {early:3,mid:5,late:7}, ad: {early:5,mid:10,late:15}, ap: {early:5,mid:10,late:15},
+            armor: {early:2,mid:3,late:4}, baseAtk: {early:2,mid:3,late:4}, regen: {early:1,mid:2,late:3},
+            respawnPerLevel: 3.0, recallTime: 10.0
+        };
+    }
+    // [호환성] 귀환 시간 10초 강제 (데이터가 없거나 너무 짧으면)
+    if (loadedGrowth.recallTime === undefined || loadedGrowth.recallTime < 4) loadedGrowth.recallTime = 10.0;
+    if (loadedGrowth.respawnPerLevel === undefined) loadedGrowth.respawnPerLevel = 3.0;
+
     useGameStore.setState({ 
         gameState: {
             ...store.gameState,
@@ -185,11 +178,13 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
             fieldSettings: { ...store.gameState.fieldSettings, ...data.config?.field },
             roleSettings: { ...store.gameState.roleSettings, ...data.config?.role },
             aiConfig: { ...store.gameState.aiConfig, ...data.config?.ai },
+            growthSettings: loadedGrowth,
+            
             itemStats: data.itemStats || {},
             godStats: data.godStats || store.gameState.godStats,
             customImages: { ...store.gameState.customImages, ...(data.customImages || {}) },
-            liveMatches: validMatches, // 검증된 매치만 투입
-            totalUsers: restoredUsers.length, // [중요] 실제 유저 수로 덮어씀
+            liveMatches: validMatches,
+            totalUsers: restoredUsers.length,
             topRankers: getTopRankers(restoredHeroes, data.config?.tier),
             userStatus: calculateUserEcosystem(validMatches.length * 10, restoredUsers.length, data.config?.tier),
             isPlaying: false 

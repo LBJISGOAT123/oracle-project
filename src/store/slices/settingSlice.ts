@@ -29,6 +29,11 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     gameState: { ...state.gameState, roleSettings: { ...state.gameState.roleSettings, ...s } } 
   })),
 
+  // [신규] 성장 설정 업데이트
+  updateGrowthSettings: (s) => set((state) => ({ 
+    gameState: { ...state.gameState, growthSettings: { ...state.gameState.growthSettings, ...s } } 
+  })),
+
   setCustomImage: (id, imageData) => set((state) => ({
     gameState: { ...state.gameState, customImages: { ...state.gameState.customImages, [id]: imageData } }
   })),
@@ -44,11 +49,8 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     return { ...state }; 
   }),
 
-  // [신규] 좌표 업데이트 로직 (매우 중요: 중첩 객체 업데이트)
   updateObjectPosition: (key: string, x: number, y: number) => set((state) => {
     const positions = { ...state.gameState.fieldSettings.positions };
-    
-    // key 예시: "colossus", "jungle.0", "towers.blue.top.0"
     const parts = key.split('.');
     
     if (parts.length === 1) {
@@ -57,10 +59,8 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
         const idx = parseInt(parts[1]);
         if (positions.jungle[idx]) positions.jungle[idx] = { x, y };
     } else if (parts[0] === 'towers') {
-        // towers.blue.top.0
         const side = parts[1] as 'blue'|'red';
-        const lane = parts[2]; // top, mid, bot, nexus
-        
+        const lane = parts[2];
         if (lane === 'nexus') {
             positions.towers[side].nexus = { x, y };
         } else {
@@ -76,10 +76,7 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     return { 
         gameState: { 
             ...state.gameState, 
-            fieldSettings: { 
-                ...state.gameState.fieldSettings, 
-                positions 
-            } 
+            fieldSettings: { ...state.gameState.fieldSettings, positions } 
         } 
     };
   }),

@@ -2,7 +2,7 @@
 // FILE PATH: /src/data/types/match.ts
 // ==========================================
 
-export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP';
+export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP' | 'RECALL_CANCEL';
 
 export interface GameLog {
   time: number;
@@ -40,26 +40,26 @@ export interface LivePlayer {
   respawnTimer: number;
   cooldowns?: { q:number, w:number, e:number, r:number };
   stats: { brain: number, mechanics: number };
+  lastAttackTime?: number;       
+  lastAttackedTargetId?: string;
+  killStreak: number; 
+  bounty: number;
 
-  // [신규] 타워 어그로 시스템을 위한 필드
-  lastAttackTime?: number;       // 마지막으로 적을 공격한 시간
-  lastAttackedTargetId?: string; // 마지막으로 공격한 대상(영웅)의 ID
+  // [신규] 귀환 시스템 필드
+  isRecalling: boolean;     // 현재 귀환 채널링 중인지
+  currentRecallTime: number; // 귀환 진행 시간
+  recallCooldown: number;   // 귀환 방해 후 대기 시간 (3초)
 }
 
 export interface TowerStatus {
-  top: number; 
-  mid: number;
-  bot: number;
+  top: number; mid: number; bot: number;
 }
 
 export interface TeamStats {
   towers: TowerStatus; 
   laneHealth: { top: number; mid: number; bot: number };
-  colossus: number;
-  watcher: number;
-  fury: number;
-  nexusHp: number;
-  maxNexusHp: number;
+  colossus: number; watcher: number; fury: number;
+  nexusHp: number; maxNexusHp: number;
   activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
 }
 
@@ -75,10 +75,7 @@ export interface LiveMatch {
   currentDuration: number;
   avgTier: string;
   score: { blue: number, red: number };
-  stats: {
-    blue: TeamStats;
-    red: TeamStats;
-  };
+  stats: { blue: TeamStats; red: TeamStats; };
   timeline: TimelineEvent[];
   logs: GameLog[];
   

@@ -1283,20 +1283,30 @@ export const MonsterRender = ({ type, objectives }: { type: 'colossus' | 'watche
 
 
 --- FILE: src/components/battle/spectate/map/UnitRender.tsx ---
+// ==========================================
+// FILE PATH: /src/components/battle/spectate/map/UnitRender.tsx
+// ==========================================
 import React from 'react';
 import { GameIcon } from '../../../common/GameIcon';
 import { Plane, Skull } from 'lucide-react';
+import { useGameStore } from '../../../../store/useGameStore';
 
 export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
+  const { gameState } = useGameStore();
+  const maxRecallTime = gameState.growthSettings?.recallTime || 10.0;
+
   const isDead = player.respawnTimer > 0;
   
-  // 귀환 체크
   const recallTime = (player as any).currentRecallTime || 0;
   const isRecalling = recallTime > 0 && !isDead;
-  const remainingRecall = Math.max(0, 4.0 - recallTime).toFixed(1);
+  
+  const remainingRecall = Math.max(0, maxRecallTime - recallTime).toFixed(1);
 
-  // 사망 타이머 (올림 처리)
   const deathTimer = Math.ceil(player.respawnTimer);
+  const hasWatcherBuff = player.buffs && player.buffs.includes('WATCHER_BUFF');
+
+  // 팀 컬러 정의
+  const teamColor = isBlue ? '#58a6ff' : '#e84057';
 
   return (
     <div 
@@ -1306,33 +1316,31 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
         position: 'absolute',
         left: `${player.x}%`, 
         top: `${player.y}%`,
-        // 사망 시에는 위치가 고정되어야 하므로 transition 끔 (떨림 방지)
         transition: (isDead || isRecalling) ? 'none' : 'left 0.5s linear, top 0.5s linear',
-        
         width: '32px', height: '32px', 
-        zIndex: isDead ? 5 : 10, // 죽은 유닛은 산 유닛보다 아래에
+        zIndex: isDead ? 5 : 10,
         cursor: 'pointer',
         transform: 'translate(-50%, -50%)',
-        opacity: isDead ? 0.6 : 1, // 반투명
+        opacity: isDead ? 0.6 : 1,
         filter: isDead ? 'grayscale(100%) brightness(0.7)' : 'none'
       }}
     >
-      {/* 1. 귀환 인디케이터 (파랑) */}
+      {/* 1. 귀환 인디케이터 (숫자 표시) */}
       {isRecalling && (
         <div style={{
           position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(52, 152, 219, 0.9)', color: '#fff',
+          background: 'rgba(0, 0, 0, 0.8)', color: '#3498db', // 배경 검정, 글씨 파랑으로 가독성 확보
           padding: '2px 6px', borderRadius: '10px',
-          fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap',
+          fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', gap: '2px',
-          border: '1px solid #fff', zIndex: 20, boxShadow: '0 0 10px #3498db'
+          border: '1px solid #3498db', zIndex: 20
         }}>
           <Plane size={8} style={{ transform:'rotate(-45deg)' }}/> 
           <span>{remainingRecall}s</span>
         </div>
       )}
 
-      {/* 2. 사망 인디케이터 (빨강) - 여기가 핵심! */}
+      {/* 2. 사망 인디케이터 */}
       {isDead && (
         <div style={{
           position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)',
@@ -1351,10 +1359,15 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
       <div style={{
         width: '100%', height: '100%',
         borderRadius: '50%',
-        border: isRecalling ? '2px solid #3498db' : (isDead ? '2px solid #555' : `2px solid ${isBlue ? '#58a6ff' : '#e84057'}`),
+        // [수정] 귀환 중이어도 테두리 색상 변경 없음 (팀 색상 유지)
+        border: isDead ? '2px solid #555' : `2px solid ${teamColor}`,
         background: '#161b22',
         overflow: 'hidden',
-        boxShadow: isRecalling ? '0 0 15px #3498db' : (isSelected ? '0 0 0 2px white' : 'none'),
+        // [수정] 귀환 시 파란색 글로우(그림자) 효과도 혼동을 줄 수 있으므로 제거하거나 약하게 처리
+        // 여기서는 주시자 버프가 아니면, 귀환 중일 때 하얀색 약한 빛만 나게 변경 (또는 아예 제거)
+        boxShadow: hasWatcherBuff 
+            ? '0 0 15px 5px #a371f7' 
+            : (isRecalling ? '0 0 10px rgba(255,255,255,0.5)' : (isSelected ? '0 0 0 2px white' : 'none')),
         boxSizing: 'border-box'
       }}>
          <GameIcon id={player.heroId} size="100%" shape="circle" border="none" />
@@ -1371,7 +1384,7 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
         {player.level}
       </div>
 
-      {/* 체력바 (죽으면 숨김) */}
+      {/* 체력바 */}
       {!isDead && (
         <div style={{ 
           position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)', 
@@ -1381,7 +1394,7 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
            <div style={{ 
              width: `${(player.currentHp / player.maxHp) * 100}%`, 
              height: '100%', 
-             background: isBlue ? '#58a6ff' : '#e84057',
+             background: teamColor,
              transition: 'width 0.2s'
            }} />
         </div>
@@ -3246,7 +3259,7 @@ import { JungleCampType, JungleCampConfig, JungleMonsterStats } from '../../../t
 import { DEFAULT_JUNGLE_CONFIG } from '../../../data/jungle/jungleDefaults';
 import { X, Save, RotateCcw } from 'lucide-react';
 import { MonsterEditor } from './MonsterEditor';
-import { JungleMapArea } from './JungleMapArea'; // 분리된 모듈
+import { JungleMapArea } from './JungleMapArea'; 
 
 interface Props { campType: JungleCampType; onClose: () => void; }
 
@@ -3254,9 +3267,11 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
   const { gameState, updateFieldSettings } = useGameStore();
   
   const currentJungle = gameState.fieldSettings.jungle as any;
-  const currentCamp = currentJungle?.camps?.[campType] || DEFAULT_JUNGLE_CONFIG.camps[campType];
+  // 기존 설정이 있으면 가져오고, 없으면 기본값 사용 (깊은 복사로 참조 끊기)
+  const currentCamp = currentJungle?.camps?.[campType] || JSON.parse(JSON.stringify(DEFAULT_JUNGLE_CONFIG.camps[campType]));
 
-  const [campConfig, setCampConfig] = useState<JungleCampConfig>(JSON.parse(JSON.stringify(currentCamp)));
+  // [수정] 초기 상태 로드 시 좌표 보정 로직 제거 (있는 그대로 로드)
+  const [campConfig, setCampConfig] = useState<JungleCampConfig>(currentCamp);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(campConfig.monsters[0]?.spotId || null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -3277,11 +3292,14 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
   };
 
   const handlePosUpdate = (spotId: string, x: number, y: number) => {
+    // [수정] 좌표 소수점 1자리까지만 저장 (너무 긴 소수점 방지)
+    const fixedX = Number(x.toFixed(1));
+    const fixedY = Number(y.toFixed(1));
+
     setCampConfig(prev => ({
         ...prev,
-        monsters: prev.monsters.map(m => m.spotId === spotId ? { ...m, x, y } : m)
+        monsters: prev.monsters.map(m => m.spotId === spotId ? { ...m, x: fixedX, y: fixedY } : m)
     }));
-    // 위치 이동 시 해당 몹 자동 선택
     setSelectedSpotId(spotId);
   };
 
@@ -3291,13 +3309,13 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
         camps: { ...(currentJungle.camps || DEFAULT_JUNGLE_CONFIG.camps), [campType]: campConfig }
     };
     updateFieldSettings({ jungle: newJungleSettings });
-    // [수정] 이 부분의 역슬래시가 에러 원인이었습니다.
-    alert(`${campConfig.name} 설정이 저장되었습니다.`);
+    alert(`${campConfig.name} 설정이 저장되었습니다.\n(다음 게임부터 적용됩니다)`);
     onClose();
   };
 
   const handleReset = () => {
     if(confirm('기본 설정으로 초기화하시겠습니까? (위치 포함)')) {
+        // 기본값 깊은 복사
         const resetData = JSON.parse(JSON.stringify(DEFAULT_JUNGLE_CONFIG.camps[campType]));
         setCampConfig(resetData);
         setSelectedSpotId(resetData.monsters[0]?.spotId);
@@ -3315,7 +3333,6 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
           borderRadius: isMobile ? '0' : '16px', overflow: 'hidden', display:'flex', flexDirection:'column', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' 
       }}>
         
-        {/* 헤더 */}
         <div style={{ padding: '15px 20px', background: '#21262d', borderBottom: '1px solid #30363d', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <h3 style={{ margin: 0, color: '#2ecc71', fontSize: '16px', display:'flex', alignItems:'center', gap:'8px' }}>
             🌲 {isMobile ? campConfig.name.split('(')[0] : campConfig.name}
@@ -3323,10 +3340,9 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding:'5px' }}><X size={24}/></button>
         </div>
 
-        {/* 바디 (맵 + 에디터) */}
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
             
-            {/* 1. 맵 영역 (모듈화됨) */}
+            {/* 1. 맵 영역 */}
             <div style={{ 
                 flex: isMobile ? 'none' : 1, 
                 height: isMobile ? '45vh' : 'auto',
@@ -3353,7 +3369,6 @@ export const JunglePatchModal: React.FC<Props> = ({ campType, onClose }) => {
 
         </div>
 
-        {/* 푸터 */}
         <div style={{ padding: '15px', borderTop: '1px solid #30363d', display: 'flex', gap:'10px', flexShrink: 0, background:'#161b22' }}>
           <button onClick={handleReset} style={{ flex:1, background: '#3f1515', color: '#ff6b6b', border: '1px solid #5a1e1e', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display:'flex', justifyContent:'center', alignItems:'center', gap:'6px', fontSize:'14px' }}>
             <RotateCcw size={16}/> 초기화
@@ -6892,28 +6907,29 @@ const AdjustBtn = ({ onClick, label }: any) => (
 // ==========================================
 // FILE PATH: /src/components/hero/HeroStatsView.tsx
 // ==========================================
-
-import React, { useState, useEffect, useMemo } from 'react'; // useMemo 추가
+import React, { useState, useEffect, useMemo } from 'react'; 
 import { useGameStore } from '../../store/useGameStore';
-import { Award, LayoutGrid, List } from 'lucide-react';
+import { Award, LayoutGrid, List, TrendingUp, Coins } from 'lucide-react';
 import { Role, Hero } from '../../types';
 import { HeroListTable } from './HeroListTable';
 import { LaneStatsView } from './LaneStatsView';
 import { HeroDetailView } from './HeroDetailView';
 import { PatchModal } from './PatchModal';
+import { GrowthSettingModal } from './GrowthSettingModal';
+import { RewardSettingModal } from './RewardSettingModal';
 
 export const HeroStatsView = () => {
   const { heroes } = useGameStore();
   const [mode, setMode] = useState<'HERO' | 'LANE'>('HERO');
   const [selectedRole, setSelectedRole] = useState<Role>('집행관');
 
-  // [수정 1] 영웅 객체 대신 ID를 저장하여 항상 최신 데이터를 참조하도록 변경
   const [viewingHeroId, setViewingHeroId] = useState<string | null>(null);
   const [showPatchModal, setShowPatchModal] = useState(false);
+  const [showGrowthModal, setShowGrowthModal] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // [수정 2] ID를 기반으로 현재 최신 영웅 데이터 찾기
   const viewingHero = useMemo(() => 
     heroes.find(h => h.id === viewingHeroId) || null, 
   [heroes, viewingHeroId]);
@@ -6924,7 +6940,6 @@ export const HeroStatsView = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // [수정 3] 핸들러가 ID를 저장하도록 변경
   const handleHeroClick = (hero: Hero) => {
     setViewingHeroId(hero.id);
   };
@@ -6936,85 +6951,59 @@ export const HeroStatsView = () => {
       position: 'relative'
     }}>
 
-      {/* 헤더 및 탭 */}
       <div style={{ 
         padding: '12px 15px', borderBottom: '1px solid #30363d', 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background:'#21262d', gap: '10px'
       }}>
-        {/* 제목 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: isMobile ? '14px' : '16px', color: '#fff', whiteSpace:'nowrap' }}>
           <Award size={isMobile ? 16 : 18} color="#58a6ff" />
-          <span>시즌 1 데이터</span>
+          <span>{isMobile ? '시즌1' : '시즌 1 데이터'}</span>
         </div>
 
-        {/* 탭 버튼 */}
-        <div style={{ display:'flex', background:'#0d1117', padding:'3px', borderRadius:'6px', border:'1px solid #30363d' }}>
+        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          
           <button 
-            onClick={() => setMode('HERO')} 
-            style={{ 
-              display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', 
-              padding: isMobile ? '6px 10px' : '6px 14px', 
-              borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', 
-              background: mode === 'HERO' ? '#58a6ff' : 'transparent', color: mode === 'HERO' ? '#000' : '#8b949e',
-              transition: '0.2s', whiteSpace:'nowrap'
-            }}
+              onClick={() => setShowRewardModal(true)}
+              style={{ background: '#e67e22', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: isMobile ? '6px 8px' : '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            <List size={12}/> 영웅별
+              <Coins size={12}/> {isMobile ? '보상' : '보상 설정'}
           </button>
+
           <button 
-            onClick={() => setMode('LANE')} 
-            style={{ 
-              display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', 
-              padding: isMobile ? '6px 10px' : '6px 14px', 
-              borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', 
-              background: mode === 'LANE' ? '#58a6ff' : 'transparent', color: mode === 'LANE' ? '#000' : '#8b949e',
-              transition: '0.2s', whiteSpace:'nowrap'
-            }}
+              onClick={() => setShowGrowthModal(true)}
+              style={{ background: '#238636', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: isMobile ? '6px 8px' : '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            <LayoutGrid size={12}/> 라인별
+              <TrendingUp size={12}/> {isMobile ? '성장' : '성장 밸런스'}
           </button>
+
+          <div style={{ display:'flex', background:'#0d1117', padding:'3px', borderRadius:'6px', border:'1px solid #30363d' }}>
+            <button onClick={() => setMode('HERO')} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', padding: isMobile ? '6px 10px' : '6px 14px', borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', background: mode === 'HERO' ? '#58a6ff' : 'transparent', color: mode === 'HERO' ? '#000' : '#8b949e', transition: '0.2s', whiteSpace:'nowrap' }}>
+              <List size={12}/> {isMobile ? '영웅' : '영웅별'}
+            </button>
+            <button onClick={() => setMode('LANE')} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'4px', padding: isMobile ? '6px 10px' : '6px 14px', borderRadius:'4px', border:'none', cursor:'pointer', fontWeight:'bold', fontSize: isMobile ? '11px' : '12px', background: mode === 'LANE' ? '#58a6ff' : 'transparent', color: mode === 'LANE' ? '#000' : '#8b949e', transition: '0.2s', whiteSpace:'nowrap' }}>
+              <LayoutGrid size={12}/> {isMobile ? '라인' : '라인별'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 메인 컨텐츠 */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {mode === 'HERO' ? (
-          <HeroListTable 
-            heroes={heroes} 
-            isMobile={isMobile} 
-            onHeroClick={handleHeroClick} 
-          />
+          <HeroListTable heroes={heroes} isMobile={isMobile} onHeroClick={handleHeroClick} />
         ) : (
-          <LaneStatsView 
-            heroes={heroes} 
-            selectedRole={selectedRole} 
-            onSelectRole={setSelectedRole} 
-            isMobile={isMobile}
-            onHeroClick={handleHeroClick} 
-          />
+          <LaneStatsView heroes={heroes} selectedRole={selectedRole} onSelectRole={setSelectedRole} isMobile={isMobile} onHeroClick={handleHeroClick} />
         )}
       </div>
 
-      {/* 영웅 상세 팝업 (viewingHero는 이제 항상 최신 상태임) */}
-      {viewingHero && (
-        <HeroDetailView 
-          hero={viewingHero} 
-          onBack={() => setViewingHeroId(null)} 
-          onPatch={() => setShowPatchModal(true)}
-        />
-      )}
-
-      {/* 패치 모달 */}
-      {showPatchModal && viewingHero && (
-        <PatchModal 
-          hero={viewingHero} 
-          onClose={() => setShowPatchModal(false)} 
-        />
-      )}
+      {viewingHero && <HeroDetailView hero={viewingHero} onBack={() => setViewingHeroId(null)} onPatch={() => setShowPatchModal(true)} />}
+      {showPatchModal && viewingHero && <PatchModal hero={viewingHero} onClose={() => setShowPatchModal(false)} />}
+      {showGrowthModal && <GrowthSettingModal onClose={() => setShowGrowthModal(false)} />}
+      {showRewardModal && <RewardSettingModal onClose={() => setShowRewardModal(false)} />}
     </div>
   );
 };
+
 
 --- FILE: src/components/hero/PatchModal.tsx ---
 // ==========================================
@@ -7170,6 +7159,243 @@ export const PatchModal: React.FC<Props> = ({ hero, onClose }) => {
     </div>
   );
 };
+
+
+--- FILE: src/components/hero/GrowthSettingModal.tsx ---
+// ==========================================
+// FILE PATH: /src/components/hero/GrowthSettingModal.tsx
+// ==========================================
+import React, { useState, useEffect, useRef } from 'react';
+import { useGameStore } from '../../store/useGameStore';
+import { X, Save, TrendingUp, Heart, Sword, Shield, Zap, Activity, Clock, RotateCcw } from 'lucide-react';
+import { GrowthIntervals } from '../../types';
+
+const PerfectSlider = ({ value, min, max, onChange, color }: { value: number, min: number, max: number, onChange: (val: number) => void, color: string }) => {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(false);
+  const percent = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    setActive(true);
+  };
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!active || !trackRef.current) return;
+    e.preventDefault();
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    let ratio = x / rect.width;
+    ratio = Math.max(0, Math.min(1, ratio));
+    const newValue = Math.round(min + ratio * (max - min));
+    if (newValue !== value) onChange(newValue);
+  };
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setActive(false);
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none' }}>
+      <div ref={trackRef} style={{ width: '100%', height: '6px', background: '#30363d', borderRadius: '3px', position: 'relative' }}>
+        <div style={{ width: `${percent}%`, height: '100%', background: color, borderRadius: '3px' }} />
+      </div>
+      <div onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp}
+        style={{ position: 'absolute', left: `${percent}%`, width: '28px', height: '28px', borderRadius: '50%', background: '#fff', border: `2px solid ${color}`, boxShadow: '0 2px 5px rgba(0,0,0,0.5)', transform: 'translate(-50%, 0)', cursor: 'grab', zIndex: 10, touchAction: 'none' }}
+      >
+        {active && <div style={{ position:'absolute', inset: -6, borderRadius:'50%', border: `2px solid ${color}`, opacity: 0.5 }}/>}
+      </div>
+    </div>
+  );
+};
+
+interface Props { onClose: () => void; }
+
+export const GrowthSettingModal: React.FC<Props> = ({ onClose }) => {
+  const { gameState, updateGrowthSettings } = useGameStore();
+  const [localSettings, setLocalSettings] = useState({ ...gameState.growthSettings });
+  
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleChange = (stat: keyof typeof localSettings, period: keyof GrowthIntervals, val: number) => {
+    setLocalSettings(prev => ({ ...prev, [stat]: { ...prev[stat as any], [period]: val } }));
+  };
+
+  const handleSimpleChange = (field: string, val: number) => {
+    setLocalSettings(prev => ({ ...prev, [field]: val }));
+  };
+
+  const handleSave = () => {
+    updateGrowthSettings(localSettings);
+    alert('✅ 설정이 저장되었습니다.\n다음 시뮬레이션부터 적용됩니다.');
+    onClose();
+  };
+
+  const StatRow = ({ label, icon, statKey, color }: { label: string, icon: any, statKey: string, color: string }) => {
+    const data = (localSettings as any)[statKey] as GrowthIntervals;
+    const renderSlider = (title: string, period: keyof GrowthIntervals) => (
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize:'11px', color:'#aaa', marginBottom:'0px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span>{title}</span>
+            <span style={{ color: color, fontWeight:'bold', fontFamily:'monospace', fontSize:'14px' }}>{data[period]}%</span>
+        </div>
+        <PerfectSlider min={0} max={30} value={data[period]} onChange={(val) => handleChange(statKey as any, period, val)} color={color} />
+      </div>
+    );
+    return (
+      <div style={{ marginBottom: '15px', background:'#1f242e', padding:'15px', borderRadius:'8px', border:'1px solid #30363d' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px', color: color, fontWeight:'bold', fontSize:'13px', marginBottom:'12px' }}>{icon} {label}</div>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '20px' }}>
+          {renderSlider("초반 (Lv.1~6)", "early")}
+          {renderSlider("중반 (Lv.7~12)", "mid")}
+          {renderSlider("후반 (Lv.13~)", "late")}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center', padding: isMobile ? '0' : '10px' }}>
+      <div style={{ width:'100%', maxWidth:'600px', height: isMobile ? '100%' : 'auto', background:'#161b22', border: isMobile ? 'none' : '1px solid #30363d', borderRadius: isMobile ? '0' : '12px', overflow:'hidden', display:'flex', flexDirection:'column', maxHeight:'95vh' }}>
+        
+        <div style={{ padding:'15px', background:'#21262d', borderBottom:'1px solid #30363d', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 style={{ margin:0, color:'#fff', fontSize:'16px', display:'flex', alignItems:'center', gap:'8px' }}><TrendingUp size={18} color="#2ecc71"/> 게임 밸런스 설정</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer', padding:'5px' }}><X size={24}/></button>
+        </div>
+
+        <div style={{ padding:'15px', overflowY:'auto', flex:1, WebkitOverflowScrolling: 'touch' }}>
+          
+          {/* 1. 게임 규칙 설정 */}
+          <div style={{ marginBottom:'25px' }}>
+            <h4 style={{ margin:'0 0 10px 0', fontSize:'13px', color:'#ccc', borderBottom:'1px solid #333', paddingBottom:'5px' }}>게임 규칙 (Game Rules)</h4>
+            <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:'15px' }}>
+                <div style={{ background:'#0d1117', padding:'12px', borderRadius:'8px', border:'1px solid #30363d' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
+                        <span style={{ fontSize:'12px', color:'#ccc', display:'flex', gap:'4px', alignItems:'center' }}><Clock size={12}/> 레벨당 부활시간 계수</span>
+                        <span style={{ fontSize:'13px', fontWeight:'bold', color:'#f1c40f' }}>x{localSettings.respawnPerLevel}</span>
+                    </div>
+                    {/* 계수는 1~10까지 */}
+                    <PerfectSlider min={1} max={10} value={localSettings.respawnPerLevel} onChange={(v)=>handleSimpleChange('respawnPerLevel', v)} color="#f1c40f" />
+                    <div style={{ fontSize:'10px', color:'#666', marginTop:'4px' }}>
+                      (기본: 3.0, 후반 페널티 별도 적용)
+                    </div>
+                </div>
+                <div style={{ background:'#0d1117', padding:'12px', borderRadius:'8px', border:'1px solid #30363d' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'8px' }}>
+                        <span style={{ fontSize:'12px', color:'#ccc', display:'flex', gap:'4px', alignItems:'center' }}><RotateCcw size={12}/> 귀환 소요시간</span>
+                        <span style={{ fontSize:'13px', fontWeight:'bold', color:'#3498db' }}>{localSettings.recallTime}초</span>
+                    </div>
+                    {/* 귀환시간은 1~20초까지 */}
+                    <PerfectSlider min={1} max={20} value={localSettings.recallTime} onChange={(v)=>handleSimpleChange('recallTime', v)} color="#3498db" />
+                </div>
+            </div>
+          </div>
+
+          {/* 2. 성장 밸런스 */}
+          <h4 style={{ margin:'0 0 10px 0', fontSize:'13px', color:'#ccc', borderBottom:'1px solid #333', paddingBottom:'5px' }}>구간별 성장 (Growth Curve)</h4>
+          <StatRow label="공격력 (AD)" icon={<Sword size={14}/>} statKey="ad" color="#e74c3c" />
+          <StatRow label="주문력 (AP)" icon={<Zap size={14}/>} statKey="ap" color="#9b59b6" />
+          <StatRow label="최대 체력 (HP)" icon={<Heart size={14}/>} statKey="hp" color="#2ecc71" />
+          <StatRow label="방어력 (Armor)" icon={<Shield size={14}/>} statKey="armor" color="#3498db" />
+          <StatRow label="기본 공격 (Base)" icon={<Sword size={14}/>} statKey="baseAtk" color="#777" />
+          <StatRow label="체력 재생 (Regen)" icon={<Activity size={14}/>} statKey="regen" color="#2ecc71" />
+        </div>
+
+        <div style={{ padding:'15px', borderTop:'1px solid #30363d', display:'flex', gap:'10px', background:'#161b22', paddingBottom: isMobile ? '30px' : '15px' }}>
+          <button onClick={onClose} style={{ flex:1, background:'transparent', border:'1px solid #444', color:'#ccc', padding:'12px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer' }}>닫기</button>
+          <button onClick={handleSave} style={{ flex:2, background:'#238636', border:'none', color:'#fff', padding:'12px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', gap:'6px' }}>
+            <Save size={18}/> 설정 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+--- FILE: src/components/hero/RewardSettingModal.tsx ---
+// ==========================================
+// FILE PATH: /src/components/hero/RewardSettingModal.tsx
+// ==========================================
+import React, { useState } from 'react';
+import { useGameStore } from '../../store/useGameStore';
+import { X, Save, Coins, Star, Users, Zap, Skull } from 'lucide-react';
+import { RangeInput } from '../battle/ui/PatchInputs';
+
+interface Props { onClose: () => void; }
+
+export const RewardSettingModal: React.FC<Props> = ({ onClose }) => {
+  const { gameState, updateBattleSettings } = useGameStore();
+  const economy = gameState.battleSettings.economy;
+  const [localSettings, setLocalSettings] = useState({ ...economy });
+
+  const handleChange = (field: string, val: number) => {
+    setLocalSettings(prev => ({ ...prev, [field]: val }));
+  };
+
+  const handleSave = () => {
+    updateBattleSettings({ economy: localSettings });
+    alert('✅ 보상 밸런스가 변경되었습니다.\n다음 킬부터 즉시 적용됩니다.');
+    onClose();
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center', padding:'20px' }}>
+      <div style={{ width:'100%', maxWidth:'450px', background:'#161b22', border:'1px solid #30363d', borderRadius:'12px', overflow:'hidden', display:'flex', flexDirection:'column', maxHeight:'90vh' }}>
+        
+        <div style={{ padding:'15px', background:'#21262d', borderBottom:'1px solid #30363d', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h3 style={{ margin:0, color:'#fff', fontSize:'16px', display:'flex', alignItems:'center', gap:'8px' }}>
+            <Coins size={18} color="#f1c40f"/> 보상 밸런스 설정
+          </h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer', padding:'5px' }}><X size={24}/></button>
+        </div>
+
+        <div style={{ padding:'20px', overflowY:'auto', flex:1 }}>
+          <div style={{ fontSize:'12px', color:'#888', marginBottom:'20px', background:'#0d1117', padding:'10px', borderRadius:'6px' }}>
+            * 킬을 할 때마다 골드와 경험치를 획득합니다.<br/>
+            * 현상금은 연속 킬을 기록 중인 적을 처치할 때 추가됩니다.
+          </div>
+
+          <div style={{ marginBottom:'10px', fontWeight:'bold', color:'#f1c40f', fontSize:'13px' }}>[골드 보상]</div>
+          <RangeInput label="기본 킬 골드" icon={<Coins size={14}/>} value={localSettings.killGold} onChange={(v) => handleChange('killGold', v)} min={100} max={1000} step={10} unit=" G" color="#f1c40f" />
+          
+          <RangeInput label="적 레벨당 추가 골드" icon={<TrendingUp size={14} />} value={localSettings.goldPerLevel} onChange={(v) => handleChange('goldPerLevel', v)} min={0} max={100} step={5} unit=" G" color="#e67e22" />
+          
+          <RangeInput label="연속 킬당 현상금 증가" icon={<Skull size={14}/>} value={localSettings.bountyIncrement} onChange={(v) => handleChange('bountyIncrement', v)} min={0} max={500} step={50} unit=" G" color="#da3633" />
+
+          <div style={{borderTop:'1px dashed #333', margin:'20px 0'}}></div>
+
+          <div style={{ marginBottom:'10px', fontWeight:'bold', color:'#2ecc71', fontSize:'13px' }}>[경험치 & 어시스트]</div>
+          <RangeInput label="기본 킬 경험치" icon={<Star size={14}/>} value={localSettings.killXpBase} onChange={(v) => handleChange('killXpBase', v)} min={0} max={500} step={10} unit=" XP" color="#2ecc71" />
+          
+          <RangeInput label="레벨당 추가 경험치" icon={<Zap size={14}/>} value={localSettings.killXpPerLevel} onChange={(v) => handleChange('killXpPerLevel', v)} min={0} max={100} step={5} unit=" XP" color="#2ecc71" />
+          
+          <div style={{borderTop:'1px dashed #333', margin:'20px 0'}}></div>
+
+          <RangeInput label="어시스트 분배율" icon={<Users size={14}/>} value={localSettings.assistPool} onChange={(v) => handleChange('assistPool', v)} min={0} max={100} step={5} unit="%" color="#3498db" />
+          <div style={{fontSize:'11px', color:'#666', marginTop:'-15px', textAlign:'right'}}>
+             * 킬 골드의 {localSettings.assistPool}%를 어시스트 인원끼리 나눔
+          </div>
+
+        </div>
+
+        <div style={{ padding:'15px', borderTop:'1px solid #30363d', display:'flex', gap:'10px', background:'#161b22' }}>
+          <button onClick={onClose} style={{ flex:1, background:'transparent', border:'1px solid #444', color:'#ccc', padding:'12px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer' }}>닫기</button>
+          <button onClick={handleSave} style={{ flex:2, background:'#238636', border:'none', color:'#fff', padding:'12px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', gap:'6px' }}>
+            <Save size={18}/> 설정 저장
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+import { TrendingUp } from 'lucide-react';
 
 
 --- FILE: src/components/layout/Header.tsx ---
@@ -10132,7 +10358,7 @@ export interface GameState {
 // FILE PATH: /src/data/types/match.ts
 // ==========================================
 
-export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP';
+export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP' | 'RECALL_CANCEL';
 
 export interface GameLog {
   time: number;
@@ -10170,26 +10396,26 @@ export interface LivePlayer {
   respawnTimer: number;
   cooldowns?: { q:number, w:number, e:number, r:number };
   stats: { brain: number, mechanics: number };
+  lastAttackTime?: number;       
+  lastAttackedTargetId?: string;
+  killStreak: number; 
+  bounty: number;
 
-  // [신규] 타워 어그로 시스템을 위한 필드
-  lastAttackTime?: number;       // 마지막으로 적을 공격한 시간
-  lastAttackedTargetId?: string; // 마지막으로 공격한 대상(영웅)의 ID
+  // [신규] 귀환 시스템 필드
+  isRecalling: boolean;     // 현재 귀환 채널링 중인지
+  currentRecallTime: number; // 귀환 진행 시간
+  recallCooldown: number;   // 귀환 방해 후 대기 시간 (3초)
 }
 
 export interface TowerStatus {
-  top: number; 
-  mid: number;
-  bot: number;
+  top: number; mid: number; bot: number;
 }
 
 export interface TeamStats {
   towers: TowerStatus; 
   laneHealth: { top: number; mid: number; bot: number };
-  colossus: number;
-  watcher: number;
-  fury: number;
-  nexusHp: number;
-  maxNexusHp: number;
+  colossus: number; watcher: number; fury: number;
+  nexusHp: number; maxNexusHp: number;
   activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
 }
 
@@ -10205,10 +10431,7 @@ export interface LiveMatch {
   currentDuration: number;
   avgTier: string;
   score: { blue: number, red: number };
-  stats: {
-    blue: TeamStats;
-    red: TeamStats;
-  };
+  stats: { blue: TeamStats; red: TeamStats; };
   timeline: TimelineEvent[];
   logs: GameLog[];
   
@@ -11304,14 +11527,15 @@ import { LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
 import { getLevelScaledStats } from '../utils/StatUtils';
 import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
 import { Collision } from '../utils/Collision';
-import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
+import { SpatialGrid } from '../utils/SpatialGrid';
 import { 
     calculateHeroDamage, 
-    calculateUnitDamage, 
-    distributeAssist, 
-    distributeRewards,
-    MINION_REWARD 
+    applyKillReward, 
+    handleDeath
 } from '../logics/CombatLogic';
+import { FarmAction } from '../actions/FarmAction';
+// [신규] RecallSystem 임포트
+import { RecallSystem } from '../systems/RecallSystem';
 
 export const processCombatPhase = (
   match: LiveMatch, 
@@ -11327,25 +11551,26 @@ export const processCombatPhase = (
 
   if (blueAlive.length === 0 && redAlive.length === 0) return;
 
-  // [최적화] 매 프레임 그리드 구축 (비용 저렴함)
   const enemyGrid = {
-      BLUE: new SpatialGrid(redAlive), // 블루팀 입장에서의 적(레드)
-      RED: new SpatialGrid(blueAlive)  // 레드팀 입장에서의 적(블루)
+      BLUE: new SpatialGrid(redAlive), 
+      RED: new SpatialGrid(blueAlive) 
   };
   
-  // 미니언 그리드 구축
   const minionList = match.minions || [];
   const minionGrid = {
-      BLUE: new SpatialGrid(minionList.filter(m => m.team === 'RED' && m.hp > 0)),
-      RED: new SpatialGrid(minionList.filter(m => m.team === 'BLUE' && m.hp > 0))
+      BLUE: minionList.filter(m => m.team === 'RED' && m.hp > 0),
+      RED: minionList.filter(m => m.team === 'BLUE' && m.hp > 0)
   };
 
   const allAttackers = [...blueAlive, ...redAlive];
   allAttackers.sort(() => Math.random() - 0.5);
 
   allAttackers.forEach(attacker => {
+      // [수정] 귀환 중인 공격자는 공격 불가
+      if (attacker.isRecalling) return;
+
       const isBlue = match.blueTeam.includes(attacker);
-      const enemyTeamKey = isBlue ? 'BLUE' : 'RED'; // 내 입장에서의 적 그리드 키
+      const enemyTeamKey = isBlue ? 'BLUE' : 'RED';
 
       const attackerHero = heroes.find(h => h.id === attacker.heroId);
       if (!attackerHero) return;
@@ -11353,61 +11578,18 @@ export const processCombatPhase = (
       const atkStats = getLevelScaledStats(attackerHero.stats, attacker.level);
       const attackRange = atkStats.range / 100;
 
-      // -------------------------------------------------------------
-      // 1. [최우선] CS 막타 (Smart Farming)
-      // -------------------------------------------------------------
-      let farmed = false;
-
+      // 1. CS 막타
       if (match.minions && attacker.lane !== 'JUNGLE') {
-          // [최적화] 전체 미니언 루프 대신, 내 주변 미니언만 가져옴 (수백번 -> 수십번으로 감소)
-          const nearbyMinions = minionGrid[enemyTeamKey].getNearbyUnits(attacker);
+          const minionsInRange = minionGrid[enemyTeamKey]; 
+          const enemies = { minions: minionsInRange.filter(m => Collision.inRange(attacker, m, attackRange)) };
           
-          const minionsInRange = nearbyMinions.filter(m => Collision.inRange(attacker, m, attackRange));
-
-          if (minionsInRange.length > 0) {
-              const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
-              
-              // 처형 임계값
-              let executeThreshold = myDamage * 2.5; 
-              if (attackerHero.role === '수호기사') {
-                  if (Math.random() < 0.05) executeThreshold = myDamage * 6.0; 
-                  else return; 
-              }
-
-              const targetMinion = TargetEvaluator.selectFarmTarget(attacker, minionsInRange, executeThreshold);
-
-              if (targetMinion) {
-                  if (targetMinion.hp <= executeThreshold) targetMinion.hp = 0;
-                  else targetMinion.hp -= myDamage;
-                  
-                  attacker.totalDamageDealt += myDamage;
-
-                  if (targetMinion.hp <= 0) {
-                      const reward = (MINION_REWARD as any)[targetMinion.type] || MINION_REWARD.MELEE;
-                      attacker.cs++;
-                      attacker.gold += reward.gold;
-                      distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
-
-                      if (targetMinion.type === 'SUMMONED_COLOSSUS') {
-                          match.logs.push({ 
-                              time: Math.floor(match.currentDuration), 
-                              message: `⚔️ [${attackerHero.name}]가 적의 거신병을 처치했습니다!`, 
-                              type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
-                          });
-                      }
-                  }
-                  farmed = true;
-              }
+          if (FarmAction.tryFarm(attacker, attackerHero, match, enemies, atkStats, isBlue, settings, heroes)) {
+              return; 
           }
       }
 
-      if (farmed) return;
-
-      // -------------------------------------------------------------
-      // 2. 적 영웅 타겟팅
-      // -------------------------------------------------------------
+      // 2. 적 영웅 교전
       if (Math.random() < dt * 2.0) {
-          // [최적화] 내 주변 적 영웅만 탐색
           const nearbyEnemies = enemyGrid[enemyTeamKey].getNearbyUnits(attacker);
           const targetsInRange = nearbyEnemies.filter(e => Collision.inRange(attacker, e, attackRange));
 
@@ -11425,9 +11607,14 @@ export const processCombatPhase = (
                     defender.currentHp -= damage;
                     attacker.totalDamageDealt += damage;
 
+                    // [핵심] 피격 시 귀환 취소 트리거
+                    if (damage > 0) {
+                        RecallSystem.cancelRecall(defender);
+                    }
+
                     if (defender.currentHp <= 0) {
-                        attacker.kills++; defender.deaths++; attacker.gold += 300;
-                        distributeAssist(match, attacker, defender, isBlue);
+                        defender.deaths++; 
+                        applyKillReward(match, attacker, defender, settings.economy, heroes);
 
                         if (isBlue) match.score.blue++; else match.score.red++;
                         match.logs.push({ 
@@ -11435,11 +11622,9 @@ export const processCombatPhase = (
                             message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, 
                             type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
                         });
-                        defender.currentHp = 0;
-                        defender.respawnTimer = 10 + (defender.level * 2);
+                        handleDeath(defender);
                     }
                 }
-                return;
               }
           }
       }
@@ -11485,11 +11670,12 @@ export const processGrowthPhase = (
         p.currentHp = Math.min(p.maxHp, p.currentHp + (hpRegen * dt));
     }
 
-    // 2. [정상화] 자연 골드/경험치 (현실적 수치)
-    // 분당 180골드 (초당 3)
+    // 2. 자연 골드/경험치
     p.gold += (3.0 * dt);
-    // 자연 경험치는 아주 조금만 (라인 서있으면 먹는건 CombatPhase 등에서 처리)
-    (p as any).exp = ((p as any).exp || 0) + (2.0 * dt);
+    
+    // [수정] 자연 경험치 2배 상향 (2.0 -> 4.0)
+    // 킬이 많이 나와서 라인 경험치를 못 먹는 상황을 보정합니다.
+    (p as any).exp = ((p as any).exp || 0) + (4.0 * dt);
 
     // 3. 레벨업 처리
     let reqExp = getRequiredExpForLevel(p.level);
@@ -11516,7 +11702,7 @@ export const processGrowthPhase = (
         reqExp = getRequiredExpForLevel(p.level);
     }
 
-    // 4. 비상 귀환
+    // 4. 비상 귀환 (유지)
     const isLowHp = p.currentHp < p.maxHp * 0.2; 
     const isLowMp = p.currentMp < p.maxMp * 0.1; 
     const hasLotsOfGold = p.gold > 2000; 
@@ -11537,7 +11723,6 @@ import { applyRoleBonus } from '../systems/RoleManager';
 import { getDistance, BASES } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
 import { TowerLogic } from '../logics/TowerLogic';
-// [수정] DamageCalculator 임포트
 import { calcMitigatedDamage } from '../systems/DamageCalculator';
 
 const getTowerPos = (lane: string, tier: number, isBlueSide: boolean) => {
@@ -11559,6 +11744,7 @@ export const processSiegePhase = (
   const allPlayers = [...match.blueTeam, ...match.redTeam];
   
   allPlayers.forEach(p => {
+    // 죽었거나 부활 중이면 패스
     if (p.currentHp <= 0 || p.respawnTimer > 0) return;
 
     const isBlue = match.blueTeam.includes(p);
@@ -11568,7 +11754,12 @@ export const processSiegePhase = (
     const hero = heroes.find(h => h.id === p.heroId);
     if (!hero) return;
 
-    // 타워 공격
+    // [핵심 수정] 
+    // 공격 횟수 = (초당 공격 횟수) * (경과 시간)
+    // hero.stats.speed가 300이면 초당 약 1.2회 공격 (300 / 250)
+    const attacksInFrame = (hero.stats.speed / 250) * dt;
+
+    // 타워 공격 로직
     if (p.lane !== 'JUNGLE') {
         const laneKey = p.lane.toLowerCase();
         const brokenCount = (enemyStats.towers as any)[laneKey];
@@ -11578,22 +11769,29 @@ export const processSiegePhase = (
             const towerPos = getTowerPos(p.lane, targetTier, !isBlue);
             const dist = getDistance(p, towerPos);
 
-            if (dist <= 10) {
+            // 사거리 13 이내면 공성 시작 (기존 10보다 약간 완화)
+            if (dist <= 13) {
                 const tStats = (fieldSettings.towers as any)[`t${targetTier}`];
                 const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
                 
                 const myStats = isBlue ? match.stats.blue : match.stats.red;
                 const buffFactor = myStats.activeBuffs.siegeUnit ? 1.5 : 1.0;
 
-                const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-                const realDmg = calcMitigatedDamage(rawDmg, tStats.armor) * dt;
+                // [수정] 확률 체크 없이, 누적된 데미지를 그대로 박아버림
+                // 공격력 * 공성보너스 * 버프 * (이번 프레임에 때린 횟수)
+                const totalRawDmg = (hero.stats.ad * siegeMod * buffFactor) * attacksInFrame;
                 
+                // 방어력 적용
+                const realDmg = calcMitigatedDamage(totalRawDmg, tStats.armor);
+                
+                // 체력 데이터 초기화 안전장치
                 if (!(enemyStats as any).laneHealth) {
                     (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
                 }
                 
                 (enemyStats as any).laneHealth[laneKey] -= realDmg;
 
+                // 타워 파괴 처리
                 if ((enemyStats as any).laneHealth[laneKey] <= 0) {
                     (enemyStats.towers as any)[laneKey]++;
                     (isBlue ? match.blueTeam : match.redTeam).forEach(m => m.gold += tStats.rewardGold);
@@ -11604,6 +11802,7 @@ export const processSiegePhase = (
                         type: 'TOWER', team: isBlue ? 'BLUE' : 'RED' 
                     });
                     
+                    // 다음 타워 체력 세팅
                     if (brokenCount + 1 < 3) {
                         const nextStats = (fieldSettings.towers as any)[`t${targetTier + 1}`];
                         (enemyStats as any).laneHealth[laneKey] = nextStats.hp;
@@ -11613,23 +11812,25 @@ export const processSiegePhase = (
         }
     }
 
-    // 넥서스 공격
+    // 넥서스 공격 로직 (백도어 포함)
     const inhibitorsDown = enemyStats.towers.top >= 3 || enemyStats.towers.mid >= 3 || enemyStats.towers.bot >= 3;
     if (inhibitorsDown) {
         const distToNexus = getDistance(p, enemyBase);
-        if (distToNexus <= 12) { 
+        if (distToNexus <= 16) { // 넥서스는 덩치가 크니 사거리 더 줌
             const nStats = fieldSettings.towers.nexus;
             const { siegeMod } = applyRoleBonus(p, hero.role, true, [], roleSettings);
             const buffFactor = (isBlue ? match.stats.blue : match.stats.red).activeBuffs.siegeUnit ? 2.5 : 1.0;
-            const rawDmg = hero.stats.ad * siegeMod * buffFactor;
-            const realDmg = calcMitigatedDamage(rawDmg, nStats.armor) * dt;
+            
+            // [수정] 넥서스도 동일하게 총량 데미지 적용
+            const totalRawDmg = (hero.stats.ad * siegeMod * buffFactor) * attacksInFrame;
+            const realDmg = calcMitigatedDamage(totalRawDmg, nStats.armor);
 
             enemyStats.nexusHp -= realDmg;
         }
     }
   });
 
-  // 구조물 방어 (타워 어그로)
+  // [구조물 방어 로직] - 타워가 적을 공격 (이건 유지하되 타겟팅만 확실하게)
   const lanes = ['TOP', 'MID', 'BOT'];
   const teams = ['BLUE', 'RED'] as const;
 
@@ -11643,30 +11844,30 @@ export const processSiegePhase = (
           minions: (match.minions || []).filter(m => m.team !== defendingTeam)
       };
 
-      // A. 레인 타워
+      // 타워 공격
       lanes.forEach(lane => {
           const laneKey = lane.toLowerCase();
           const brokenCount = (myStats.towers as any)[laneKey];
-          
           if (brokenCount < 3) {
               const currentTier = brokenCount + 1;
               const towerPos = getTowerPos(lane, currentTier, isBlueDef);
               const towerStats = (fieldSettings.towers as any)[`t${currentTier}`];
-
+              
+              // 타워 사거리를 12로 설정
               const target = TowerLogic.selectTarget(towerPos, enemies, allies, 12, match.currentDuration);
               if (target) {
+                  // 백도어 체크 (주변에 미니언 없으면 영웅에게 더 큰 데미지)
                   const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, towerPos) <= 12);
                   TowerLogic.applyDamage(target, towerStats, dt, false, hasMinions);
               }
           }
       });
 
-      // B. 넥서스 타워
+      // 넥서스 공격
       const inhibitorsDown = myStats.towers.top >= 3 || myStats.towers.mid >= 3 || myStats.towers.bot >= 3;
       if (inhibitorsDown) {
           const nexusPos = isBlueDef ? BASES.BLUE : BASES.RED;
           const nexusStats = fieldSettings.towers.nexus;
-          
           const target = TowerLogic.selectTarget(nexusPos, enemies, allies, 15, match.currentDuration);
           if (target) {
               const hasMinions = enemies.minions.some(m => m.hp > 0 && getDistance(m, nexusPos) <= 15);
@@ -12001,8 +12202,6 @@ export class JungleSystem {
              killer.gold += Math.floor(((mob as any).rewardGold || 50) * bonus);
              (killer as any).exp = ((killer as any).exp || 0) + Math.floor(((mob as any).rewardXp || 80) * bonus);
              
-             // [수정] 정글 CS 지급 (대형몹은 4점, 소형은 1점) - 실제 롤 방식
-             // isBuffMob(레드/블루/두꺼비 등)은 4점, 나머지는 1점
              killer.cs += (mob as any).isBuffMob ? 4 : 1;
              
              if ((mob as any).isBuffMob && (mob as any).buffs) {
@@ -12012,7 +12211,6 @@ export class JungleSystem {
                     if(!killer.buffs) killer.buffs = [];
                     killer.buffs.push(`${b.type}:${b.value}`);
                 });
-                // 정글몹 처치 로그는 너무 자주 뜨면 시끄러우므로 중요 버프몹만
                 if (Math.random() < 0.3) {
                     match.logs.push({
                         time: Math.floor(match.currentDuration),
@@ -12033,31 +12231,23 @@ export class JungleSystem {
     const state = useGameStore.getState().gameState;
     const settings = state.fieldSettings.jungle as any;
     const camps = settings?.camps || DEFAULT_JUNGLE_CONFIG.camps;
-    const positions = state.fieldSettings.positions;
     
-    const CAMP_POSITIONS: Record<JungleCampType, {x:number, y:number}> = {
-        TOP_BLUE: positions.jungle[0] || { x: 15, y: 42 }, 
-        BOT_BLUE: positions.jungle[1] || { x: 50, y: 82 }, 
-        TOP_RED:  positions.jungle[2] || { x: 58, y: 22 },
-        BOT_RED:  positions.jungle[3] || { x: 82, y: 55 }
-    };
-
     const mobs: JungleMob[] = [];
 
     (Object.keys(camps) as JungleCampType[]).forEach(campKey => {
         const campConfig = camps[campKey];
-        const basePos = CAMP_POSITIONS[campKey];
 
         campConfig.monsters.forEach((m: any, idx: number) => {
-            const worldX = basePos.x + (m.x - 50) * 0.12; 
-            const worldY = basePos.y + (m.y - 50) * 0.12;
-
+            // [핵심 수정] 좌표 왜곡 로직 삭제 (basePos + offset... 제거)
+            // 에디터에서 설정한 좌표(m.x, m.y)가 곧 월드 좌표(0~100)입니다.
+            // 그대로 대입하면 위치가 정확히 일치합니다.
+            
             mobs.push({
                 id: `j_${campKey}_${m.spotId}`,
                 campId: idx,
                 type: m.stats.isBuffMob ? 'GOLEM' : 'WOLF',
-                x: worldX,
-                y: worldY,
+                x: m.x, // 있는 그대로 사용
+                y: m.y, // 있는 그대로 사용
                 hp: m.stats.hp,
                 maxHp: m.stats.hp,
                 atk: m.stats.atk,
@@ -12163,48 +12353,56 @@ export function applyColossusReward(match: LiveMatch, isBlueTeam: boolean) {
   const teamName = isBlueTeam ? '단테' : '이즈마한';
   const teamColor = isBlueTeam ? 'BLUE' : 'RED';
   const stats = isBlueTeam ? match.stats.blue : match.stats.red;
+  const settings = useGameStore.getState().gameState.fieldSettings.colossus;
+  const stackCount = stats.colossus; 
+  const scaleFactor = 1.0 + Math.max(0, stackCount - 1) * 0.1;
 
   stats.activeBuffs.siegeUnit = true;
 
   if (!match.minions) match.minions = [];
-  
   const startPos = isBlueTeam ? BASES.BLUE : BASES.RED;
   
+  const baseHp = settings.hp || 15000;
+  const baseAtk = settings.attack || 300;
+  const baseArmor = settings.armor || 100;
+  const finalHp = Math.floor(baseHp * scaleFactor);
+  const finalAtk = Math.floor(baseAtk * scaleFactor);
+  const finalArmor = Math.floor(baseArmor * scaleFactor);
+
   match.minions.push({
     id: `summoned_colossus_${Date.now()}`,
     type: 'SUMMONED_COLOSSUS',
     team: teamColor,
     lane: 'MID', 
-    x: startPos.x, 
-    y: startPos.y,
-    hp: 15000, 
-    maxHp: 15000, 
-    atk: 300,
+    x: startPos.x, y: startPos.y,
+    hp: finalHp, maxHp: finalHp, atk: finalAtk,
+    // @ts-ignore
+    armor: finalArmor,
     pathIdx: 0
   });
 
-  match.logs.push({ 
-    time: match.currentDuration, 
-    message: `🤖 ${teamName} 진영이 거신병을 소환했습니다! 미드 라인으로 진격합니다!`, 
-    type: 'COLOSSUS', 
-    team: teamColor 
-  });
+  const upgradeMsg = stackCount > 1 ? ` (Lv.${stackCount} 강화: +${Math.round((scaleFactor-1)*100)}%)` : '';
+  match.logs.push({ time: match.currentDuration, message: `🤖 ${teamName} 진영이 거신병을 소환했습니다!${upgradeMsg} 미드 라인으로 진격합니다!`, type: 'COLOSSUS', team: teamColor });
 }
 
 export function applyWatcherReward(match: LiveMatch, isBlueTeam: boolean) {
   const settings = useGameStore.getState().gameState.fieldSettings;
   const teamName = isBlueTeam ? '단테' : '이즈마한';
   const teamColor = isBlueTeam ? 'BLUE' : 'RED';
-  const stats = isBlueTeam ? match.stats.blue : match.stats.red;
-
-  const buffDuration = settings?.watcher?.buffDuration || 180;
-
-  stats.activeBuffs.voidPower = true;
-  stats.activeBuffs.voidBuffEndTime = match.currentDuration + buffDuration;
+  
+  // [수정] 팀 전체 플래그 대신, 살아있는 영웅들에게 개별 버프 부여
+  const allies = isBlueTeam ? match.blueTeam : match.redTeam;
+  allies.forEach(p => {
+    if (p.currentHp > 0 && p.respawnTimer <= 0) {
+        if (!p.buffs.includes('WATCHER_BUFF')) {
+            p.buffs.push('WATCHER_BUFF');
+        }
+    }
+  });
 
   match.logs.push({
     time: match.currentDuration,
-    message: `👁️ ${teamName} 진영이 공허의 힘을 얻었습니다!`,
+    message: `👁️ ${teamName} 진영이 공허의 힘을 얻었습니다! (사망 시 소실)`,
     type: 'WATCHER',
     team: teamColor
   });
@@ -12220,18 +12418,12 @@ export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt
             obj.status = 'ALIVE';
             obj.hp = setting.hp;
             obj.maxHp = setting.hp;
-            match.logs.push({ 
-                time: match.currentDuration, 
-                message: `📢 ${type === 'colossus' ? '거신병' : '주시자'}가 전장에 등장했습니다!`, 
-                type: 'START' 
-            });
+            match.logs.push({ time: match.currentDuration, message: `📢 ${type === 'colossus' ? '거신병' : '주시자'}가 전장에 등장했습니다!`, type: 'START' });
         }
 
         if (obj.status === 'ALIVE') {
             const objectivePos = type === 'colossus' ? POI.BARON : POI.DRAGON;
-            const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(p => 
-                p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, objectivePos) < 15
-            );
+            const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(p => p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, objectivePos) < 15);
 
             if (nearbyHeroes.length > 0) {
                 const dps = nearbyHeroes.reduce((sum, p) => sum + (p.level * 15) + (p.items.length * 10), 0);
@@ -12619,13 +12811,19 @@ export const attemptBuyItem = (
 
 
 --- FILE: src/engine/match/systems/PlayerSystem.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/PlayerSystem.ts
+// ==========================================
 import { LivePlayer, LiveMatch, Hero, RoleSettings } from '../../../types';
-import { attemptBuyItem, updateLivePlayerStats } from './ItemManager'; 
+import { updateLivePlayerStats } from './ItemManager'; 
 import { SteeringSystem } from './SteeringSystem';
 import { PathSystem } from './PathSystem';
 import { BASES } from '../constants/MapConstants';
 import { MacroBrain } from '../ai/MacroBrain';
 import { MicroBrain } from '../ai/MicroBrain';
+import { useGameStore } from '../../../store/useGameStore';
+// [신규] RecallSystem 임포트
+import { RecallSystem } from './RecallSystem';
 
 export const updatePlayerBehavior = (
   player: LivePlayer,
@@ -12635,14 +12833,17 @@ export const updatePlayerBehavior = (
   roleSettings: RoleSettings,
   dt: number
 ) => {
+  // 1. 쿨다운 감소
   if (!player.cooldowns) player.cooldowns = { q:0, w:0, e:0, r:0 };
   Object.keys(player.cooldowns).forEach(k => {
     if ((player.cooldowns as any)[k] > 0) (player.cooldowns as any)[k] -= dt;
   });
 
+  // 2. 부활 대기
   if (player.respawnTimer > 0) {
     player.respawnTimer -= dt;
-    (player as any).currentRecallTime = 0; 
+    player.isRecalling = false;
+    player.currentRecallTime = 0;
     if (player.respawnTimer <= 0) {
       player.respawnTimer = 0;
       const heroData = heroes.find(h => h.id === player.heroId);
@@ -12657,24 +12858,27 @@ export const updatePlayerBehavior = (
     return;
   }
 
+  // 3. 귀환 시스템 업데이트
+  // (귀환 중이면 여기서 처리하고 아래 이동 로직 건너뜀)
+  RecallSystem.update(player, match, heroes, shopItems, dt);
+  if (player.isRecalling) return;
+
   const hero = heroes.find(h => h.id === player.heroId);
   if (!hero) return;
 
   const isBlue = match.blueTeam.includes(player);
   const allies = isBlue ? match.blueTeam : match.redTeam;
 
+  // 4. AI 판단
   const macroDecision = MacroBrain.decide(player, match, hero);
-  
-  if (macroDecision.action !== 'RECALL') {
-    (player as any).currentRecallTime = 0;
-  }
 
   let finalTargetPos = macroDecision.targetPos;
   let moveSpeed = (player as any).moveSpeed || hero.stats.speed;
 
   switch (macroDecision.action) {
     case 'RECALL':
-      handleRecall(player, isBlue, dt, hero, shopItems, match, heroes);
+      // 귀환 시작 명령
+      RecallSystem.startRecall(player);
       return; 
 
     case 'FIGHT':
@@ -12690,7 +12894,6 @@ export const updatePlayerBehavior = (
       break;
 
     case 'FLEE':
-      // [신규] 무조건 도망 (전투 X)
       finalTargetPos = macroDecision.targetPos;
       break;
 
@@ -12707,6 +12910,7 @@ export const updatePlayerBehavior = (
       break;
   }
 
+  // 5. 이동 (귀환 중 아닐 때만)
   const mapScaleSpeed = (moveSpeed / 100) * dt * 0.8; 
   const steering = SteeringSystem.calculateSteering(player, finalTargetPos, allies, mapScaleSpeed);
 
@@ -12715,37 +12919,7 @@ export const updatePlayerBehavior = (
 
   player.x = Math.max(0, Math.min(100, player.x));
   player.y = Math.max(0, Math.min(100, player.y));
-
-  if (Math.random() < 0.1 * dt && player.gold > 1000) {
-    const enemyTeam = isBlue ? match.redTeam : match.blueTeam;
-    attemptBuyItem(player, shopItems, heroes, enemyTeam, match.currentDuration);
-  }
 };
-
-function handleRecall(p: LivePlayer, isBlue: boolean, dt: number, hero: Hero, shopItems: any[], match: LiveMatch, heroes: Hero[]) {
-  const basePos = isBlue ? BASES.BLUE : BASES.RED;
-  const dist = Math.sqrt(Math.pow(p.x - basePos.x, 2) + Math.pow(p.y - basePos.y, 2));
-
-  if (dist <= 5) {
-    p.currentHp += p.maxHp * 0.5 * dt;
-    p.currentMp += p.maxMp * 0.5 * dt;
-    if(p.currentHp > p.maxHp) p.currentHp = p.maxHp;
-    if(p.currentMp > p.maxMp) p.currentMp = p.maxMp;
-    (p as any).currentRecallTime = 0;
-    const enemyTeam = isBlue ? match.redTeam : match.blueTeam;
-    attemptBuyItem(p, shopItems, heroes, enemyTeam, match.currentDuration);
-    return;
-  }
-
-  const RECALL_DURATION = 4.0;
-  (p as any).currentRecallTime = ((p as any).currentRecallTime || 0) + dt;
-  if ((p as any).currentRecallTime >= RECALL_DURATION) {
-      p.x = basePos.x;
-      p.y = basePos.y;
-      (p as any).currentRecallTime = 0;
-      p.currentHp += p.maxHp * 0.2;
-  }
-}
 
 
 --- FILE: src/engine/match/systems/PowerCalculator.ts ---
@@ -12860,7 +13034,6 @@ export class MinionSpawner {
 import { BattleSettings, RoleSettings } from '../../../types';
 import { applyRoleBonus } from './RoleManager';
 
-// 방어력 적용 공식
 export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
   const reduction = 100 / (100 + armor);
   return rawDmg * reduction;
@@ -12871,16 +13044,16 @@ export const calculateHeroDamage = (
     attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
     isBlue: boolean, settings: BattleSettings, roleSettings: RoleSettings, buffType: string
 ) => {
-    // 1. 공격력 (기본 + 아이템 + 신 버프)
+    // 1. 공격력
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
     const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
     const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
 
-    // 2. 크리티컬
+    // 2. 크리티컬 (1.85배로 소폭 상향)
     const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
     let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
-    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
+    let rawDmg = totalAD * (isCrit ? 1.85 : 1.0);
 
     // 3. 방어력
     const defGod = isBlue ? settings.izman : settings.dante; 
@@ -12901,10 +13074,11 @@ export const calculateHeroDamage = (
 
     if (buffType === 'COMBAT') result *= 1.1; 
 
-    return Math.floor(result);
+    // [핵심 수정] 데미지 계수 0.85로 상향 (기존 0.7)
+    return Math.floor(result * 0.85);
 };
 
-// [영웅 -> 미니언/몬스터] 데미지 계산
+// [영웅 -> 미니언] 데미지 계산
 export const calculateUnitDamage = (
     attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: BattleSettings
 ) => {
@@ -13001,6 +13175,105 @@ export const distributeAssist = (match: LiveMatch, killer: LivePlayer, victim: L
         (p as any).exp = ((p as any).exp || 0) + 100;
     });
 };
+
+
+--- FILE: src/engine/match/systems/RecallSystem.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/systems/RecallSystem.ts
+// ==========================================
+import { LivePlayer, LiveMatch, Hero } from '../../../types';
+import { BASES } from '../constants/MapConstants';
+import { useGameStore } from '../../../store/useGameStore';
+import { attemptBuyItem, updateLivePlayerStats } from './ItemManager';
+
+export class RecallSystem {
+  
+  /**
+   * 귀환 프로세스 업데이트 (매 프레임 호출)
+   */
+  static update(player: LivePlayer, match: LiveMatch, heroes: Hero[], shopItems: any[], dt: number) {
+    const isBlue = match.blueTeam.includes(player);
+    const basePos = isBlue ? BASES.BLUE : BASES.RED;
+    
+    // 1. 쿨타임 감소
+    if (player.recallCooldown > 0) {
+        player.recallCooldown -= dt;
+        if (player.recallCooldown < 0) player.recallCooldown = 0;
+        player.isRecalling = false;
+        player.currentRecallTime = 0;
+        return; // 쿨타임 중엔 귀환 불가
+    }
+
+    // 2. 이미 우물이면 귀환 로직 불필요 (즉시 회복 및 아이템 구매)
+    const dist = Math.sqrt(Math.pow(player.x - basePos.x, 2) + Math.pow(player.y - basePos.y, 2));
+    if (dist <= 5) {
+        this.instantRestore(player, isBlue, dt, heroes, shopItems, match);
+        player.isRecalling = false;
+        player.currentRecallTime = 0;
+        return;
+    }
+
+    // 3. 귀환 진행 중일 때
+    if (player.isRecalling) {
+        const settings = useGameStore.getState().gameState.growthSettings;
+        const RECALL_DURATION = settings?.recallTime || 10.0;
+
+        player.currentRecallTime += dt;
+
+        // 귀환 완료
+        if (player.currentRecallTime >= RECALL_DURATION) {
+            player.x = basePos.x;
+            player.y = basePos.y;
+            player.isRecalling = false;
+            player.currentRecallTime = 0;
+            
+            // 도착 즉시 체력 30% 회복
+            player.currentHp = Math.min(player.maxHp, player.currentHp + player.maxHp * 0.3);
+        }
+    } else {
+        // 귀환 중이 아니면 타이머 리셋
+        player.currentRecallTime = 0;
+    }
+  }
+
+  /**
+   * 귀환 시작 명령 (AI가 호출)
+   */
+  static startRecall(player: LivePlayer) {
+    if (player.recallCooldown > 0) return; // 쿨타임 중이면 무시
+    if (player.isRecalling) return; // 이미 하는 중이면 무시
+
+    player.isRecalling = true;
+    player.currentRecallTime = 0;
+  }
+
+  /**
+   * 피격 시 귀환 취소 (CombatPhase에서 호출)
+   */
+  static cancelRecall(player: LivePlayer) {
+    if (player.isRecalling) {
+        player.isRecalling = false;
+        player.currentRecallTime = 0;
+        player.recallCooldown = 3.0; // 3초간 재귀환 불가
+    }
+  }
+
+  /**
+   * 우물 도착 시 회복 및 아이템 구매
+   */
+  private static instantRestore(
+      p: LivePlayer, isBlue: boolean, dt: number, 
+      heroes: Hero[], shopItems: any[], match: LiveMatch
+  ) {
+      // 고속 회복 (초당 50%)
+      p.currentHp = Math.min(p.maxHp, p.currentHp + p.maxHp * 0.5 * dt);
+      p.currentMp = Math.min(p.maxMp, p.currentMp + p.maxMp * 0.5 * dt);
+      
+      // 아이템 구매 시도
+      const enemyTeam = isBlue ? match.redTeam : match.blueTeam;
+      attemptBuyItem(p, shopItems, heroes, enemyTeam, match.currentDuration);
+  }
+}
 
 
 --- FILE: src/engine/match/BattleLogic.ts ---
@@ -13152,8 +13425,9 @@ import { Perception } from './Perception';
 import { AIUtils } from './AIUtils';
 import { PathSystem } from '../systems/PathSystem';
 import { GankEvaluator } from './evaluators/GankEvaluator';
-import { BASES } from '../constants/MapConstants';
+import { BASES, TOWER_COORDS } from '../constants/MapConstants';
 import { LaningLogic } from '../logics/LaningLogic';
+import { TacticalScorer } from './tactics/TacticalScorer';
 
 export type MacroAction = 'RECALL' | 'DEFEND' | 'FIGHT' | 'FARM' | 'PUSH' | 'WAIT' | 'OBJECTIVE' | 'SUPPORT' | 'GANK' | 'FLEE' | 'FINISH' | 'LANING';
 
@@ -13171,141 +13445,125 @@ export class MacroBrain {
     const enemyBase = isBlue ? BASES.RED : BASES.BLUE;
     const distToBase = AIUtils.dist(player, myBase);
 
-    // [0] 우물 복귀 완료 (회복)
+    // [0] 이미 귀환 중이면 유지 (쿨타임 아니면)
+    if (player.isRecalling && player.recallCooldown <= 0) {
+        return { action: 'RECALL', targetPos: {x: player.x, y: player.y}, reason: '귀환 진행 중' };
+    }
+
+    // [0.5] 우물 대기
     if (distToBase < 5) {
       const hpP = AIUtils.hpPercent(player);
       const mpP = AIUtils.mpPercent(player);
-      if (hpP < 0.95 || (player.maxMp > 0 && mpP < 0.95)) {
-        return { action: 'RECALL', targetPos: myBase, reason: '우물 회복 중' };
+      if (hpP < 0.98 || (player.maxMp > 0 && mpP < 0.95)) {
+        return { action: 'RECALL', targetPos: myBase, reason: '우물 회복' };
       }
     }
 
-    // [1] 생존 판단 (딸피면 귀환/도망)
+    // [1] 생존 및 귀환 판단 (수정됨)
     if (Perception.needsRecall(player)) {
       const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
-      if (nearbyEnemy && AIUtils.dist(player, nearbyEnemy) < 15) {
-         return { action: 'FLEE', targetPos: myBase, reason: '교전 이탈' };
+      
+      // 적이 근처(거리 20 이내)에 있으면 귀환 불가능 -> 도망
+      if (nearbyEnemy && AIUtils.dist(player, nearbyEnemy) < 20) {
+         // 가장 가까운 아군 타워로 도망
+         const safeTower = this.findNearestSafeTower(player, match, isBlue);
+         return { action: 'FLEE', targetPos: safeTower || myBase, reason: '안전지대 이동 (귀환 불가)' };
       }
+      
+      // 적이 없으면 귀환 시도
       return { action: 'RECALL', targetPos: myBase, reason: '정비 필요' };
     }
 
+    // ... (이하 기존 로직 유지) ...
     const situation = Perception.analyzeSituation(player, match);
     const enemyNexusHp = isBlue ? match.stats.red.nexusHp : match.stats.blue.nexusHp;
     const distToEnemyBase = AIUtils.dist(player, enemyBase);
 
-    // [2] 넥서스 점사 (끝내기 각)
-    if (situation.isEnemyWipedOut && AIUtils.hpPercent(player) > 0.3) {
-        if (situation.isNexusVulnerable) {
-            return { action: 'FINISH', targetPos: enemyBase, reason: '적 전멸! 끝내자!' };
-        } else {
-            const towerPos = AIUtils.getNextObjectivePos(player, match, isBlue);
-            return { action: 'PUSH', targetPos: towerPos, reason: '적 전멸! 타워 철거' };
+    if (situation.isNexusVulnerable && distToEnemyBase < 30) {
+        if (situation.isEnemyWipedOut || enemyNexusHp < 5000) {
+            return { action: 'FINISH', targetPos: enemyBase, reason: '넥서스 점사' };
         }
     }
-    if (distToEnemyBase < 30 && enemyNexusHp < 3000 && situation.isNexusVulnerable) {
-        return { action: 'FINISH', targetPos: enemyBase, reason: '넥서스 점사' };
-    }
-    if (situation.hasSiegeBuff && situation.powerDifference > 1000 && situation.isNexusVulnerable) {
-        return { action: 'PUSH', targetPos: enemyBase, reason: '거신병 진격' };
-    }
 
-    // [3] 본진/타워 수비 (최우선 방어)
     const baseThreat = Perception.isBaseUnderThreat(player, match, isBlue);
     if (baseThreat.isThreatened && baseThreat.enemyUnit) {
-      const isBaseRace = distToEnemyBase < 30 && situation.isNexusVulnerable;
-      if (!isBaseRace) {
-          return { action: 'DEFEND', targetPos: { x: baseThreat.enemyUnit.x, y: baseThreat.enemyUnit.y }, targetUnit: baseThreat.enemyUnit, reason: '본진 방어' };
-      }
+      return { action: 'DEFEND', targetPos: { x: baseThreat.enemyUnit.x, y: baseThreat.enemyUnit.y }, targetUnit: baseThreat.enemyUnit, reason: '본진 방어' };
     }
+    
     if (AIUtils.hpPercent(player) > 0.6) {
       const towerThreat = Perception.findThreatenedStructure(player, match, isBlue);
       if (towerThreat) {
-        const distToTower = AIUtils.dist(player, towerThreat.pos);
-        // 내 라인 타워거나, 정글러거나, 아주 가까우면 수비
-        if (player.lane === 'JUNGLE' || AIUtils.dist(player, towerThreat.pos) < 40) {
+        if (player.lane === 'JUNGLE' || AIUtils.dist(player, towerThreat.pos) < 30) {
            return { action: 'DEFEND', targetPos: towerThreat.pos, targetUnit: towerThreat.enemy, reason: '타워 수비' };
         }
       }
     }
 
-    // =================================================================
-    // [중요 수정] 라인전 로직 (LaningLogic) 우선순위 상향
-    // 기존 [7]번에서 [4]번으로 이동 -> 이제 불필요한 로밍/한타보다 라인전이 먼저임
-    // =================================================================
     const laningDecision = LaningLogic.decide(player, match, hero);
     if (laningDecision) {
         return laningDecision;
     }
 
-    // [5] 갱킹 (정글러 전용)
-    if (AIUtils.hpPercent(player) > 0.6) {
+    const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
+    if (nearbyEnemy) {
+      const fightScore = TacticalScorer.getFightScore(player, nearbyEnemy, match);
+      if (fightScore > 50) {
+         return { action: 'FIGHT', targetPos: { x: nearbyEnemy.x, y: nearbyEnemy.y }, targetUnit: nearbyEnemy, reason: '교전' };
+      } else if (fightScore < 0) {
+         return { action: 'FLEE', targetPos: myBase, reason: '불리함' };
+      }
+    }
+
+    if (AIUtils.hpPercent(player) > 0.7) {
         const gankTarget = GankEvaluator.evaluate(player, match, hero);
         if (gankTarget) {
             return { action: 'GANK', targetPos: { x: gankTarget.x, y: gankTarget.y }, targetUnit: gankTarget, reason: '갱킹' };
         }
     }
 
-    // [6] 아군 지원 (로밍) - 라인전 단계가 끝났거나 정글러일 때만
-    if (AIUtils.hpPercent(player) > 0.4) {
-        const allyInTrouble = Perception.findAllyInTrouble(player, match, isBlue);
-        if (allyInTrouble) {
-            const chance = 60 + (player.stats.brain * 0.3);
-            if (Math.random() * 100 < chance) {
-                return { action: 'SUPPORT', targetPos: { x: allyInTrouble.x, y: allyInTrouble.y }, targetUnit: allyInTrouble, reason: '아군 지원' };
-            }
-        }
-    }
-
-    // [7] 오브젝트 (바론/용)
     const activeObj = Perception.findActiveObjective(match);
     if (activeObj) {
-      const isJungler = player.lane === 'JUNGLE';
-      const distanceToObj = AIUtils.dist(player, activeObj.pos);
-      if (isJungler && AIUtils.hpPercent(player) > 0.5) {
-          return { action: 'OBJECTIVE', targetPos: activeObj.pos, reason: '오브젝트 사냥' };
-      }
-      else if (distanceToObj < 40 && player.stats.brain > 50) {
-         return { action: 'OBJECTIVE', targetPos: activeObj.pos, reason: '오브젝트 합류' };
+      const objScore = TacticalScorer.getObjectiveScore(player, match, activeObj.pos);
+      if (objScore > 60) {
+          return { action: 'OBJECTIVE', targetPos: activeObj.pos, reason: '오브젝트' };
       }
     }
 
-    // [8] 교전 (최후순위: 라인전 단계도 아니고, 할 것도 없을 때 적 보이면 싸움)
-    const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
-    if (nearbyEnemy) {
-      const myPower = AIUtils.getCombatPower(player);
-      const enemyPower = AIUtils.getCombatPower(nearbyEnemy);
-      const aggro = (100 - player.stats.brain) * 10; 
-      
-      if (myPower + aggro >= enemyPower) {
-        return { action: 'FIGHT', targetPos: { x: nearbyEnemy.x, y: nearbyEnemy.y }, targetUnit: nearbyEnemy, reason: '교전' };
-      } else {
-        return { action: 'FLEE', targetPos: myBase, reason: '후퇴' };
-      }
-    }
-
-    // [9] 기본 행동 (라인 푸쉬 / 정글링)
     if (player.lane !== 'JUNGLE') {
         const towerPos = AIUtils.getNextObjectivePos(player, match, isBlue);
+        const pushScore = TacticalScorer.getPushScore(player, match, towerPos);
         const distToTower = AIUtils.dist(player, towerPos);
         
-        if (distToTower < 20) {
-            if (Perception.isSafeToSiege(player, match, towerPos)) {
+        if (distToTower < 18) {
+             if (pushScore > 50) {
                 return { action: 'PUSH', targetPos: towerPos, reason: '공성' };
-            } else {
-                const waitPos = { 
-                    x: towerPos.x + (isBlue ? -5 : 5), 
-                    y: towerPos.y + (isBlue ? -5 : 5) 
-                };
-                return { action: 'WAIT', targetPos: waitPos, reason: '미니언 대기' };
-            }
+             } else {
+                const safePos = { x: towerPos.x + (isBlue ? -8 : 8), y: towerPos.y + (isBlue ? -8 : 8) };
+                return { action: 'WAIT', targetPos: safePos, reason: '대기' };
+             }
         } else {
-            const nextPath = PathSystem.getNextWaypoint(player, isBlue);
-            return { action: 'FARM', targetPos: nextPath, reason: '라인 복귀' };
+             const farmScore = TacticalScorer.getFarmScore(player, match);
+             if (farmScore > 30) {
+                const nextPath = PathSystem.getNextWaypoint(player, isBlue);
+                return { action: 'FARM', targetPos: nextPath, reason: '라인 복귀' };
+             }
         }
     }
 
     const nextPath = PathSystem.getNextWaypoint(player, isBlue);
     return { action: 'FARM', targetPos: nextPath, reason: '정글링' };
+  }
+
+  // 안전한 타워 찾기 (내 진영 쪽으로 가장 가까운 살아있는 타워)
+  private static findNearestSafeTower(player: LivePlayer, match: LiveMatch, isBlue: boolean) {
+      const coords = isBlue ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
+      const myStats = isBlue ? match.stats.blue : match.stats.red;
+      // 미드 타워 우선 검색
+      const broken = myStats.towers.mid;
+      if (broken < 3) return coords.MID[broken]; // 살아있는 가장 바깥 타워
+      
+      // 없으면 넥서스
+      return isBlue ? BASES.BLUE : BASES.RED;
   }
 }
 
@@ -13374,11 +13632,10 @@ import { LivePlayer, LiveMatch } from '../../../types';
 import { AIUtils } from './AIUtils';
 import { POI, getDistance } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
-import { Collision } from '../utils/Collision';
 
 export interface ThreatInfo {
   isThreatened: boolean;
-  enemyUnit: any; // LivePlayer | Minion
+  enemyUnit: any;
   distance: number;
 }
 
@@ -13401,11 +13658,12 @@ export class Perception {
       m.hp > 0 &&
       getDistance(m, targetPos) < 15 
     );
-
     if (nearbyMinions.length > 0) return true; 
 
-    if (player.level < 10) return false;
-    const isTank = player.maxHp > 3000 && player.currentHp > player.maxHp * 0.8;
+    if (match.currentDuration > 1200) return true;
+
+    if (player.level >= 16) return true;
+    const isTank = player.maxHp > 3500 && player.currentHp > player.maxHp * 0.9;
     return isTank; 
   }
 
@@ -13442,27 +13700,32 @@ export class Perception {
     };
   }
 
+  // [수정] 귀환 판단 완화
   static needsRecall(player: LivePlayer): boolean {
-    const iq = Math.max(0, Math.min(100, player.stats.brain)) / 100;
-    const threshold = 0.15 + (iq * 0.25); 
-    const lowMp = player.maxMp > 0 && (player.currentMp / player.maxMp) < 0.1;
-    return AIUtils.hpPercent(player) < threshold || lowMp;
+    const hpPer = AIUtils.hpPercent(player);
+    const mpPer = AIUtils.mpPercent(player);
+    
+    // 체력 25% 미만일 때만 위험으로 간주 (기존 35% -> 25%)
+    if (hpPer < 0.25) return true;
+
+    if (player.maxMp > 0 && mpPer < 0.15) return true;
+    if (player.gold > 3000 && hpPer < 0.8) return true;
+
+    return false;
   }
 
-  // [수정] 본진 위협 체크: 적 영웅 OR 적 거신병
   static isBaseUnderThreat(player: LivePlayer, match: LiveMatch, isBlue: boolean): ThreatInfo {
     const myBase = AIUtils.getMyBasePos(isBlue);
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const enemyMinions = match.minions || [];
     const myNexusHp = isBlue ? match.stats.blue.nexusHp : match.stats.red.nexusHp;
     
-    const emergencyMode = myNexusHp < (isBlue ? match.stats.blue.maxNexusHp : match.stats.red.maxNexusHp) * 0.3;
-    const threatRange = emergencyMode ? 40 : 25; 
+    const emergencyMode = myNexusHp < (isBlue ? match.stats.blue.maxNexusHp : match.stats.red.maxNexusHp) * 0.5;
+    const threatRange = emergencyMode ? 50 : 25; 
 
     let closestThreat: any = null;
     let minDist = 999;
 
-    // 1. 적 영웅 체크
     for (const enemy of enemies) {
       if (enemy.currentHp <= 0 || enemy.respawnTimer > 0) continue;
       const d = AIUtils.dist(myBase, {x: enemy.x, y: enemy.y});
@@ -13472,7 +13735,6 @@ export class Perception {
       }
     }
 
-    // 2. 적 거신병 체크 (추가)
     const enemyColossus = enemyMinions.find(m => 
         m.team !== (isBlue ? 'BLUE' : 'RED') && 
         m.type === 'SUMMONED_COLOSSUS' && 
@@ -13482,7 +13744,7 @@ export class Perception {
         const d = AIUtils.dist(myBase, {x: enemyColossus.x, y: enemyColossus.y});
         if (d < minDist) {
             minDist = d;
-            closestThreat = enemyColossus; // 거신병이 더 가까우면 얘를 막으러 감
+            closestThreat = enemyColossus;
         }
     }
 
@@ -13509,7 +13771,7 @@ export class Perception {
       for (const enemy of enemies) {
         if (enemy.currentHp > 0 && enemy.respawnTimer <= 0) {
           const dist = getDistance({x: tPos.x, y: tPos.y}, enemy);
-          if (dist < 12) {
+          if (dist < 15) {
              return { pos: tPos, enemy: enemy };
           }
         }
@@ -13520,7 +13782,7 @@ export class Perception {
 
   static findNearbyEnemy(player: LivePlayer, match: LiveMatch, isBlue: boolean): LivePlayer | null {
     const enemies = isBlue ? match.redTeam : match.blueTeam;
-    const sightRange = 15;
+    const sightRange = 18; 
     let target: LivePlayer | null = null;
     let minDist = 999;
 
@@ -13544,17 +13806,18 @@ export class Perception {
   static findAllyInTrouble(player: LivePlayer, match: LiveMatch, isBlue: boolean): LivePlayer | null {
     const allies = isBlue ? match.blueTeam : match.redTeam;
     const enemies = isBlue ? match.redTeam : match.blueTeam;
-    const sightRange = 25;
+    const sightRange = 30;
     const candidates = allies.filter(a => a !== player && a.currentHp > 0 && a.respawnTimer <= 0);
 
     for (const ally of candidates) {
       const distToAlly = AIUtils.dist(player, ally);
       if (distToAlly > sightRange) continue;
-      if (AIUtils.hpPercent(ally) < 0.5) return ally;
-      for (const enemy of enemies) {
-        if (enemy.currentHp > 0 && AIUtils.dist(ally, enemy) < 8) {
-          return ally;
-        }
+      if (AIUtils.hpPercent(ally) < 0.4) {
+          for (const enemy of enemies) {
+            if (enemy.currentHp > 0 && AIUtils.dist(ally, enemy) < 10) {
+              return ally;
+            }
+          }
       }
     }
     return null;
@@ -13723,6 +13986,127 @@ export class TargetEvaluator {
 }
 
 
+--- FILE: src/engine/match/ai/tactics/TacticalScorer.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/ai/tactics/TacticalScorer.ts
+// ==========================================
+import { LivePlayer, LiveMatch, Hero } from '../../../../types';
+import { AIUtils } from '../AIUtils';
+import { Perception } from '../Perception';
+
+export class TacticalScorer {
+  
+  /**
+   * [전투 점수] 싸움을 걸었을 때의 이득 계산
+   * - 현상금이 높을수록 점수 대폭 상승
+   * - 내 전투력이 높을수록 상승
+   * - 내가 현상금이 많으면(제압골드 헌납 위험) 점수 하락
+   */
+  static getFightScore(player: LivePlayer, target: LivePlayer, match: LiveMatch): number {
+    const myPower = AIUtils.getCombatPower(player);
+    const enemyPower = AIUtils.getCombatPower(target);
+    
+    // 1. 전투력 격차 (1.0 = 동등)
+    let score = (myPower / Math.max(1, enemyPower)) * 50;
+
+    // 2. 현상금(Bounty) 매리트
+    // 현상금 100골드당 10점 추가 (1000골드면 +100점 -> 눈돌아가서 덤빔)
+    const enemyBounty = target.bounty || 0;
+    score += (enemyBounty / 100) * 10;
+
+    // 3. 리스크 관리 (내 목숨값)
+    // 내 현상금이 높으면 몸을 사려야 함
+    const myBounty = player.bounty || 0;
+    if (myBounty > 300) {
+        score -= (myBounty / 100) * 5; 
+    }
+
+    // 4. 체력 상황
+    const hpDiff = AIUtils.hpPercent(player) - AIUtils.hpPercent(target);
+    score += hpDiff * 30;
+
+    // 5. 뇌지컬 반영 (뇌지컬이 높으면 승산 없는 싸움 점수를 깎음)
+    if (player.stats.brain > 70 && myPower < enemyPower) {
+        score -= 50; 
+    }
+
+    return score;
+  }
+
+  /**
+   * [오브젝트 점수] 바론/용을 먹어야 하는 정도
+   * - 게임 시간이 늦을수록 점수 상승
+   * - 아군이 근처에 많을수록 상승
+   */
+  static getObjectiveScore(player: LivePlayer, match: LiveMatch, objPos: {x:number, y:number}): number {
+    let score = 0;
+    
+    // 1. 게임 시간 가중치 (20분 넘어가면 오브젝트 중요도 급상승)
+    const timeWeight = Math.min(3.0, match.currentDuration / 600); // 10분=1.0, 30분=3.0
+    score += 20 * timeWeight;
+
+    // 2. 거리 (가까울수록 유리)
+    const dist = AIUtils.dist(player, objPos);
+    score -= dist * 0.5;
+
+    // 3. 아군 합류 여부
+    const isBlue = match.blueTeam.includes(player);
+    const allies = isBlue ? match.blueTeam : match.redTeam;
+    const alliesNearObj = allies.filter(a => a.currentHp > 0 && AIUtils.dist(a, objPos) < 30).length;
+    
+    if (alliesNearObj >= 2) score += 40; // 뭉치면 산다
+
+    // 4. 정글러 가중치
+    if (player.lane === 'JUNGLE') score += 50;
+
+    return score;
+  }
+
+  /**
+   * [공성 점수] 타워를 밀어야 하는 정도
+   * - 앞에 적이 없으면 점수 폭등
+   * - 공성 버프(거신병) 있으면 점수 상승
+   */
+  static getPushScore(player: LivePlayer, match: LiveMatch, towerPos: {x:number, y:number}): number {
+    let score = 40; // 기본 점수
+
+    // 1. 안전 확보 여부
+    if (Perception.isSafeToSiege(player, match, towerPos)) {
+        score += 30;
+    }
+
+    // 2. 공성 버프 보유
+    const isBlue = match.blueTeam.includes(player);
+    const hasBuff = isBlue ? match.stats.blue.activeBuffs.siegeUnit : match.stats.red.activeBuffs.siegeUnit;
+    if (hasBuff) score += 50; // 거신병이랑 같이 밀자
+
+    // 3. 적 수비 부재 확인
+    const nearbyEnemy = Perception.findNearbyEnemy(player, match, isBlue);
+    if (!nearbyEnemy) score += 20; // 프리 공성
+
+    return score;
+  }
+
+  /**
+   * [파밍 점수] 성장해야 하는 정도
+   * - 초반일수록 높음
+   * - 템 살 돈이 모이기 직전이면 높음
+   */
+  static getFarmScore(player: LivePlayer, match: LiveMatch): number {
+    let score = 30;
+
+    // 1. 초반 가중치 (10분 전엔 파밍이 중요)
+    if (match.currentDuration < 600) score += 20;
+
+    // 2. 템 나오기 직전 (골드 애매할 때)
+    const nextItemCost = 3000; // 대략적인 코어템 가격
+    if (player.gold > 2000 && player.gold < 3000) score += 30;
+
+    return score;
+  }
+}
+
+
 --- FILE: src/engine/match/constants/MapConstants.ts ---
 // ==========================================
 // FILE PATH: /src/engine/match/constants/MapConstants.ts
@@ -13736,6 +14120,12 @@ export const BASES = {
   RED: { x: 95, y: 5 }
 };
 
+// [신규] 우물 구역 정의 (접근 시 레이저 발사)
+export const FOUNTAIN_AREAS = {
+  BLUE: { x: 0, y: 85, w: 15, h: 15 }, // 좌하단 구역
+  RED: { x: 85, y: 0, w: 15, h: 15 }   // 우상단 구역
+};
+
 export const MOVEMENT_SETTINGS = {
   SEPARATION_DIST: 2.0, 
   WAYPOINT_TOLERANCE: 3.0, 
@@ -13743,25 +14133,25 @@ export const MOVEMENT_SETTINGS = {
   MAX_FORCE: 0.5, 
 };
 
-// [이동] 웨이포인트 경로 (타워 위치 변경에 따라 미세 조정)
+// [이동] 웨이포인트 경로
 export const WAYPOINTS: Record<string, Vector2[]> = {
   TOP: [
     { x: 5, y: 95 }, { x: 5, y: 50 }, { x: 5, y: 20 }, { x: 10, y: 10 },
-    { x: 35, y: 8 }, { x: 60, y: 10 }, { x: 95, y: 5 } // 레드 탑 1/2차 타워 경유
+    { x: 35, y: 8 }, { x: 60, y: 10 }, { x: 95, y: 5 }
   ],
   MID: [
     { x: 5, y: 95 }, { x: 25, y: 75 }, { x: 50, y: 50 }, { x: 75, y: 25 }, { x: 95, y: 5 }
   ],
   BOT: [
     { x: 5, y: 95 }, { x: 50, y: 95 }, { x: 80, y: 95 }, { x: 90, y: 90 },
-    { x: 92, y: 70 }, { x: 92, y: 45 }, { x: 95, y: 5 } // 레드 봇 1/2차 타워 경유
+    { x: 92, y: 70 }, { x: 92, y: 45 }, { x: 95, y: 5 }
   ],
   JUNGLE: [ 
     { x: 20, y: 70 }, { x: 35, y: 65 }, { x: 45, y: 55 }, { x: 55, y: 45 }, { x: 65, y: 35 }, { x: 80, y: 30 }  
   ]
 };
 
-// [중요] Engine 내에서도 동일한 타워 좌표 사용
+// 타워 좌표
 export const TOWER_COORDS = {
   BLUE: {
     TOP: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}],
@@ -14124,7 +14514,7 @@ export class LaningLogic {
 import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
 import { WAYPOINTS, TOWER_COORDS } from '../constants/MapConstants';
 import { Collision } from '../utils/Collision';
-import { SpatialGrid } from '../utils/SpatialGrid'; // [신규]
+import { SpatialGrid } from '../utils/SpatialGrid';
 import { 
     distributeRewards, 
     calcMitigatedDamage, 
@@ -14135,7 +14525,6 @@ const MINION_SPEED = 15;
 
 export class MinionLogic {
 
-  // [수정] cachedEnemies -> enemyGrids (SpatialGrid 객체)
   static processSingleMinion(
       m: Minion, 
       match: LiveMatch, 
@@ -14149,7 +14538,7 @@ export class MinionLogic {
 
     // 타겟이 있으면 이동 멈춤 (Sticky Target)
     if (m.targetId) {
-       // ... (기존 타겟 유효성 검사 로직이 필요하지만, 성능상 생략하고 공격 시도에서 체크)
+       // 타겟 유효성 검사는 attackTarget 내부에서 수행
     }
 
     const isBlue = m.team === 'BLUE';
@@ -14198,6 +14587,7 @@ export class MinionLogic {
         return;
     }
 
+    // 공격 속도 시뮬레이션 (dt 기반 확률 체크)
     if (Math.random() > dt * 1.5) return; 
 
     const s = settings.siege || { minionDmg: 1.0, cannonDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1 };
@@ -14216,24 +14606,31 @@ export class MinionLogic {
     else if (type === 'STRUCTURE') {
         if (target.isNexus) {
             targetFactor = s.dmgToNexus ?? 0.1;
-            targetArmor = fieldTowers.nexus?.armor || 200;
+            targetArmor = fieldTowers.nexus?.armor || 60; // 200 -> 60 반영
         } else {
             const laneKey = m.lane.toLowerCase();
             const enemyStats = isBlue ? match.stats.red : match.stats.blue;
             const tier = ((enemyStats.towers as any)[laneKey] || 0) + 1;
             
-            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 80; }
-            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 120; }
-            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 150; }
+            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 40; }
+            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 60; }
+            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 75; }
         }
     }
 
     if (type === 'MINION') {
-        sourceFactor *= 0.3; 
+        // [핵심 수정] 타겟이 거신병(SUMMONED_COLOSSUS)이면 데미지 대폭 감소
+        if (target.type === 'SUMMONED_COLOSSUS') {
+            sourceFactor *= 0.05; // 데미지 95% 감소 (거신병 보호)
+        } else {
+            sourceFactor *= 0.3; // 일반 미니언끼리는 30% 데미지
+        }
     }
 
     const rawAtk = m.atk || 10;
     const mitigatedDmg = calcMitigatedDamage(rawAtk, targetArmor);
+    
+    // 최종 데미지 (기본 3배 보정 포함)
     const finalDmg = Math.max(1, mitigatedDmg * sourceFactor * targetFactor * 3.0);
 
     if (type === 'MINION' || type === 'HERO') {
@@ -14334,9 +14731,10 @@ export class MinionLogic {
 // ==========================================
 // FILE PATH: /src/engine/match/logics/CombatLogic.ts
 // ==========================================
-import { LiveMatch, LivePlayer, RoleSettings, BattleSettings, Hero } from '../../../types';
+import { LiveMatch, LivePlayer, RoleSettings, BattleSettings, Hero, EconomySettings } from '../../../types';
 import { getDistance } from '../../data/MapData';
 import { applyRoleBonus } from '../systems/RoleManager';
+import { useGameStore } from '../../../store/useGameStore';
 
 export const MINION_REWARD = {
     'MELEE': { gold: 21, xp: 60 },
@@ -14350,6 +14748,69 @@ export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
   return rawDmg * reduction;
 };
 
+// [핵심] 현상금 시스템 적용
+export const applyKillReward = (
+    match: LiveMatch,
+    killer: LivePlayer, 
+    victim: LivePlayer, 
+    economy: EconomySettings,
+    heroes: Hero[]
+) => {
+    // 1. 킬러 보상 (골드)
+    // 기본 + (적 레벨 * 계수) + 적 현상금
+    const levelBonus = (victim.level || 1) * (economy.goldPerLevel || 0);
+    const shutdownGold = victim.bounty || 0;
+    const totalGold = economy.killGold + levelBonus + shutdownGold;
+
+    killer.kills++;
+    killer.gold += totalGold;
+
+    // 2. 킬러 보상 (경험치)
+    const killXp = economy.killXpBase + (victim.level * economy.killXpPerLevel);
+    (killer as any).exp = ((killer as any).exp || 0) + killXp;
+
+    // 3. 로그 (현상금 수령 시)
+    if (shutdownGold > 0) {
+        match.logs.push({
+            time: Math.floor(match.currentDuration),
+            type: 'KILL',
+            message: `💰 [${killer.name}] 제압! 현상금 +${shutdownGold}G 획득!`
+        });
+    }
+
+    // 4. 현상금 업데이트
+    // 죽은 자: 연속 킬 초기화, 현상금 초기화
+    victim.killStreak = 0;
+    victim.bounty = 0;
+
+    // 죽인 자: 연속 킬 증가 -> 연속 킬 2회부터 현상금 누적
+    if (!killer.killStreak) killer.killStreak = 0;
+    killer.killStreak++;
+    
+    if (killer.killStreak >= 2) {
+        const bountyAdd = economy.bountyIncrement || 100;
+        if (!killer.bounty) killer.bounty = 0;
+        killer.bounty += bountyAdd;
+    }
+
+    // 5. 어시스트 분배
+    const isBlueKill = match.blueTeam.includes(killer);
+    const allies = isBlueKill ? match.blueTeam : match.redTeam;
+    const assists = allies.filter(p => p !== killer && p.currentHp > 0 && getDistance(p, victim) < 25);
+    
+    if (assists.length > 0) {
+        const totalAssistGold = totalGold * (economy.assistPool / 100);
+        const goldPerAssist = Math.floor(totalAssistGold / assists.length);
+        const xpPerAssist = Math.floor((killXp * (economy.assistPool / 100)) / assists.length);
+
+        assists.forEach(p => {
+            p.assists++;
+            p.gold += goldPerAssist;
+            (p as any).exp = ((p as any).exp || 0) + xpPerAssist;
+        });
+    }
+};
+
 export const distributeRewards = (
     match: LiveMatch, 
     deadUnitPos: {x:number, y:number}, 
@@ -14358,65 +14819,36 @@ export const distributeRewards = (
     reward: { gold: number, xp: number },
     heroes: Hero[] 
 ) => {
-    // 1. 킬러 보상
     if (killer) {
         killer.cs++;
         killer.gold += reward.gold;
 
-        // [신규] 수호기사(Support) 전용 로직: 타곤산 효과 (Relic Shield)
-        // 수호기사가 막타를 쳤다면, 가장 가까운 아군에게도 골드를 복사해줌
         const killerHero = heroes.find(h => h.id === killer.heroId);
         if (killerHero && killerHero.role === '수호기사') {
             const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
-            // 나를 제외한 가장 가까운 아군 찾기
             let nearestAlly = null;
-            let minDist = 15; // 공유 범위
-            
+            let minDist = 15;
             for (const ally of allies) {
                 if (ally !== killer && ally.currentHp > 0) {
                     const d = getDistance(killer, ally);
-                    if (d < minDist) {
-                        minDist = d;
-                        nearestAlly = ally;
-                    }
+                    if (d < minDist) { minDist = d; nearestAlly = ally; }
                 }
             }
-
-            if (nearestAlly) {
-                nearestAlly.gold += reward.gold; // 골드 공유
-                nearestAlly.cs++; // (선택사항) 원딜 CS도 올려줌 (기분 좋으라고)
-            }
+            if (nearestAlly) { nearestAlly.gold += reward.gold; nearestAlly.cs++; }
         }
     }
 
-    // 2. 경험치 분배 (기존 로직)
     const allies = killerTeam === 'BLUE' ? match.blueTeam : match.redTeam;
-    const beneficiaries = allies.filter(p => 
-        p.currentHp > 0 && 
-        p.respawnTimer <= 0 &&
-        getDistance(p, deadUnitPos) < 18 
-    );
+    const beneficiaries = allies.filter(p => p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, deadUnitPos) < 18);
 
     if (beneficiaries.length > 0) {
         const xpPerPerson = Math.floor(reward.xp / beneficiaries.length);
-        beneficiaries.forEach(p => {
-            (p as any).exp = ((p as any).exp || 0) + xpPerPerson;
-            
-            // (이전의 단순 공유 로직은 위 타곤산 로직과 겹치므로 삭제하거나 유지해도 됨)
-            // 여기선 타곤산 로직을 위해 '골드 공유' 부분은 제거하고 경험치만 남김
-        });
+        beneficiaries.forEach(p => { (p as any).exp = ((p as any).exp || 0) + xpPerPerson; });
     }
 };
 
 export const distributeAssist = (match: LiveMatch, killer: LivePlayer, victim: LivePlayer, isBlue: boolean) => {
-    const allies = isBlue ? match.blueTeam : match.redTeam;
-    const assists = allies.filter(p => p !== killer && p.currentHp > 0 && getDistance(p, victim) < 20);
-    
-    assists.forEach(p => {
-        p.assists++;
-        p.gold += 150; 
-        (p as any).exp = ((p as any).exp || 0) + 100;
-    });
+    // Legacy support
 };
 
 export const calculateHeroDamage = (
@@ -14430,35 +14862,63 @@ export const calculateHeroDamage = (
 
     const itemCrit = attacker.items.reduce((s:number, i:any) => s + (i.crit||0), 0);
     let isCrit = Math.random() < (atkStats.crit + itemCrit) / 100;
-    let rawDmg = totalAD * (isCrit ? 1.75 : 1.0);
+    let rawDmg = totalAD * (isCrit ? 1.85 : 1.0);
 
     const defGod = isBlue ? settings.izman : settings.dante; 
     const defRatio = defGod?.defRatio || 1.0;
     const itemArmor = defender.items.reduce((s:number, i:any) => s + (i.armor||0), 0);
     const totalArmor = (defStats.armor + itemArmor) * defRatio;
-    
     const itemPen = attacker.items.reduce((s:number, i:any) => s + (i.pen||0), 0);
     const effectiveArmor = Math.max(0, totalArmor - (atkStats.pen + itemPen));
     
     const finalDamage = calcMitigatedDamage(rawDmg, effectiveArmor);
-    
     const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
     let result = finalDamage * damageMod;
 
+    if (attacker.buffs && attacker.buffs.includes('WATCHER_BUFF')) {
+        result *= 1.2; 
+    }
+    
     if (buffType === 'COMBAT') result *= 1.1; 
-
-    return Math.floor(result);
+    return Math.floor(result * 0.85);
 };
 
 export const calculateUnitDamage = (
-    attacker: any, atkStats: any, targetArmor: number, isBlue: boolean, settings: BattleSettings
+    attacker: any, atkStats: any, targetUnit: any, isBlue: boolean, settings: BattleSettings
 ) => {
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
     const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
     const totalAD = (atkStats.baseAtk + atkStats.ad + itemAD) * atkRatio;
 
-    return Math.floor(calcMitigatedDamage(totalAD, targetArmor));
+    let dmgMod = 1.0;
+    if (targetUnit.type === 'SUMMONED_COLOSSUS') {
+        const colSettings = useGameStore.getState().gameState.fieldSettings.colossus;
+        const percent = colSettings.dmgFromHero !== undefined ? colSettings.dmgFromHero : 100;
+        dmgMod = (percent / 100);
+    }
+    if (attacker.buffs && attacker.buffs.includes('WATCHER_BUFF')) {
+        dmgMod *= 1.2;
+    }
+
+    const targetArmor = targetUnit.armor || 0;
+    const finalDmg = calcMitigatedDamage(totalAD, targetArmor) * dmgMod;
+    return Math.floor(finalDmg);
+};
+
+export const handleDeath = (victim: LivePlayer) => {
+    victim.buffs = victim.buffs.filter(b => b !== 'WATCHER_BUFF');
+    
+    const settings = useGameStore.getState().gameState.growthSettings;
+    const scale = settings?.respawnPerLevel || 3.0;
+
+    let respawnTime = 5 + (victim.level * scale);
+    if (victim.level > 11) {
+        respawnTime += (victim.level - 11) * 3.0;
+    }
+
+    victim.respawnTimer = Math.floor(respawnTime);
+    victim.currentHp = 0;
 };
 
 
@@ -14473,20 +14933,15 @@ import { calcMitigatedDamage } from './CombatLogic';
 export class TowerLogic {
   /**
    * 타워의 공격 대상을 선정합니다.
-   * 우선순위:
-   * 1. [도움 요청] 아군 영웅을 공격한 적 영웅
-   * 2. [일반] 가장 가까운 미니언
-   * 3. [일반] 가장 가까운 영웅
    */
   static selectTarget(
     towerPos: { x: number, y: number },
     enemies: { heroes: LivePlayer[], minions: Minion[] },
-    allies: LivePlayer[], // 보호해야 할 아군 영웅들
+    allies: LivePlayer[], 
     range: number,
     currentTime: number
   ): { unit: any, type: 'HERO' | 'MINION' } | null {
     
-    // 1. 사거리 내 적 식별
     const nearbyMinions = enemies.minions.filter(m => 
         m.hp > 0 && getDistance(m, towerPos) <= range
     );
@@ -14496,17 +14951,13 @@ export class TowerLogic {
 
     if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
 
-    // 2. [어그로 0순위] 아군 영웅을 공격한 적 영웅 식별 (Call for Help)
-    const AGGRO_DURATION = 2.0; // 최근 2초 내 공격
+    // 1. [어그로 0순위] 아군 영웅을 공격한 적 영웅
+    const AGGRO_DURATION = 2.0; 
     
     const aggroTarget = nearbyEnemyHeroes.find(enemy => {
         if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
-        
         const timeSinceAttack = currentTime - enemy.lastAttackTime;
         if (timeSinceAttack > AGGRO_DURATION) return false;
-
-        // 적이 때린 대상이 '내 사거리 안' 혹은 '근처'에 있는 아군인지 확인
-        // (단순화: 맵 전체 아군 중 ID 매칭)
         const victim = allies.find(a => a.heroId === enemy.lastAttackedTargetId);
         return !!victim;
     });
@@ -14515,7 +14966,13 @@ export class TowerLogic {
         return { unit: aggroTarget, type: 'HERO' };
     }
 
-    // 3. [일반 우선순위] 미니언 > 영웅 (거리순)
+    // 2. [일반 우선순위] 거신병 > 미니언 > 영웅
+    // 거신병이 있으면 거신병을 먼저 칩니다 (탱킹 담당)
+    const colossus = nearbyMinions.find(m => m.type === 'SUMMONED_COLOSSUS');
+    if (colossus) {
+        return { unit: colossus, type: 'MINION' };
+    }
+
     if (nearbyMinions.length > 0) {
         nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
         return { unit: nearbyMinions[0], type: 'MINION' };
@@ -14534,10 +14991,10 @@ export class TowerLogic {
     towerStats: any,
     dt: number,
     isNexus: boolean,
-    hasMinionsNearby: boolean // 백도어 방지용
+    hasMinionsNearby: boolean
   ) {
-    const atk = towerStats.atk || (isNexus ? 500 : 250);
-    // 초당 데미지 (Simulation Step 보정)
+    const atk = towerStats.atk || (isNexus ? 1000 : 350);
+    // 초당 데미지
     let damage = atk * dt;
 
     // [백도어 방지] 미니언 없이 영웅만 있으면 데미지 3배
@@ -14545,19 +15002,151 @@ export class TowerLogic {
         damage *= 3.0;
     }
 
+    // [핵심 수정] 타겟이 거신병이면 데미지 30% 감소 (70% 피해)
+    // 기존 0.25 (75% 감소) -> 0.7 (30% 감소)
+    if (target.type === 'MINION' && target.unit.type === 'SUMMONED_COLOSSUS') {
+        damage *= 0.7; 
+    }
+
     // 방어력 적용
     let armor = 0;
     if (target.type === 'HERO') {
-        // 영웅은 레벨 비례 방어력 (아이템은 복잡해서 약식 적용)
         armor = (target.unit.level * 3) + 30;
     } else {
-        // 미니언은 기본 방어력이 낮음
-        armor = 0; 
+        // 거신병 등 특수 미니언의 armor 속성 지원
+        armor = target.unit.armor || 0;
     }
 
     const realDamage = calcMitigatedDamage(damage, armor);
 
     // 체력 차감
+    if (target.type === 'HERO') {
+        target.unit.currentHp -= realDamage;
+    } else {
+        target.unit.hp -= realDamage;
+    }
+  }
+}
+
+
+--- FILE: src/engine/match/logics/StructureLogic.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/logics/StructureLogic.ts
+// ==========================================
+import { LivePlayer, Minion, LiveMatch } from '../../../types';
+import { getDistance } from '../../data/MapData';
+import { calcMitigatedDamage } from './CombatLogic';
+import { FOUNTAIN_AREAS } from '../constants/MapConstants';
+
+export class StructureLogic {
+  
+  // --- [1. 우물 레이저 (Spawn Laser)] ---
+  // 적이 우물에 들어오면 초당 최대 체력의 20% 고정 피해 (무조건 죽음)
+  static processFountainDefense(match: LiveMatch, dt: number) {
+    const processTeam = (team: LivePlayer[], isEnemyBlue: boolean) => {
+      const area = isEnemyBlue ? FOUNTAIN_AREAS.BLUE : FOUNTAIN_AREAS.RED;
+      
+      team.forEach(p => {
+        if (p.currentHp <= 0) return;
+        
+        // 우물 구역 안에 있는지 체크
+        const inFountain = 
+          p.x >= area.x && p.x <= area.x + area.w &&
+          p.y >= area.y && p.y <= area.y + area.h;
+
+        if (inFountain) {
+          // 절대 피해 (방어력 무시, 무적 무시)
+          const trueDamage = p.maxHp * 0.2 * dt; 
+          p.currentHp -= trueDamage;
+          
+          // 로그 남기기 (너무 자주는 말고)
+          if (p.currentHp <= 0) {
+            match.logs.push({
+              time: Math.floor(match.currentDuration),
+              message: `⚡ [우물 레이저]가 ${p.name}을 소멸시켰습니다.`,
+              type: 'KILL',
+              team: isEnemyBlue ? 'BLUE' : 'RED'
+            });
+          }
+        }
+      });
+    };
+
+    // 블루팀 우물 -> 레드팀 공격
+    processTeam(match.redTeam, true);
+    // 레드팀 우물 -> 블루팀 공격
+    processTeam(match.blueTeam, false);
+  }
+
+  // --- [2. 타워 타겟팅] ---
+  static selectTowerTarget(
+    towerPos: { x: number, y: number },
+    enemies: { heroes: LivePlayer[], minions: Minion[] },
+    allies: LivePlayer[], 
+    range: number,
+    currentTime: number
+  ): { unit: any, type: 'HERO' | 'MINION' } | null {
+    
+    // 1. 사거리 내 적 식별
+    const nearbyMinions = enemies.minions.filter(m => m.hp > 0 && getDistance(m, towerPos) <= range);
+    const nearbyEnemyHeroes = enemies.heroes.filter(h => h.currentHp > 0 && h.respawnTimer <= 0 && getDistance(h, towerPos) <= range);
+
+    if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
+
+    // 2. [어그로 0순위] 아군 영웅을 공격한 적 영웅 (Call for Help)
+    const AGGRO_DURATION = 2.0; 
+    const aggroTarget = nearbyEnemyHeroes.find(enemy => {
+        if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
+        if (currentTime - enemy.lastAttackTime > AGGRO_DURATION) return false;
+        
+        // 적이 때린 대상이 아군인지 확인
+        return allies.some(a => a.heroId === enemy.lastAttackedTargetId);
+    });
+
+    if (aggroTarget) return { unit: aggroTarget, type: 'HERO' };
+
+    // 3. [일반 우선순위] 미니언 > 영웅 (거리순)
+    if (nearbyMinions.length > 0) {
+        nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
+        return { unit: nearbyMinions[0], type: 'MINION' };
+    } 
+    
+    // 미니언이 없으면 영웅 공격
+    nearbyEnemyHeroes.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
+    return { unit: nearbyEnemyHeroes[0], type: 'HERO' };
+  }
+
+  // --- [3. 타워 데미지 적용] ---
+  static applyTowerDamage(
+    target: { unit: any, type: 'HERO' | 'MINION' },
+    towerStats: any,
+    dt: number,
+    isNexus: boolean,
+    hasMinionsNearby: boolean
+  ) {
+    // 넥서스/타워 기본 공격력 대폭 상향
+    const baseAtk = towerStats.atk || (isNexus ? 1000 : 400); 
+    let damage = baseAtk * dt;
+
+    // [백도어 방지] 주변에 미니언 없이 영웅 혼자면 데미지 5배 (절대 못 버티게)
+    if (target.type === 'HERO' && !hasMinionsNearby) {
+        damage *= 5.0; 
+    }
+
+    // [영웅 대상 추가 피해] 체력 비례 데미지 추가 (탱커도 녹게 만듬)
+    if (target.type === 'HERO') {
+        const hpPercentDmg = target.unit.maxHp * 0.05 * dt; // 초당 5% 체력 비례
+        damage += hpPercentDmg;
+    }
+
+    // 방어력 적용
+    let armor = 0;
+    if (target.type === 'HERO') {
+        armor = (target.unit.level * 3) + 50; // 영웅 방어력 추정치
+    }
+
+    const realDamage = calcMitigatedDamage(damage, armor);
+
     if (target.type === 'HERO') {
         target.unit.currentHp -= realDamage;
     } else {
@@ -14614,19 +15203,48 @@ export class Collision {
 
 
 --- FILE: src/engine/match/utils/StatUtils.ts ---
-import { HeroStats, Item, Hero } from '../../../types';
+// ==========================================
+// FILE PATH: /src/engine/match/utils/StatUtils.ts
+// ==========================================
+import { HeroStats, Item, Hero, GrowthIntervals } from '../../../types';
+import { useGameStore } from '../../../store/useGameStore';
 
 export const getLevelScaledStats = (baseStats: HeroStats, level: number): HeroStats => {
-  const scale = (val: number, rate: number) => Math.floor(val * (1 + (level - 1) * rate));
+  const state = useGameStore.getState().gameState;
+  const defaults = { early: 5, mid: 10, late: 15 };
+  const g = state?.growthSettings || { 
+      hp: defaults, ad: defaults, ap: defaults, 
+      armor: {early:2,mid:3,late:4}, baseAtk: {early:2,mid:3,late:4}, regen: {early:1,mid:2,late:2} 
+  };
+
+  const getMultiplier = (targetLevel: number, intervals: GrowthIntervals) => {
+    if (targetLevel <= 1) return 0;
+    
+    let totalPercent = 0;
+    // 2레벨부터 현재 레벨까지 누적 계산
+    for (let i = 2; i <= targetLevel; i++) {
+        if (i <= 6) totalPercent += intervals.early;       
+        else if (i <= 12) totalPercent += intervals.mid;   
+        else totalPercent += intervals.late;               
+    }
+    return totalPercent / 100;
+  };
+
+  const scale = (val: number, intervals: GrowthIntervals) => {
+    if (!intervals) return val;
+    const multiplier = getMultiplier(level, intervals);
+    return Math.floor(val * (1 + multiplier));
+  };
+
   return {
     ...baseStats,
-    hp: scale(baseStats.hp, 0.05),        
-    ad: scale(baseStats.ad, 0.15),        
-    ap: scale(baseStats.ap, 0.15),        
-    armor: scale(baseStats.armor, 0.03),  
-    baseAtk: scale(baseStats.baseAtk, 0.04),
-    regen: scale(baseStats.regen, 0.02),
-    pen: scale(baseStats.pen, 0.03),      
+    hp: scale(baseStats.hp, g.hp),        
+    ad: scale(baseStats.ad, g.ad),        
+    ap: scale(baseStats.ap, g.ap),        
+    armor: scale(baseStats.armor, g.armor),  
+    baseAtk: scale(baseStats.baseAtk, g.baseAtk),
+    regen: scale(baseStats.regen, g.regen),
+    pen: baseStats.pen, 
   };
 };
 
@@ -14755,6 +15373,9 @@ export class SpatialGrid {
 
 
 --- FILE: src/engine/match/MatchCreator.ts ---
+// ==========================================
+// FILE PATH: /src/engine/match/MatchCreator.ts
+// ==========================================
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
 import { userPool, getTierNameHelper } from '../system/UserManager';
 import { useGameStore } from '../../store/useGameStore';
@@ -14773,8 +15394,7 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
   const blueBase = positions.towers.blue.nexus;
   const redBase = positions.towers.red.nexus;
   
-  // 1차 타워 체력 및 넥서스 체력 로드
-  const t1Hp = state.fieldSettings.towers?.t1?.hp || 10000;
+  const t1Hp = state.fieldSettings.towers?.t1?.hp || 5000;
   const nexusHp = state.fieldSettings.towers?.nexus?.hp || 30000;
 
   for (let i = 0; i < matchesToMake; i++) {
@@ -14792,7 +15412,10 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
         level: 1, items: [], 
         x: base.x, y: base.y, 
         lane: lane, buffs: [], mmr: user.hiddenMmr, respawnTimer: 0,
-        stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 }
+        stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 },
+        // [신규] 현상금 시스템 초기화
+        killStreak: 0,
+        bounty: 0
       };
     };
 
@@ -14816,7 +15439,6 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
       startTime: currentTime, duration: 3600, currentDuration: 0, 
       score: { blue: 0, red: 0 }, 
       stats: {
-        // [중요] laneHealth 초기값 설정
         blue: { 
             towers: {top:0,mid:0,bot:0}, laneHealth: {top:t1Hp, mid:t1Hp, bot:t1Hp},
             colossus: 0, watcher: 0, fury: 0, nexusHp: nexusHp, maxNexusHp: nexusHp, activeBuffs: { siegeUnit: false, voidPower: false } 
@@ -15142,8 +15764,9 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
 // ==========================================
 import { LiveMatch, Hero, LivePlayer, Minion, BattleSettings } from '../../../types';
 import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
-import { calculateUnitDamage } from '../systems/DamageCalculator'; // [수정]
-import { distributeRewards, MINION_REWARD } from '../systems/RewardSystem'; // [수정]
+import { calculateUnitDamage } from '../systems/DamageCalculator'; 
+// [수정] 경로 오류 수정: systems -> logics
+import { distributeRewards, MINION_REWARD } from '../logics/CombatLogic';
 
 export class FarmAction {
   static tryFarm(
@@ -15159,39 +15782,43 @@ export class FarmAction {
     
     if (!enemies.minions || enemies.minions.length === 0) return false;
 
-    // 1. 내 데미지 계산
-    const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
+    // 1. 타겟 선정 (가장 피 적은 놈)
+    const potentialTargets = [...enemies.minions].sort((a,b) => a.hp - b.hp);
+    const targetMinion = potentialTargets[0]; 
 
-    // 2. 처형 임계값 설정
+    if (!targetMinion) return false;
+
+    // 2. 내 데미지 계산
+    const myDamage = calculateUnitDamage(attacker, atkStats, targetMinion, isBlue, settings);
+
+    // 3. 처형 임계값 (막타 각)
     let executeThreshold = myDamage * 2.5; 
-
+    
+    // 수호기사(서포터)는 막타 양보 (5% 확률로만 막타 침 - 타곤산 터트리기용)
     if (attackerHero.role === '수호기사') {
-        if (Math.random() < 0.05) { 
-            executeThreshold = myDamage * 6.0; 
-        } else {
-            return false; 
-        }
+        if (Math.random() < 0.05) executeThreshold = myDamage * 6.0; 
+        else return false; 
     }
 
-    // 3. 타겟 선정
-    const targetMinion = TargetEvaluator.selectFarmTarget(attacker, enemies.minions, executeThreshold);
+    // 4. 킬 가능한 타겟 재검색
+    const killableTarget = TargetEvaluator.selectFarmTarget(attacker, enemies.minions, executeThreshold);
 
-    if (targetMinion) {
-        if (targetMinion.hp <= executeThreshold) {
-            targetMinion.hp = 0;
+    if (killableTarget) {
+        // 데미지 적용
+        if (killableTarget.hp <= executeThreshold) {
+            killableTarget.hp = 0; // 처형
         } else {
-            targetMinion.hp -= myDamage;
+            killableTarget.hp -= myDamage;
         }
         
         attacker.totalDamageDealt += myDamage;
 
-        if (targetMinion.hp <= 0) {
-            const reward = (MINION_REWARD as any)[targetMinion.type] || MINION_REWARD.MELEE;
-            
-            // [중요] RewardSystem 사용
-            distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
+        // 처치 시 보상
+        if (killableTarget.hp <= 0) {
+            const reward = (MINION_REWARD as any)[killableTarget.type] || MINION_REWARD.MELEE;
+            distributeRewards(match, killableTarget, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
 
-            if (targetMinion.type === 'SUMMONED_COLOSSUS') {
+            if (killableTarget.type === 'SUMMONED_COLOSSUS') {
                 match.logs.push({ 
                     time: Math.floor(match.currentDuration), 
                     message: `⚔️ [${attackerHero.name}]가 적의 거신병을 처치했습니다!`, 
@@ -15291,33 +15918,28 @@ import { IDBStorage } from '../utils/IDBStorage';
 const META_KEY = 'GW_SAVE_META';
 const PENDING_LOAD_KEY = 'GW_PENDING_LOAD';
 
-// [저장]
 export const saveToSlot = async (slotId: string): Promise<boolean> => {
   const store = useGameStore.getState();
   const state = store.gameState;
 
-  // 저장 용량 최적화 (불필요한 로그/오브젝트 제외)
   const optimizedMatches = state.liveMatches.map(m => ({
     ...m, 
     logs: [], timeline: [], minions: [], projectiles: [], jungleMobs: []    
   }));
 
   const saveData = {
-    version: 20, // 버전 변경 (구버전 데이터와 구분)
+    version: 24, // 버전 업
     time: { season: state.season, day: state.day, hour: state.hour, minute: state.minute },
     config: {
       battle: state.battleSettings,
       field: state.fieldSettings,
       role: state.roleSettings,
       tier: state.tierConfig,
-      ai: state.aiConfig
+      ai: state.aiConfig,
+      growth: state.growthSettings 
     },
     customImages: state.customImages,
-    // 영웅 데이터는 변동사항만 저장
-    heroes: store.heroes.map(h => ({
-      id: h.id, record: h.record, concept: h.concept, name: h.name
-    })),
-    // [중요] 현재 유저 풀 전체를 원본 그대로 저장
+    heroes: store.heroes.map(h => ({ id: h.id, record: h.record, concept: h.concept, name: h.name })),
     users: userPool, 
     itemStats: state.itemStats,
     shopItems: store.shopItems,
@@ -15344,7 +15966,6 @@ export const saveToSlot = async (slotId: string): Promise<boolean> => {
   }
 };
 
-// [로드 트리거]
 export const loadFromSlot = async (slotId: string, defaultHeroes: Hero[]): Promise<boolean> => {
   try {
     let data = await IDBStorage.getItem(slotId);
@@ -15362,7 +15983,6 @@ export const loadFromSlot = async (slotId: string, defaultHeroes: Hero[]): Promi
   }
 };
 
-// [초기화]
 export const initializeGame = async (heroes: Hero[]) => {
   const pendingSlot = localStorage.getItem(PENDING_LOAD_KEY);
   if (pendingSlot) {
@@ -15378,56 +15998,40 @@ export const initializeGame = async (heroes: Hero[]) => {
         console.error("Critical Load Error:", e);
     }
   }
-  // 데이터가 없으면 새 게임 시작
   if (userPool.length === 0) initUserPool(heroes, 3000);
 };
 
-// [핵심] 데이터 무결성 검증 및 적용 (Data Integrity Check)
 const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
     const store = useGameStore.getState();
     
-    // 1. 영웅 데이터 복구
     const loadedHeroMap = new Map(data.heroes?.map((h: any) => [h.id, h]) || []);
     const restoredHeroes = defaultHeroes.map(def => {
         const saved = loadedHeroMap.get(def.id);
         return saved ? { ...def, ...saved } : def;
     });
 
-    // 2. 유저 풀(Master Data) 복구
-    // - 저장된 유저가 있으면 그걸 쓰고, 없으면 새로 만듭니다.
-    // - 일단 모든 유저 상태를 'OFFLINE'으로 초기화합니다. (매치 검증 후 INGAME으로 변경)
     let restoredUsers: UserProfile[] = [];
     if (data.users && Array.isArray(data.users)) {
         restoredUsers = data.users.map((u: any) => ({
             ...u,
             heroStats: u.heroStats || {},
             history: u.history || [],
-            status: 'OFFLINE' // 초기화
+            status: 'OFFLINE' 
         }));
     } else {
-        // 유저 데이터 유실 시 새 유저 생성 (비상 조치)
         initUserPool(restoredHeroes, 3000);
         restoredUsers = [...userPool];
     }
 
-    // [검증용] 실제 존재하는 유저 이름 Set
     const validUserNames = new Set(restoredUsers.map(u => u.name));
-
-    // 3. 매치 데이터 검증 (가짜 매치 박멸)
     const validMatches: LiveMatch[] = [];
-    let droppedMatches = 0;
-
     const rawMatches = (data.liveMatches || []);
     
     rawMatches.forEach((m: any) => {
-        // 매치에 포함된 10명의 플레이어 이름
         const participants = [...(m.blueTeam || []), ...(m.redTeam || [])];
-        
-        // [엄격 검증] 10명 전원이 실제 유저 풀에 존재하는가?
         const isValidMatch = participants.length === 10 && participants.every((p: any) => validUserNames.has(p.name));
 
         if (isValidMatch) {
-            // 유효한 매치만 복구 (필수 배열 초기화 포함)
             validMatches.push({
                 ...m,
                 minions: [], projectiles: [], jungleMobs: [], logs: [], timeline: [],
@@ -15442,24 +16046,40 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
                     watcher: { hp: 0, maxHp: 10000, status: 'DEAD', nextSpawnTime: m.currentDuration+120 }
                 }
             });
-
-            // 검증된 유저들의 상태를 'INGAME'으로 변경
             participants.forEach((p: any) => {
                 const u = restoredUsers.find(user => user.name === p.name);
                 if (u) u.status = 'INGAME';
             });
-        } else {
-            // 유령 매치(가짜 데이터)는 버림
-            droppedMatches++;
         }
     });
 
-    console.log(`🧹 [Integrity Check] 유효 매치: ${validMatches.length} / 삭제된 가짜 매치: ${droppedMatches}`);
-
-    // 유저 풀 전역 교체
     replaceUserPool(restoredUsers);
 
-    // 4. 스토어 상태 적용
+    let loadedGrowth = data.config?.growth;
+    if (loadedGrowth && typeof loadedGrowth.hp === 'number') {
+        const convert = (val: number) => ({ early: Math.floor(val*0.6), mid: val, late: Math.floor(val*1.4) });
+        loadedGrowth = {
+            hp: convert(loadedGrowth.hp),
+            ad: convert(loadedGrowth.ad),
+            ap: convert(loadedGrowth.ap),
+            armor: convert(loadedGrowth.armor),
+            baseAtk: convert(loadedGrowth.baseAtk),
+            regen: convert(loadedGrowth.regen),
+            respawnPerLevel: 3.0,
+            recallTime: 10.0
+        };
+    }
+    if (!loadedGrowth) {
+        loadedGrowth = { 
+            hp: {early:3,mid:5,late:7}, ad: {early:5,mid:10,late:15}, ap: {early:5,mid:10,late:15},
+            armor: {early:2,mid:3,late:4}, baseAtk: {early:2,mid:3,late:4}, regen: {early:1,mid:2,late:3},
+            respawnPerLevel: 3.0, recallTime: 10.0
+        };
+    }
+    // [호환성] 귀환 시간 10초 강제 (데이터가 없거나 너무 짧으면)
+    if (loadedGrowth.recallTime === undefined || loadedGrowth.recallTime < 4) loadedGrowth.recallTime = 10.0;
+    if (loadedGrowth.respawnPerLevel === undefined) loadedGrowth.respawnPerLevel = 3.0;
+
     useGameStore.setState({ 
         gameState: {
             ...store.gameState,
@@ -15469,11 +16089,13 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
             fieldSettings: { ...store.gameState.fieldSettings, ...data.config?.field },
             roleSettings: { ...store.gameState.roleSettings, ...data.config?.role },
             aiConfig: { ...store.gameState.aiConfig, ...data.config?.ai },
+            growthSettings: loadedGrowth,
+            
             itemStats: data.itemStats || {},
             godStats: data.godStats || store.gameState.godStats,
             customImages: { ...store.gameState.customImages, ...(data.customImages || {}) },
-            liveMatches: validMatches, // 검증된 매치만 투입
-            totalUsers: restoredUsers.length, // [중요] 실제 유저 수로 덮어씀
+            liveMatches: validMatches,
+            totalUsers: restoredUsers.length,
             topRankers: getTopRankers(restoredHeroes, data.config?.tier),
             userStatus: calculateUserEcosystem(validMatches.length * 10, restoredUsers.length, data.config?.tier),
             isPlaying: false 
@@ -15973,6 +16595,11 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     gameState: { ...state.gameState, roleSettings: { ...state.gameState.roleSettings, ...s } } 
   })),
 
+  // [신규] 성장 설정 업데이트
+  updateGrowthSettings: (s) => set((state) => ({ 
+    gameState: { ...state.gameState, growthSettings: { ...state.gameState.growthSettings, ...s } } 
+  })),
+
   setCustomImage: (id, imageData) => set((state) => ({
     gameState: { ...state.gameState, customImages: { ...state.gameState.customImages, [id]: imageData } }
   })),
@@ -15988,11 +16615,8 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     return { ...state }; 
   }),
 
-  // [신규] 좌표 업데이트 로직 (매우 중요: 중첩 객체 업데이트)
   updateObjectPosition: (key: string, x: number, y: number) => set((state) => {
     const positions = { ...state.gameState.fieldSettings.positions };
-    
-    // key 예시: "colossus", "jungle.0", "towers.blue.top.0"
     const parts = key.split('.');
     
     if (parts.length === 1) {
@@ -16001,10 +16625,8 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
         const idx = parseInt(parts[1]);
         if (positions.jungle[idx]) positions.jungle[idx] = { x, y };
     } else if (parts[0] === 'towers') {
-        // towers.blue.top.0
         const side = parts[1] as 'blue'|'red';
-        const lane = parts[2]; // top, mid, bot, nexus
-        
+        const lane = parts[2];
         if (lane === 'nexus') {
             positions.towers[side].nexus = { x, y };
         } else {
@@ -16020,10 +16642,7 @@ export const createSettingSlice: StateCreator<GameStore, [], [], SettingSlice> =
     return { 
         gameState: { 
             ...state.gameState, 
-            fieldSettings: { 
-                ...state.gameState.fieldSettings, 
-                positions 
-            } 
+            fieldSettings: { ...state.gameState.fieldSettings, positions } 
         } 
     };
   }),
@@ -16094,7 +16713,17 @@ const initialGameState: GameState = {
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
-    economy: { minionGold: 14, minionXp: 30 },
+    
+    // [수정] 경제 설정 기본값 (현상금 추가)
+    economy: { 
+        minionGold: 14, minionXp: 30, 
+        killGold: 300, 
+        goldPerLevel: 20,    // 레벨당 20원 추가
+        bountyIncrement: 100,// 킬당 현상금 100원 증가
+        assistPool: 50, 
+        killXpBase: 40, 
+        killXpPerLevel: 20 
+    },
     siege: { 
         minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0,
         dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1,
@@ -16102,18 +16731,17 @@ const initialGameState: GameState = {
     }
   },
   
-  // [수정 완료] 타워는 하향, 넥서스는 원본 유지
   fieldSettings: {
     towers: {
-        // [하향] 타워: 50% 수준 (잘 부서짐)
         t1: { hp: 5000, armor: 40, rewardGold: 300, atk: 350 },
         t2: { hp: 7500, armor: 60, rewardGold: 450, atk: 450 },
         t3: { hp: 10000, armor: 75, rewardGold: 600, atk: 550 },
-        
-        // [유지] 넥서스: 원본 수치 (강력함) - HP 30000, 방어 200
-        nexus: { hp: 30000, armor: 200, rewardGold: 0, atk: 1000 }
+        nexus: { hp: 30000, armor: 60, rewardGold: 0, atk: 1000 }
     },
-    colossus: { hp: 15000, armor: 80, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300 },
+    colossus: { 
+        hp: 15000, armor: 100, rewardGold: 100, attack: 50, initialSpawnTime: 300, respawnTime: 300,
+        dmgFromHero: 100, dmgFromMinion: 5, dmgFromTower: 30 
+    },
     watcher: { hp: 20000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, initialSpawnTime: 420, respawnTime: 420 },
     jungle: { density: 50, yield: 50, attack: 30, defense: 20, threat: 0, xp: 160, gold: 80, initialSpawnTime: 90, respawnTime: 90 },
     positions: initialPositions
@@ -16124,6 +16752,16 @@ const initialGameState: GameState = {
     prophet: { cdrPerLevel: 2 },
     slayer: { structureDamage: 30 },
     guardian: { survivalRate: 20 }
+  },
+  growthSettings: {
+    hp: { early: 3, mid: 5, late: 7 },
+    ad: { early: 5, mid: 10, late: 15 },
+    ap: { early: 5, mid: 10, late: 15 },
+    armor: { early: 2, mid: 3, late: 4 },
+    baseAtk: { early: 2, mid: 3, late: 4 },
+    regen: { early: 1, mid: 2, late: 3 },
+    respawnPerLevel: 3.0,
+    recallTime: 10.0     
   },
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
   customImages: INITIAL_CUSTOM_IMAGES 
@@ -16139,37 +16777,54 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
     const newImages = updates.customImages || state.gameState.customImages;
     let newField = updates.fieldSettings || state.gameState.fieldSettings;
     let newBattle = updates.battleSettings || state.gameState.battleSettings;
+    let newGrowth = updates.growthSettings || state.gameState.growthSettings;
 
     if (newField && !newField.positions) {
         newField = { ...newField, positions: initialPositions };
     }
     
-    if (newBattle) {
-        const defaultSiege = initialGameState.battleSettings.siege;
-        const currentSiege = (newBattle as any).siege || {};
-        newBattle.siege = { ...defaultSiege, ...currentSiege };
-        
-        if (newBattle.siege.dmgToT1 === undefined) {
-             newBattle.siege = defaultSiege;
+    // [호환성] 
+    if (newGrowth) {
+        if (newGrowth.respawnPerLevel === undefined) newGrowth.respawnPerLevel = 3.0;
+        if (newGrowth.recallTime === undefined) newGrowth.recallTime = 10.0; 
+
+        if (typeof (newGrowth.hp as any) === 'number') {
+            const convert = (val: number) => ({ early: Math.floor(val*0.6), mid: val, late: Math.floor(val*1.4) });
+            newGrowth = {
+                hp: convert(newGrowth.hp as any),
+                ad: convert(newGrowth.ad as any),
+                ap: convert(newGrowth.ap as any),
+                armor: convert(newGrowth.armor as any),
+                baseAtk: convert(newGrowth.baseAtk as any),
+                regen: convert(newGrowth.regen as any),
+                respawnPerLevel: 3.0,
+                recallTime: 10.0
+            };
         }
     }
 
-    // [강제 패치] 기존 세이브 로드 시에도 적용
-    if ((newField as any).towers) {
-        const t = (newField as any).towers;
-        
-        // 1. 타워는 너프 (50%)
-        if (t.t1.hp > 6000) { t.t1.hp = 5000; t.t1.armor = 40; }
-        if (t.t2.hp > 9000) { t.t2.hp = 7500; t.t2.armor = 60; }
-        if (t.t3.hp > 12000) { t.t3.hp = 10000; t.t3.armor = 75; }
-        
-        // 2. [복구] 넥서스는 다시 강력하게 복구 (이전 너프 취소)
-        // 만약 HP가 25000 이하라면(이전 실수로 낮춰진 경우) -> 30000으로 복구
-        if (t.nexus.hp < 25000) { t.nexus.hp = 30000; t.nexus.armor = 200; }
+    // [호환성] 경제 설정 
+    if (newBattle && newBattle.economy) {
+        if (newBattle.economy.killGold === undefined) newBattle.economy.killGold = 300;
+        if (newBattle.economy.goldPerLevel === undefined) newBattle.economy.goldPerLevel = 20;
+        if (newBattle.economy.bountyIncrement === undefined) newBattle.economy.bountyIncrement = 100;
+        if (newBattle.economy.assistPool === undefined) newBattle.economy.assistPool = 50;
+        if (newBattle.economy.killXpBase === undefined) newBattle.economy.killXpBase = 40;
+        if (newBattle.economy.killXpPerLevel === undefined) newBattle.economy.killXpPerLevel = 20;
+    }
+
+    if (!newGrowth) newGrowth = initialGameState.growthSettings;
+
+    if ((newField as any).towers && (newField as any).towers.nexus.armor > 80) {
+        (newField as any).towers.nexus.armor = 60;
     }
 
     return { 
-        gameState: { ...state.gameState, ...updates, fieldSettings: newField, battleSettings: newBattle, customImages: newImages } 
+        gameState: { 
+            ...state.gameState, ...updates, 
+            fieldSettings: newField, battleSettings: newBattle, customImages: newImages,
+            growthSettings: newGrowth 
+        } 
     };
   }),
 
@@ -16407,7 +17062,16 @@ export interface Item {
 export interface ItemStatData { itemId: string; totalPicks: number; totalWins: number; totalKills: number; totalDeaths: number; totalAssists: number; }
 
 export interface ObjectStats { hp: number; armor: number; rewardGold: number; atk?: number; }
-export interface ColossusSettings extends ObjectStats { attack: number; initialSpawnTime: number; respawnTime: number; }
+
+export interface ColossusSettings extends ObjectStats { 
+  attack: number; 
+  initialSpawnTime: number; 
+  respawnTime: number;
+  dmgFromHero: number;   
+  dmgFromMinion: number; 
+  dmgFromTower: number;  
+}
+
 export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; initialSpawnTime: number; respawnTime: number; }
 export interface JungleSettings { density: number; threat: number; yield: number; attack: number; defense: number; xp: number; gold: number; initialSpawnTime: number; respawnTime: number; }
 
@@ -16438,12 +17102,42 @@ export interface GodSettings {
   minions: { melee: MinionStats; ranged: MinionStats; siege: MinionStats; };
   servantGold: number; servantXp: number; 
 }
-export interface EconomySettings { minionGold: number; minionXp: number; }
+
+// [수정] 경제 설정 확장 (현상금 시스템)
+export interface EconomySettings { 
+  minionGold: number; 
+  minionXp: number;
+  
+  killGold: number;       // 기본 킬 골드
+  goldPerLevel: number;   // [신규] 적 레벨당 추가 골드
+  bountyIncrement: number;// [신규] 연속 킬당 현상금 증가량
+  
+  assistPool: number;     
+  killXpBase: number;     
+  killXpPerLevel: number; 
+}
 
 export interface SiegeSettings {
   minionDmg: number; cannonDmg: number; superDmg: number;
   dmgToHero: number; dmgToT1: number; dmgToT2: number; dmgToT3: number; dmgToNexus: number;
   colossusToHero: number; colossusToT1: number; colossusToT2: number; colossusToT3: number; colossusToNexus: number;
+}
+
+export interface GrowthIntervals {
+  early: number; 
+  mid: number;   
+  late: number;  
+}
+
+export interface GrowthSettings {
+  hp: GrowthIntervals;
+  ad: GrowthIntervals;
+  ap: GrowthIntervals;
+  armor: GrowthIntervals;
+  baseAtk: GrowthIntervals;
+  regen: GrowthIntervals;
+  respawnPerLevel: number; 
+  recallTime: number;      
 }
 
 export interface BattleSettings { 
@@ -16459,18 +17153,7 @@ export interface Comment { id: number; author: string; authorTier: string; conte
 export interface Post { id: number; author: string; authorTier: string; title: string; content: string; category: '공략' | '유머' | '징징' | '분석' | '잡담' | '질문' | '자랑' | '공지'; views: number; upvotes: number; downvotes: number; comments: number; commentList: Comment[]; createdAt: number; potential: number; isBest: boolean; displayTime: string; }
 
 import { UserProfile, UserStatus } from './user';
-import { LiveMatch } from './match';
-
-export interface TeamStats {
-  towers: { top: number; mid: number; bot: number };
-  laneHealth: { top: number; mid: number; bot: number };
-  colossus: number;
-  watcher: number;
-  fury: number;
-  nexusHp: number;
-  maxNexusHp: number;
-  activeBuffs: { siegeUnit: boolean; voidPower: boolean; voidBuffEndTime?: number; };
-}
+import { LiveMatch, LivePlayer } from './match';
 
 export interface GameState { 
   season: number; day: number; hour: number; minute: number; second: number; 
@@ -16478,11 +17161,12 @@ export interface GameState {
   ccu: number; totalUsers: number; 
   userStatus: UserStatus; topRankers: UserProfile[]; godStats: GodStats; 
   liveMatches: LiveMatch[]; 
-  tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; roleSettings: RoleSettings; aiConfig: AIConfig; 
+  tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; 
+  roleSettings: RoleSettings; growthSettings: GrowthSettings; 
+  aiConfig: AIConfig; 
   itemStats: Record<string, ItemStatData>; customImages: Record<string, string>; 
 }
 
-// [수정] Minion 인터페이스에 targetId 추가 (기억력)
 export interface Minion {
   id: string;
   team: 'BLUE' | 'RED';
@@ -16494,7 +17178,8 @@ export interface Minion {
   maxHp: number;
   atk: number;
   pathIdx: number;
-  targetId?: string; // 내가 때리고 있는 대상 ID
+  targetId?: string; 
+  armor?: number; 
 }
 
 export interface HeroSlice { heroes: any[]; addHero: (hero: any) => void; deleteHero: (heroId: string) => void; updateHero: (id: string, updates: any) => void; resetHeroStats: () => void; }
@@ -16506,6 +17191,7 @@ export interface SettingSlice {
   updateTierConfig: (config: TierConfig) => void; 
   updateAIConfig: (config: Partial<AIConfig>) => void; 
   updateRoleSettings: (settings: Partial<RoleSettings>) => void; 
+  updateGrowthSettings: (settings: Partial<GrowthSettings>) => void; 
   setCustomImage: (id: string, imageData: string) => void; 
   removeCustomImage: (id: string) => void; 
   loadModData: (modData: any) => void; 
