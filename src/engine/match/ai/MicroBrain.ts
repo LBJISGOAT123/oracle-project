@@ -2,14 +2,14 @@
 // FILE PATH: /src/engine/match/ai/MicroBrain.ts
 // ==========================================
 import { LivePlayer, Hero, LiveMatch } from '../../../types';
-import { EvasionSystem } from './tactics/EvasionSystem';
-import { TacticalComputer } from './tactics/TacticalComputer';
 import { AIUtils } from './AIUtils';
 import { useGameStore } from '../../../store/useGameStore';
 import { ComboSystem } from './mechanics/ComboSystem';
 import { SkillBrain } from './tactics/SkillBrain';
 import { ObservationSystem } from './perception/ObservationSystem'; 
-import { TeamCoordination } from './mechanics/TeamCoordination'; // [신규]
+import { TeamCoordination } from './mechanics/TeamCoordination';
+import { PredictionSystem } from './systems/PredictionSystem';
+import { RoleAI } from './tactics/RoleAI'; // [New] 연결
 
 export interface MicroDecision {
   type: 'ATTACK' | 'MOVE';
@@ -36,55 +36,30 @@ export class MicroBrain {
 
     ObservationSystem.updateObservations(player, match);
 
-    // 1. 투사체 회피
-    const dodgePos = EvasionSystem.getDodgeVector(player, match);
+    // 1. [회피 기동]
+    const dodgePos = PredictionSystem.getDodgeMovement(player, match);
     if (dodgePos) return { type: 'MOVE', targetPos: dodgePos };
 
-    // 2. 콤보 및 스킬 사용
+    // 2. [콤보 및 스킬]
     const dist = AIUtils.dist(player, target);
     let bestSkill: string | null = null;
 
     bestSkill = ComboSystem.getNextSkill(player, target, hero, dist, match.currentDuration);
-
-    if (!bestSkill) {
-        bestSkill = SkillBrain.getBestSkill(player, target, hero, dist);
-    }
+    if (!bestSkill) bestSkill = SkillBrain.getBestSkill(player, target, hero, dist);
 
     if (bestSkill) {
-        // [핵심] CC 연계 판단 (TeamCoordination)
-        // 아군이 기절을 걸어놨으면 내 CC기는 아낌 (Hold)
         const skillInfo = hero.skills[bestSkill as 'q'|'w'|'e'|'r'];
-        
         if (TeamCoordination.shouldHoldCC(target, skillInfo.mechanic)) {
-            // 스킬 쓰는 대신 평타나 무빙 (기다림)
-            // 그냥 공격 사거리 안이면 평타, 아니면 접근
             const range = (hero.stats.range / 100);
-            if (dist <= range + 1.0) {
-                return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
-            }
+            if (dist <= range + 1.0) return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
             return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
         }
 
-        // 예측 사격
-        const aimPos = ObservationSystem.getPredictedPosition(player, target, 15.0);
-        
-        return { 
-            type: 'ATTACK', 
-            targetPos: aimPos, 
-            skillKey: bestSkill 
-        };
+        const aimPos = PredictionSystem.getAimPosition(player, target, match);
+        return { type: 'ATTACK', targetPos: aimPos, skillKey: bestSkill };
     }
 
-    // 3. 스마트 포지셔닝 (카이팅)
-    const range = (hero.stats.range / 100);
-    const optimalPos = TacticalComputer.getSiegePosition(player, target, match, range);
-
-    const distToOptimal = AIUtils.dist(player, optimalPos);
-    
-    if (distToOptimal < 2.0 && dist <= range + 1.0) {
-        return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
-    }
-
-    return { type: 'MOVE', targetPos: optimalPos };
+    // 3. [역할군별 전투 무빙] (RoleAI 위임)
+    return RoleAI.getDecision(player, target, hero, match);
   }
 }

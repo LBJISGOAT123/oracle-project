@@ -3,9 +3,9 @@
 // ==========================================
 import { LiveMatch, LivePlayer } from '../../../../types';
 import { AIUtils } from '../AIUtils';
-import { BASES, TOWER_COORDS } from '../../constants/MapConstants';
+import { BASES, POI } from '../../constants/MapConstants';
 
-export type TeamOrderType = 'FREE' | 'ALL_PUSH' | 'ALL_DEFEND' | 'SIEGE_MID' | 'RETREAT';
+export type TeamOrderType = 'FREE' | 'ALL_PUSH' | 'ALL_DEFEND' | 'SIEGE_MID' | 'RETREAT' | 'TAKE_BARON' | 'TAKE_DRAGON';
 
 export interface TeamOrder {
   type: TeamOrderType;
@@ -15,9 +15,6 @@ export interface TeamOrder {
 
 export class TeamTactics {
   
-  /**
-   * 해당 팀의 현재 전략적 상태를 결정합니다.
-   */
   static analyzeTeamStrategy(match: LiveMatch, isBlueTeam: boolean): TeamOrder {
     const allies = isBlueTeam ? match.blueTeam : match.redTeam;
     const enemies = isBlueTeam ? match.redTeam : match.blueTeam;
@@ -30,60 +27,62 @@ export class TeamTactics {
     
     const allyCount = activeAllies.length;
     const enemyCount = activeEnemies.length;
-    const advantage = allyCount - enemyCount; // 양수면 우리가 유리
+    const advantage = allyCount - enemyCount; 
 
-    // 2. 라인 상황 (미드 억제기 밀렸는지)
+    // 2. 라인 상황
     const enemyStats = isBlueTeam ? match.stats.red : match.stats.blue;
     const myStats = isBlueTeam ? match.stats.blue : match.stats.red;
-    
     const isEnemyInhibitorDown = enemyStats.towers.mid >= 3;
     const isMyInhibitorDown = myStats.towers.mid >= 3;
 
     // --------------------------------------------------------
     // [전략 1] 엘리전 / 끝내기 (Game Ending)
-    // 조건: 적이 거의 전멸했거나(2명 이상 차이), 20분 넘었는데 수적 우위일 때
     // --------------------------------------------------------
-    if (match.currentDuration > 900) { // 15분 이후
+    if (match.currentDuration > 1200) { // 20분 이후
         if (enemyCount === 0 || (advantage >= 2 && isEnemyInhibitorDown)) {
-            return { 
-                type: 'ALL_PUSH', 
-                targetPos: enemyBase, 
-                reason: '🚀 적 궤멸! 전원 넥서스 돌격!' 
-            };
+            return { type: 'ALL_PUSH', targetPos: enemyBase, reason: '🚀 적 궤멸! 넥서스 점사!' };
         }
     }
 
     // --------------------------------------------------------
-    // [전략 2] 긴급 수비 (Emergency Defense)
-    // 조건: 우리 억제기가 밀렸고, 적이 우리 기지 근처에 2명 이상 있음
+    // [전략 2] 긴급 수비 (Emergency)
     // --------------------------------------------------------
     if (isMyInhibitorDown) {
         const enemiesInBase = activeEnemies.filter(e => AIUtils.dist(e, myBase) < 30).length;
-        if (enemiesInBase >= 2) {
-            return { 
-                type: 'ALL_DEFEND', 
-                targetPos: myBase, 
-                reason: '🛡️ 본진 위험! 전원 수비!' 
-            };
+        if (enemiesInBase >= 1) { // 1명이라도 들어오면 수비
+            return { type: 'ALL_DEFEND', targetPos: myBase, reason: '🛡️ 본진 방어!' };
         }
     }
 
     // --------------------------------------------------------
-    // [전략 3] 스노우볼링 (Siege)
-    // 조건: 수적 우위(1명 이상) 이고 아군이 3명 이상 뭉쳐있음 -> 미드 고속도로
+    // [전략 3] 오브젝트 오더 (Baron / Dragon) - New
     // --------------------------------------------------------
-    if (advantage >= 1 && allyCount >= 3) {
-        const midObjective = AIUtils.getNextObjectivePos(activeAllies[0], match, isBlueTeam); // 미드 타워 좌표
-        return { 
-            type: 'SIEGE_MID', 
-            targetPos: midObjective, 
-            reason: '🔥 수적 우위! 미드 압박!' 
-        };
+    // 수적 우위 2명 이상 & 정글러 살아있음 & 강타 싸움 가능
+    const myJungler = activeAllies.find(p => p.lane === 'JUNGLE');
+    if (advantage >= 2 && myJungler) {
+        // 거신병(바론) 확인
+        const colossus = match.objectives.colossus;
+        if (colossus.status === 'ALIVE' && match.currentDuration > 900) { // 15분 이후
+            return { type: 'TAKE_BARON', targetPos: POI.BARON, reason: '🤖 수적 우위! 거신병 사냥!' };
+        }
+        
+        // 주시자(용) 확인
+        const watcher = match.objectives.watcher;
+        if (watcher.status === 'ALIVE') {
+            return { type: 'TAKE_DRAGON', targetPos: POI.DRAGON, reason: '👁️ 주시자 사냥!' };
+        }
     }
 
     // --------------------------------------------------------
-    // [전략 4] 정비 및 분산 (Free)
-    // 특별한 상황 아니면 각자 판단 (라인전, 정글링)
+    // [전략 4] 스노우볼링 (미드 모여)
+    // --------------------------------------------------------
+    if (advantage >= 1 && allyCount >= 3) {
+        const midObjective = AIUtils.getNextObjectivePos(activeAllies[0], match, isBlueTeam);
+        return { type: 'SIEGE_MID', targetPos: midObjective, reason: '🔥 미드 고속도로!' };
+    }
+
+    // --------------------------------------------------------
+    // [전략 5] 자유 행동
     // --------------------------------------------------------
     return { type: 'FREE', reason: '자유 행동' };
   }

@@ -15,7 +15,12 @@ export class CoreEngine {
     initialPosts: Post[],
     totalDelta: number,
     baseStepSize: number, 
-    updateStateCallback: (updates: Partial<GameState>, newHeroes: Hero[], newPosts: Post[], remainingTime: number) => void
+    updateStateCallback: (
+        updates: Partial<GameState>, 
+        newHeroes: Hero[], 
+        newPosts: Post[], 
+        remainingTime: number
+    ) => void
   ) {
     try {
       let currentState = { ...initialState };
@@ -73,7 +78,8 @@ export class CoreEngine {
     try {
       updatedMatches = updateLiveMatches(updatedMatches, heroes, deltaSeconds);
       
-      // [AutoFix] 데이터 무결성 강제 보정 (체력 NaN 복구 및 마나 오버플로우 방지)
+      // [AutoFix & Zombie Killer]
+      // 데이터 무결성 검사 + 체력 음수인 놈 강제 사망 처리
       updatedMatches.forEach(match => {
           [...match.blueTeam, ...match.redTeam].forEach(p => {
               // HP NaN 복구
@@ -82,11 +88,18 @@ export class CoreEngine {
               }
               if (isNaN(p.maxHp) || p.maxHp <= 0) p.maxHp = 1000;
               
-              // MP NaN 복구
+              // [핵심] 좀비 처리: 체력이 0 이하인데 살아있다고(respawnTimer 0) 우기면 죽여버림
+              if (p.currentHp <= 0 && p.respawnTimer <= 0) {
+                  p.currentHp = 0;
+                  p.deaths++;
+                  p.respawnTimer = 10 + (p.level * 3); // 강제 부활 타이머
+                  
+                  // 로그는 남기지 않음 (자연사 처리)
+              }
+
+              // MP NaN 복구 & Clamp
               if (isNaN(p.currentMp)) p.currentMp = 0;
               if (isNaN(p.maxMp)) p.maxMp = 300;
-
-              // [핵심] 체력/마나가 최대치보다 크면 잘라냄 (Clamp)
               if (p.currentHp > p.maxHp) p.currentHp = p.maxHp;
               if (p.currentMp > p.maxMp) p.currentMp = p.maxMp;
 

@@ -1,3 +1,6 @@
+// ==========================================
+// FILE PATH: /src/engine/match/systems/PlayerSystem.ts
+// ==========================================
 import { LivePlayer, LiveMatch, Hero, RoleSettings } from '../../../types';
 import { updateLivePlayerStats } from './ItemManager'; 
 import { SteeringSystem } from './SteeringSystem';
@@ -12,9 +15,7 @@ import { AIUtils } from '../ai/AIUtils';
 import { StatusManager } from './StatusManager';
 
 const isSafeToRecall = (player: LivePlayer, match: LiveMatch, isBlue: boolean): boolean => {
-  const enemyTowers = isBlue ? match.stats.red.towers : match.stats.blue.towers;
   const enemies = isBlue ? match.redTeam : match.blueTeam;
-
   for (const enemy of enemies) {
     if (enemy.currentHp > 0 && getDistance(player, enemy) < 15) return false;
   }
@@ -33,32 +34,33 @@ export const updatePlayerBehavior = (
   roleSettings: RoleSettings,
   dt: number
 ) => {
+  // [Zombie Killer] 시작부터 죽었는지 체크
+  if (player.currentHp <= 0 && player.respawnTimer <= 0) {
+      player.currentHp = 0;
+      player.respawnTimer = 10 + (player.level * 3);
+      return; // 죽었으면 행동 종료
+  }
+
   StatusManager.update(player, dt);
   
-  // [핵심] 공격 타이머 감소 (이게 없으면 평생 공격 못함)
-  if (player.attackTimer > 0) {
-      player.attackTimer -= dt;
-  }
-  
+  if (player.attackTimer > 0) player.attackTimer -= dt;
+
   if (StatusManager.isStunned(player)) {
       RecallSystem.cancelRecall(player);
       return; 
   }
 
-  // 체력 변경 감지
   const prevHp = (player as any)._prevHp || player.currentHp;
   if (player.currentHp < prevHp - 0.1 && player.isRecalling) {
       RecallSystem.cancelRecall(player);
   }
   (player as any)._prevHp = player.currentHp;
 
-  // 쿨타임 감소
   if (!player.cooldowns) player.cooldowns = { q:0, w:0, e:0, r:0 };
   Object.keys(player.cooldowns).forEach(k => {
     if ((player.cooldowns as any)[k] > 0) (player.cooldowns as any)[k] -= dt;
   });
 
-  // 부활 처리
   if (player.respawnTimer > 0) {
     player.respawnTimer -= dt;
     player.isRecalling = false;
@@ -68,20 +70,20 @@ export const updatePlayerBehavior = (
       const heroData = heroes.find(h => h.id === player.heroId);
       if (heroData) updateLivePlayerStats(player, heroData);
       player.currentHp = player.maxHp;
-      player.currentMp = p.maxMp;
+      player.currentMp = player.maxMp;
       const isBlueStart = match.blueTeam.includes(player);
       player.x = isBlueStart ? BASES.BLUE.x : BASES.RED.x;
       player.y = isBlueStart ? BASES.BLUE.y : BASES.RED.y;
       (player as any).pathIdx = 0;
       (player as any)._prevHp = player.maxHp;
-      player.attackTimer = 0; // 부활 시 공격 타이머 리셋
+      player.attackTimer = 0; 
       StatusManager.init(player);
     }
     return;
   }
 
-  // 귀환 로직
   RecallSystem.update(player, match, heroes, shopItems, dt);
+  
   if (player.isRecalling) return;
 
   const hero = heroes.find(h => h.id === player.heroId);
@@ -90,7 +92,6 @@ export const updatePlayerBehavior = (
   const isBlue = match.blueTeam.includes(player);
   const allies = isBlue ? match.blueTeam : match.redTeam;
 
-  // AI 의사결정 (Brain)
   const macroDecision = MacroBrain.decide(player, match, hero);
   let finalTargetPos = macroDecision.targetPos;
   let moveSpeed = (player as any).moveSpeed || hero.stats.speed;
@@ -98,7 +99,8 @@ export const updatePlayerBehavior = (
   switch (macroDecision.action) {
     case 'RECALL':
       const myBase = isBlue ? BASES.BLUE : BASES.RED;
-      if (getDistance(player, myBase) < 8) return; 
+      if (getDistance(player, myBase) < 10) return; 
+
       if (!isSafeToRecall(player, match, isBlue)) {
           finalTargetPos = myBase;
       } else {
@@ -115,22 +117,17 @@ export const updatePlayerBehavior = (
         if (micro.type === 'MOVE') {
           finalTargetPos = micro.targetPos;
         } else {
-          // 공격 범위 내에 있음 -> 이동 멈춤
           finalTargetPos = { x: player.x, y: player.y }; 
           
-          // 스킬 사용
           if (micro.skillKey) {
              const key = micro.skillKey as 'q'|'w'|'e'|'r';
              const skill = hero.skills[key];
              const cost = skill.cost || 0;
              if ((player.cooldowns as any)[key] <= 0 && player.currentMp >= cost) {
                  player.currentMp -= cost;
-                 // 쿨타임 적용
                  (player.cooldowns as any)[key] = skill.cd * (1 - (roleSettings.prophet.cdrPerLevel * 0.01 * player.level));
                  processSkillEffect(skill, player, macroDecision.targetUnit);
                  player.activeSkill = { key, timestamp: match.currentDuration };
-                 
-                 // 평캔 효과 (스킬 쓰면 평타 타이머 약간 감소)
                  player.attackTimer = Math.max(0, player.attackTimer - 0.5);
 
                  if (key === 'r') {
@@ -161,7 +158,6 @@ export const updatePlayerBehavior = (
       break;
   }
 
-  // 이동 처리
   const mapScaleSpeed = (moveSpeed / 100) * dt * 0.8; 
   const steering = SteeringSystem.calculateSteering(player, finalTargetPos, allies, mapScaleSpeed);
 

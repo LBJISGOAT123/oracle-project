@@ -5,6 +5,7 @@ import { LivePlayer, LiveMatch } from '../../../../types';
 import { Vector2 } from '../../utils/Vector';
 import { BASES } from '../../constants/MapConstants';
 import { AIUtils } from '../AIUtils';
+import { InfluenceMap } from '../map/InfluenceMap'; // 위험도 체크
 
 export class JunglePathFinder {
   
@@ -12,24 +13,44 @@ export class JunglePathFinder {
     const mobs = match.jungleMobs || [];
     const aliveMobs = mobs.filter(m => m.isAlive);
 
-    // 몬스터 없으면 미드 강가로 이동해서 싸움 유도
+    // 몬스터 없으면 미드 합류
     if (aliveMobs.length === 0) {
         return { x: 50, y: 50 };
     }
 
+    const isBlue = match.blueTeam.includes(player);
+    const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
+    const GRID_SIZE = 20;
+    const CELL_SIZE = 5;
+
     let bestTarget: Vector2 | null = null;
     let minScore = 99999;
-
-    const isBlue = match.blueTeam.includes(player);
 
     for (const mob of aliveMobs) {
         let dist = AIUtils.dist(player, mob);
         
-        // 내 진영 정글 우선순위 (안전 지향)
-        const isMySide = isBlue ? (mob.x + mob.y < 100) : (mob.x + mob.y > 100);
-        if (!isMySide && player.level < 4) dist += 50; 
+        // 1. 적 정글(카정) 위험도 체크
+        const gx = Math.floor(mob.x / CELL_SIZE);
+        const gy = Math.floor(mob.y / CELL_SIZE);
+        
+        let danger = 0;
+        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+            danger = dangerMap[gy][gx];
+        }
 
-        // 버프 몹 우선
+        // 위험하면 거리 페널티 (안 감)
+        if (danger > 50) dist += 1000; 
+        else if (danger > 20) dist += 100; // 약간 위험하면 기피
+
+        // 2. 내 진영 우선순위
+        const isMySide = isBlue ? (mob.x + mob.y < 100) : (mob.x + mob.y > 100);
+        if (!isMySide) {
+            // 카정 가려면 레벨 높거나 뇌지컬 좋아야 함
+            if (player.level < 6 && player.stats.brain < 60) dist += 200;
+            else dist += 30; // 기본적으로 남의 정글은 멈
+        }
+
+        // 3. 버프 몹 우선
         if (mob.type === 'GOLEM') dist -= 20;
 
         if (dist < minScore) {
@@ -38,7 +59,9 @@ export class JunglePathFinder {
         }
     }
 
-    if (bestTarget) return bestTarget;
+    if (bestTarget && minScore < 500) return bestTarget;
+    
+    // 갈 곳 없으면 본진 혹은 미드 대기
     return isBlue ? BASES.BLUE : BASES.RED;
   }
 }

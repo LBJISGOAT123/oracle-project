@@ -5,8 +5,8 @@ import { LivePlayer, LiveMatch, Hero } from '../../../types';
 import { AIUtils } from '../ai/AIUtils';
 import { PathSystem } from '../systems/PathSystem'; 
 import { MacroDecision } from '../ai/MacroBrain';
-import { Collision } from '../utils/Collision';
 import { TOWER_COORDS } from '../constants/MapConstants';
+import { InfluenceMap } from '../ai/map/InfluenceMap';
 
 export class LaningLogic {
   
@@ -15,22 +15,31 @@ export class LaningLogic {
 
     const isBlue = match.blueTeam.includes(player);
     
-    // [1. 생존 우선] 체력이 30% 이하면 무조건 후퇴 (Wait/Recall)
+    // [1. 생존 우선] 체력 부족 시 후퇴
     if (AIUtils.hpPercent(player) < 0.3) {
-        // 아군 타워로 후퇴
         const myTower = this.getMyFrontTower(player.lane, isBlue, match);
         return { action: 'FLEE', targetPos: myTower, reason: '체력 부족' };
     }
 
-    // 시야 범위 (45)
+    // [2. 갱킹 감지 - New]
+    // 내 위치의 위험도가 갑자기 높아지면(적 정글 출현 등) 타워로 도망
+    const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
+    const gx = Math.floor(player.x / 5); // Grid Size 20 기준 (100/20 = 5)
+    const gy = Math.floor(player.y / 5);
+    
+    // 위험도 30 이상이면 갱킹 위협으로 간주 (적 영웅 1명이 50점이나, 거리 감쇠 고려)
+    if (dangerMap[gy] && dangerMap[gy][gx] > 30) {
+        const myTower = this.getMyFrontTower(player.lane, isBlue, match);
+        return { action: 'FLEE', targetPos: myTower, reason: '갱킹 회피' };
+    }
+
     const SIGHT_RANGE = 45; 
     
-    // 2. 적 영웅 탐색
+    // 3. 적 영웅 탐색 (맞딜)
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const nearbyEnemyHero = enemies.find(e => e.currentHp > 0 && AIUtils.dist(player, e) < SIGHT_RANGE);
 
     if (nearbyEnemyHero) {
-        // 킬각이거나 체력이 충분하면 싸움
         return { 
             action: 'FIGHT', 
             targetPos: { x: nearbyEnemyHero.x, y: nearbyEnemyHero.y }, 
@@ -39,13 +48,10 @@ export class LaningLogic {
         };
     }
 
-    // 3. 적 미니언 탐색 & 파밍
+    // 4. 파밍
     const minions = match.minions || [];
     const enemyMinions = minions.filter(m => 
-        m.lane === player.lane && 
-        m.team !== (isBlue ? 'BLUE' : 'RED') && 
-        m.hp > 0 && 
-        AIUtils.dist(player, m) < SIGHT_RANGE
+        m.lane === player.lane && m.team !== (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && AIUtils.dist(player, m) < SIGHT_RANGE
     );
 
     if (enemyMinions.length > 0) {
@@ -59,7 +65,7 @@ export class LaningLogic {
         }
     }
 
-    // 4. 할 일 없으면 전선으로 이동
+    // 5. 전선 복귀
     const nextPos = PathSystem.getNextWaypoint(player, isBlue, match);
     return { action: 'MOVE', targetPos: nextPos, reason: '전선 복귀' };
   }
@@ -68,7 +74,6 @@ export class LaningLogic {
     const stats = isBlue ? match.stats.blue : match.stats.red;
     const broken = (stats.towers as any)[lane.toLowerCase()] || 0;
     const tier = Math.min(3, broken + 1);
-    
     const coords = isBlue ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
     // @ts-ignore
     return coords[lane][tier-1] || coords.NEXUS;
