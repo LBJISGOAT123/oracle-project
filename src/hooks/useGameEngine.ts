@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/hooks/useGameEngine.ts
-// ==========================================
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import { saveToSlot, initializeGame } from '../engine/SaveLoadSystem';
@@ -16,11 +13,6 @@ export const useGameEngine = () => {
 
   const requestRef = useRef<number>(0);
   const previousTimeRef = useRef<number | undefined>(undefined);
-  
-  // [최적화] 렌더링 쓰로틀링을 위한 변수
-  // 화면 갱신은 최대 30FPS로 제한하여 연산 자원 확보
-  const lastRenderTime = useRef<number>(0);
-  const RENDER_INTERVAL = 33; // 약 30FPS (33ms)
 
   if (runtimeError) {
     throw runtimeError;
@@ -46,7 +38,6 @@ export const useGameEngine = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // [최적화된 루프]
   useEffect(() => {
     if (!isPlaying || !isGameReady || runtimeError) {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -56,16 +47,13 @@ export const useGameEngine = () => {
 
     const loop = (time: number) => {
       if (previousTimeRef.current !== undefined) {
+        // 델타 타임 계산 (최대 0.1초 제한)
         const realDelta = Math.min((time - previousTimeRef.current) / 1000, 0.1);
         const gameDelta = realDelta * (gameSpeed || 1);
 
         try {
-          // 1. 논리 연산 (Tick) - 매 프레임 수행 (정확성 유지)
-          // tick 함수 내부에서 updateStateCallback을 호출하는데,
-          // Store에서 이를 조절할 수 있도록 구조를 살짝 우회하거나
-          // 여기서는 단순히 호출만 함.
+          // [원복] 매 프레임마다 즉시 tick 호출
           tick(gameDelta); 
-
         } catch (e: any) {
           console.error("CRITICAL TICK ERROR:", e);
           store.togglePlay(); 
@@ -83,7 +71,6 @@ export const useGameEngine = () => {
     return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [isPlaying, isGameReady, runtimeError, gameSpeed]);
 
-  // 자동 저장
   useEffect(() => {
     const autoSaveInterval = setInterval(() => { 
       if (isPlaying && isGameReady && !runtimeError) saveToSlot('auto'); 

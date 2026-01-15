@@ -5,59 +5,51 @@ import { LiveMatch, Minion, BattleSettings, Hero } from '../../../types';
 import { WAYPOINTS, TOWER_COORDS } from '../constants/MapConstants';
 import { Collision } from '../utils/Collision';
 import { SpatialGrid } from '../utils/SpatialGrid';
-import { 
-    distributeRewards, 
-    calcMitigatedDamage, 
-    MINION_REWARD 
-} from './CombatLogic'; 
+import { distributeRewards, calcMitigatedDamage, MINION_REWARD } from './CombatLogic'; 
 
 const MINION_SPEED = 15;
 
 export class MinionLogic {
 
   static processSingleMinion(
-      m: Minion, 
-      match: LiveMatch, 
-      settings: BattleSettings, 
-      dt: number, 
+      m: Minion, match: LiveMatch, settings: BattleSettings, dt: number, 
       enemyGrids: { minions: SpatialGrid, heroes: SpatialGrid },
-      shouldThink: boolean,
-      heroes: Hero[] 
+      shouldThink: boolean, heroes: Hero[] 
   ) {
     if (m.type === 'SUMMONED_COLOSSUS') return;
-
-    // 타겟이 있으면 이동 멈춤 (Sticky Target)
-    if (m.targetId) {
-       // 타겟 유효성 검사는 attackTarget 내부에서 수행
-    }
 
     const isBlue = m.team === 'BLUE';
     const range = m.type === 'MELEE' ? 6 : 16;
     
-    // [최적화] 그리드를 통해 내 주변 적만 가져옴
-    // 1. 미니언 타겟팅
-    const nearbyEnemyMinions = enemyGrids.minions.getNearbyUnits(m);
-    let target: any = Collision.findNearest(m, nearbyEnemyMinions, range);
     let targetType = 'MINION';
-
-    // 2. 영웅 타겟팅
-    if (!target) {
-      const nearbyEnemyHeroes = enemyGrids.heroes.getNearbyUnits(m);
-      target = Collision.findNearest(m, nearbyEnemyHeroes, range);
-      if (target) targetType = 'HERO';
+    let target: any = null;
+    
+    // 1. 구조물 우선 확인 (가까우면 침)
+    const structure = this.findEnemyStructure(m, match);
+    if (structure) {
+        const dist = Math.sqrt(Math.pow(structure.x - m.x, 2) + Math.pow(structure.y - m.y, 2));
+        if (dist <= range + 2) {
+            target = structure;
+            targetType = 'STRUCTURE';
+        }
     }
 
-    // 3. 구조물 타겟팅 (구조물은 몇 개 없으므로 그리드 불필요)
+    // 2. 미니언
     if (!target) {
-      const structure = this.findEnemyStructure(m, match);
-      if (structure) {
-          target = structure;
-          targetType = 'STRUCTURE';
-      }
+        const nearbyEnemyMinions = enemyGrids.minions.getNearbyUnits(m);
+        target = Collision.findNearest(m, nearbyEnemyMinions, range);
+        targetType = 'MINION';
+    }
+
+    // 3. 영웅
+    if (!target) {
+        const nearbyEnemyHeroes = enemyGrids.heroes.getNearbyUnits(m);
+        target = Collision.findNearest(m, nearbyEnemyHeroes, range);
+        if (target) targetType = 'HERO';
     }
 
     if (target) {
-        m.targetId = target.id || target.heroId || 'structure'; // 타겟 기억
+        m.targetId = target.id || target.heroId || 'structure';
         this.attackTarget(m, target, targetType, match, settings, dt, isBlue, heroes);
     } else {
         m.targetId = undefined;
@@ -69,86 +61,44 @@ export class MinionLogic {
       m: Minion, target: any, type: string, match: LiveMatch, 
       settings: BattleSettings, dt: number, isBlue: boolean, heroes: Hero[]
   ) {
-    // 타겟이 죽었거나 멀어졌으면 공격 취소
-    if ((target.hp !== undefined && target.hp <= 0) || 
-        (target.currentHp !== undefined && target.currentHp <= 0) ||
-        !Collision.inRange(m, target, (m.type === 'MELEE' ? 6 : 16) + 2)) {
+    if (type !== 'STRUCTURE' && (!target || target.hp <= 0 || target.currentHp <= 0)) {
         m.targetId = undefined;
         return;
     }
 
-    // 공격 속도 시뮬레이션 (dt 기반 확률 체크)
-    if (Math.random() > dt * 1.5) return; 
+    // 공격 속도: 1초에 1대 정도 때린다고 가정
+    if (Math.random() > dt * 1.0) return; 
 
-    const s = settings.siege || { minionDmg: 1.0, cannonDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1 };
+    const s = settings.siege || { minionDmg: 1.0, cannonDmg: 1.0, dmgToHero: 1.0 };
+    let damage = (m.atk || 10);
 
-    let sourceFactor = s.minionDmg ?? 1.0;
-    if (m.type === 'SIEGE') sourceFactor = s.cannonDmg ?? 1.0;
+    if (type === 'STRUCTURE') {
+        // [자연스러운 상성]
+        // 대포 미니언: 구조물에 2.5배 (공성용)
+        // 일반 미니언: 구조물에 0.6배 (철거 느림)
+        if (m.type === 'SIEGE') damage *= 2.5;
+        else damage *= 0.6;
 
-    let targetFactor = 1.0; 
-    let targetArmor = 0;
-    const fieldTowers = settings.fieldSettings?.towers || ({} as any);
-
-    if (type === 'HERO') {
-        targetFactor = s.dmgToHero ?? 1.0;
-        targetArmor = (target.level * 3) + 30; 
-    }
-    else if (type === 'STRUCTURE') {
-        if (target.isNexus) {
-            targetFactor = s.dmgToNexus ?? 0.1;
-            targetArmor = fieldTowers.nexus?.armor || 60; // 200 -> 60 반영
-        } else {
-            const laneKey = m.lane.toLowerCase();
-            const enemyStats = isBlue ? match.stats.red : match.stats.blue;
-            const tier = ((enemyStats.towers as any)[laneKey] || 0) + 1;
-            
-            if (tier === 1) { targetFactor = s.dmgToT1 ?? 0.3; targetArmor = fieldTowers.t1?.armor || 40; }
-            else if (tier === 2) { targetFactor = s.dmgToT2 ?? 0.25; targetArmor = fieldTowers.t2?.armor || 60; }
-            else { targetFactor = s.dmgToT3 ?? 0.2; targetArmor = fieldTowers.t3?.armor || 75; }
-        }
-    }
-
-    if (type === 'MINION') {
-        // [핵심 수정] 타겟이 거신병(SUMMONED_COLOSSUS)이면 데미지 대폭 감소
-        if (target.type === 'SUMMONED_COLOSSUS') {
-            sourceFactor *= 0.05; // 데미지 95% 감소 (거신병 보호)
-        } else {
-            sourceFactor *= 0.3; // 일반 미니언끼리는 30% 데미지
-        }
-    }
-
-    const rawAtk = m.atk || 10;
-    const mitigatedDmg = calcMitigatedDamage(rawAtk, targetArmor);
-    
-    // 최종 데미지 (기본 3배 보정 포함)
-    const finalDmg = Math.max(1, mitigatedDmg * sourceFactor * targetFactor * 3.0);
-
-    if (type === 'MINION' || type === 'HERO') {
-        target.hp -= finalDmg;
-        if (target.currentHp !== undefined) target.currentHp -= finalDmg;
-
-        if (type === 'MINION' && target.hp <= 0) {
-            const reward = (MINION_REWARD as any)[target.type] || MINION_REWARD.MELEE;
-            distributeRewards(match, target, null, isBlue ? 'BLUE' : 'RED', reward, heroes);
-        }
-    } 
-    else if (type === 'STRUCTURE') {
         const laneKey = m.lane.toLowerCase();
         const enemyStats = isBlue ? match.stats.red : match.stats.blue;
+        
+        const fieldTowers = settings.fieldSettings?.towers || ({} as any);
+        const targetArmor = (target.isNexus ? fieldTowers.nexus?.armor : 50) || 50;
+        
+        // 미니언은 관통력이 없으므로 방어력에 정직하게 막힘
+        const realDmg = calcMitigatedDamage(damage, targetArmor);
 
         if (target.isNexus) {
-            enemyStats.nexusHp -= finalDmg;
+            enemyStats.nexusHp -= realDmg;
         } else {
-            if (!(enemyStats as any).laneHealth) {
-                (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
-            }
-            (enemyStats as any).laneHealth[laneKey] -= finalDmg;
+            if (!(enemyStats as any).laneHealth) (enemyStats as any).laneHealth = { top: 10000, mid: 10000, bot: 10000 };
+            (enemyStats as any).laneHealth[laneKey] -= realDmg;
 
             if ((enemyStats as any).laneHealth[laneKey] <= 0) {
                 (enemyStats.towers as any)[laneKey]++;
                 match.logs.push({ 
                     time: Math.floor(match.currentDuration), 
-                    message: `🔥 미니언 군단이 ${laneKey.toUpperCase()} 타워를 파괴했습니다!`, 
+                    message: `🔥 미니언이 ${laneKey.toUpperCase()} 타워 파괴!`, 
                     type: 'TOWER', team: isBlue ? 'BLUE' : 'RED' 
                 });
                 const currentBroken = (enemyStats.towers as any)[laneKey];
@@ -157,6 +107,20 @@ export class MinionLogic {
                      (enemyStats as any).laneHealth[laneKey] = nextTierStats?.hp || 15000;
                 }
             }
+        }
+    } 
+    else {
+        // 유닛 공격
+        let armor = target.armor || 0;
+        if (type === 'HERO') armor = (target.level * 3) + 30;
+        const realDmg = calcMitigatedDamage(damage, armor);
+        
+        if (type === 'HERO') target.currentHp -= realDmg;
+        else target.hp -= realDmg;
+
+        if (type === 'MINION' && target.hp <= 0) {
+            const reward = (MINION_REWARD as any)[target.type] || MINION_REWARD.MELEE;
+            distributeRewards(match, target, null, isBlue ? 'BLUE' : 'RED', reward, heroes);
         }
     }
   }
@@ -174,7 +138,7 @@ export class MinionLogic {
     const dy = targetPos.y - m.y;
     const distSq = dx*dx + dy*dy;
 
-    if (distSq < 4.0 || distSq < 0.00001) { 
+    if (distSq < 4.0) { 
       m.pathIdx = Math.min(m.pathIdx + 1, path.length - 1);
     } else {
       const dist = Math.sqrt(distSq);
@@ -209,9 +173,8 @@ export class MinionLogic {
 
     const dx = m.x - targetPos.x;
     const dy = m.y - targetPos.y;
-    const distSq = dx*dx + dy*dy;
+    if ((dx*dx + dy*dy) < 225) return { ...targetPos, isNexus };
     
-    if (distSq < 100) return { ...targetPos, isNexus };
     return null;
   }
 }

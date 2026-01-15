@@ -4,7 +4,10 @@
 import { LivePlayer, Hero, Minion, LiveMatch } from '../../../../types';
 import { AIUtils } from '../AIUtils';
 import { Perception } from '../Perception';
-import { TOWER_COORDS } from '../../constants/MapConstants';
+import { RecallInterrupter } from './RecallInterrupter';
+import { PsychologyEvaluator } from './PsychologyEvaluator';
+// [수정] 경로 수정: ../ai/memory -> ../memory (이미 ai 폴더 내부에 있으므로)
+import { PersonalMemory } from '../memory/PersonalMemory';
 
 export class TargetEvaluator {
   static selectBestTarget(
@@ -20,7 +23,10 @@ export class TargetEvaluator {
     let bestTarget: LivePlayer | null = null;
     let maxScore = -99999;
     
-    // 공격 사거리 (보정값 포함)
+    // [심리 상태 반영]
+    const morale = match ? PsychologyEvaluator.getMorale(attacker, match) : 1.0;
+    const aggressionThreshold = morale < 0.8 ? 100 : -5000; 
+
     const myRange = (attackerHero.stats.range / 100);
 
     for (const enemy of enemiesInRange) {
@@ -31,50 +37,57 @@ export class TargetEvaluator {
 
       // 1. 기본 점수 (체력, 킬각)
       const dmg = attackerHero.stats.ad * 2 + attackerHero.stats.ap * 1.5;
-      if (enemy.currentHp < dmg) score += 10000;
+      if (enemy.currentHp < dmg) score += 5000; 
       else score += (1 - AIUtils.hpPercent(enemy)) * 200;
 
+      // 거리 페널티
       const dist = AIUtils.dist(attacker, enemy);
       score -= dist * 5;
 
-      // 2. [핵심] 타워 상황 판단 (Smart Tower Check)
+      // ---------------------------------------------------------
+      // [신규] 천적 관계 반영 (트라우마)
+      // ---------------------------------------------------------
+      const threatScore = PersonalMemory.getThreatLevel(attacker, enemy.heroId);
+      if (threatScore > 0) {
+          if (brain > 40) {
+              score -= threatScore; 
+          }
+      }
+
+      // ---------------------------------------------------------
+      // [신규] 멘탈(Morale) 반영
+      // ---------------------------------------------------------
+      score *= morale;
+
+      // 귀환 방해 점수
+      const interruptScore = RecallInterrupter.getInterruptionScore(attacker, enemy);
+      score += interruptScore;
+
+      // 2. 타워 상황 판단 (Smart Tower Check)
       if (match) {
           const isBlue = match.blueTeam.includes(attacker);
           const enemyPos = {x: enemy.x, y: enemy.y};
           
-          // 적이 타워 사거리(13) 안에 있는가?
           if (Perception.isInActiveEnemyTowerRange(enemyPos, match, isBlue)) {
-              
-              // A. 미니언이 탱킹 중인가? (Safe Dive)
               const hasMinion = Perception.isSafeToSiege(attacker, match, enemyPos);
-              
-              // B. 내가 타워 밖에서 때릴 수 있는가? (Safe Poke)
-              // (적이 타워 가장자리에 있고, 내 사거리가 길 때)
-              // 타워 중심과 적의 거리 + 내 사거리 > 타워 사거리 + 내 거리
-              // 간단히: 내 사거리 > 5.0 (원거리) 이면 시도해볼만 함
               const canPoke = myRange > 5.0;
 
               if (!hasMinion && !canPoke) {
-                  // 미니언도 없고, 원거리도 아니면 -> 들어가야 함 -> 위험
                   let penalty = 2000;
                   
-                  // 뇌지컬이 낮으면 페널티 무시 (꼴아박음)
-                  if (brain < 30) penalty = 0;
+                  if (morale > 1.5 && brain < 30) penalty = 0; 
                   
-                  // 딸피면 감수함
                   if (AIUtils.hpPercent(enemy) < 0.15) penalty -= 1000;
+                  if (interruptScore > 1000) penalty -= 500;
 
                   score -= penalty;
               } else if (!hasMinion && canPoke) {
-                   // 원거리지만 미니언이 없음 -> 짤짤이는 가능하지만 너무 깊이 못감
-                   // 적이 타워 깊숙이 숨으면 포기해야 함
-                   // (이는 TacticalComputer가 이동 위치를 제한함으로써 해결됨)
-                   score -= 100; // 약간의 주의
+                   score -= 100;
               }
           }
       }
 
-      if (score > maxScore) {
+      if (score > aggressionThreshold && score > maxScore) {
         maxScore = score;
         bestTarget = enemy;
       }
@@ -82,7 +95,6 @@ export class TargetEvaluator {
     return bestTarget;
   }
 
-  // (FarmTarget 유지)
   static selectFarmTarget(
     attacker: LivePlayer,
     minionsInRange: Minion[],

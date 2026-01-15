@@ -13,6 +13,8 @@ import {
     distributeRewards,
     MINION_REWARD 
 } from '../logics/CombatLogic';
+import { PersonalMemory } from '../ai/memory/PersonalMemory';
+import { VisualSystem } from '../systems/VisualSystem';
 
 export const processCombatPhase = (
   match: LiveMatch, 
@@ -40,12 +42,12 @@ export const processCombatPhase = (
   };
 
   const allAttackers = [...blueAlive, ...redAlive];
-  // 공격 순서를 랜덤화하여 공평성 유지
   allAttackers.sort(() => Math.random() - 0.5);
 
   allAttackers.forEach(attacker => {
       const isBlue = match.blueTeam.includes(attacker);
       const enemyTeamKey = isBlue ? 'BLUE' : 'RED';
+      const teamColor = isBlue ? '#58a6ff' : '#e84057';
 
       const attackerHero = heroes.find(h => h.id === attacker.heroId);
       if (!attackerHero) return;
@@ -53,35 +55,31 @@ export const processCombatPhase = (
       const atkStats = getLevelScaledStats(attackerHero.stats, attacker.level);
       const attackRange = atkStats.range / 100;
 
-      // 1. [CS 막타] - 뇌지컬이 높으면 CS를 더 잘 먹음 (놓칠 확률 감소)
       let farmed = false;
-      const brain = attacker.stats.brain; // 0 ~ 100
+      const brain = attacker.stats.brain;
 
+      // 1. [미니언 공격]
       if (match.minions && attacker.lane !== 'JUNGLE') {
           const nearbyMinions = minionGrid[enemyTeamKey].getNearbyUnits(attacker);
           const minionsInRange = nearbyMinions.filter(m => Collision.inRange(attacker, m, attackRange));
 
           if (minionsInRange.length > 0) {
               const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
+              let executeThreshold = myDamage * 2.5; 
               
-              // 뇌지컬 보정: 뇌지컬이 낮으면 막타 계산 실수 (데미지 80~120% 랜덤 인식)
-              let perceivedDmg = myDamage;
-              if (brain < 50) {
-                  const error = 1 + (Math.random() * 0.4 - 0.2); 
-                  perceivedDmg *= error;
-              }
-
-              let executeThreshold = perceivedDmg * 2.5; 
-              if (attackerHero.role === '수호기사') {
-                  if (Math.random() < 0.05) executeThreshold = perceivedDmg * 6.0; 
-                  else executeThreshold = 0; 
-              }
-
               const targetMinion = TargetEvaluator.selectFarmTarget(attacker, minionsInRange, executeThreshold);
 
               if (targetMinion) {
-                  // 실제 데미지 적용
-                  if (targetMinion.hp <= executeThreshold) targetMinion.hp = 0; // 처형
+                  // [시각 효과] 미니언 평타 (크기 5, 0.5초)
+                  VisualSystem.addEffect(match, {
+                      type: 'PROJECTILE',
+                      x: attacker.x, y: attacker.y,
+                      targetX: targetMinion.x, targetY: targetMinion.y,
+                      color: teamColor,
+                      size: 5 // 잘 보이게 키움
+                  }, 0.5);
+
+                  if (targetMinion.hp <= executeThreshold) targetMinion.hp = 0; 
                   else targetMinion.hp -= myDamage;
                   
                   attacker.totalDamageDealt += myDamage;
@@ -91,31 +89,31 @@ export const processCombatPhase = (
                       attacker.cs++;
                       attacker.gold += reward.gold;
                       distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
-
-                      if (targetMinion.type === 'SUMMONED_COLOSSUS') {
-                          match.logs.push({ 
-                              time: Math.floor(match.currentDuration), 
-                              message: `⚔️ [${attackerHero.name}]가 거신병 처치!`, 
-                              type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
-                          });
-                      }
                   }
                   farmed = true;
               }
           }
       }
 
-      if (farmed) return; // CS 먹었으면 이번 틱은 영웅 공격 안함
+      if (farmed) return;
 
-      // 2. 적 영웅 공격
+      // 2. [영웅 공격]
       if (Math.random() < dt * 2.0) {
           const nearbyEnemies = enemyGrid[enemyTeamKey].getNearbyUnits(attacker);
           const targetsInRange = nearbyEnemies.filter(e => Collision.inRange(attacker, e, attackRange));
 
           if (targetsInRange.length > 0) {
-              // TargetEvaluator 내부에서도 뇌지컬이 낮으면 엉뚱한(탱커) 타겟을 칠 수 있음
-              const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, targetsInRange, heroes);
+              const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, targetsInRange, heroes, match);
               if (defender) {
+                // [시각 효과] 영웅 평타 (크기 8, 0.6초) - 아주 잘 보이게
+                VisualSystem.addEffect(match, {
+                    type: 'PROJECTILE',
+                    x: attacker.x, y: attacker.y,
+                    targetX: defender.x, targetY: defender.y,
+                    color: teamColor,
+                    size: 8 
+                }, 0.6);
+
                 attacker.lastAttackTime = match.currentDuration;
                 attacker.lastAttackedTargetId = defender.heroId;
 
@@ -127,10 +125,20 @@ export const processCombatPhase = (
                     defender.currentHp -= damage;
                     attacker.totalDamageDealt += damage;
 
+                    // [시각 효과] 피격 (크기 15)
+                    VisualSystem.addEffect(match, {
+                        type: 'HIT',
+                        x: defender.x, y: defender.y,
+                        color: '#ffffff', // 흰색 타격 섬광
+                        size: 15
+                    }, 0.3);
+
                     if (defender.currentHp <= 0) {
                         attacker.kills++; defender.deaths++; attacker.gold += 300;
+                        attacker.killStreak++;
+                        defender.killStreak = 0; 
+                        PersonalMemory.recordEvent(attacker, defender);
                         distributeAssist(match, attacker, defender, isBlue);
-
                         if (isBlue) match.score.blue++; else match.score.red++;
                         match.logs.push({ 
                             time: Math.floor(match.currentDuration), 

@@ -20,7 +20,7 @@ export const StatCard: React.FC<Props> = ({ title, value, icon: Icon, color = "#
   return (
     <div className="stat-card-mini" style={{ 
       display: 'flex', 
-      flexDirection: 'column', // 아이콘과 텍스트를 위아래로 배치
+      flexDirection: 'column', 
       alignItems: 'center', 
       justifyContent: 'center',
       padding: isMobile ? '8px 4px' : '16px', 
@@ -28,9 +28,8 @@ export const StatCard: React.FC<Props> = ({ title, value, icon: Icon, color = "#
       border: '1px solid #30363d',
       borderRadius: '8px',
       flex: 1,
-      minWidth: 0, // 좁은 화면에서 찌그러짐 방지
+      minWidth: 0,
     }}>
-      {/* 아이콘 - 크기 축소 */}
       <div style={{ 
         color: color,
         marginBottom: isMobile ? '4px' : '8px',
@@ -39,11 +38,11 @@ export const StatCard: React.FC<Props> = ({ title, value, icon: Icon, color = "#
         justifyContent: 'center',
         opacity: 0.9
       }}>
+        {/* [수정] 컴포넌트 직접 렌더링 방식으로 변경 (안전성 확보) */}
         <Icon size={isMobile ? 16 : 22} />
       </div>
 
       <div style={{ textAlign: 'center', width: '100%' }}>
-        {/* 수치 - 가독성 확보 */}
         <div className="text-mono" style={{ 
           fontSize: isMobile ? '13px' : '18px', 
           fontWeight: '800',
@@ -54,7 +53,6 @@ export const StatCard: React.FC<Props> = ({ title, value, icon: Icon, color = "#
         }}>
           {value}
         </div>
-        {/* 제목 - 아주 작게 표시 */}
         <div style={{ 
           fontSize: isMobile ? '8px' : '11px', 
           color: '#8b949e',

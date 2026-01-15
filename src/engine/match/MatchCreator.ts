@@ -38,7 +38,11 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
         x: base.x, y: base.y, 
         lane: lane, buffs: [], mmr: user.hiddenMmr, respawnTimer: 0,
         stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 },
-        // [신규] 현상금 시스템 초기화
+        // [중요] 쿨타임 및 귀환 관련 초기화
+        cooldowns: { q: 0, w: 0, e: 0, r: 0 },
+        isRecalling: false,
+        currentRecallTime: 0,
+        recallCooldown: 0,
         killStreak: 0,
         bounty: 0
       };

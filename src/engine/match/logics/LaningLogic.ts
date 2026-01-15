@@ -6,120 +6,88 @@ import { AIUtils } from '../ai/AIUtils';
 import { TOWER_COORDS } from '../constants/MapConstants';
 import { Collision } from '../utils/Collision';
 import { MacroDecision } from '../ai/MacroBrain';
-import { getDistance } from '../../data/MapData';
 
 export class LaningLogic {
   
   static decide(player: LivePlayer, match: LiveMatch, hero: Hero): MacroDecision | null {
-    // 정글러는 라인전 로직 무시
     if (player.lane === 'JUNGLE') return null;
 
-    // 게임 시간 12분 이후거나, 1차 타워가 없으면 라인전 종료 (자유 행동)
     const isBlue = match.blueTeam.includes(player);
     const myTowers = isBlue ? match.stats.blue.towers : match.stats.red.towers;
     const laneKey = player.lane.toLowerCase();
     
     if ((myTowers as any)[laneKey] >= 1 || match.currentDuration > 720) return null;
 
-    // --- [라인전 핵심 로직] ---
-
     const minions = match.minions || [];
-    const laneMinions = minions.filter(m => m.lane === player.lane && m.hp > 0);
-    const enemyMinions = laneMinions.filter(m => m.team !== (isBlue ? 'BLUE' : 'RED'));
-    const allyMinions = laneMinions.filter(m => m.team === (isBlue ? 'BLUE' : 'RED'));
+    // 내 주변(사거리 내) 미니언 수 체크
+    const rangeCheck = 15; // 시야 범위
+    const enemyMinions = minions.filter(m => m.lane === player.lane && m.team !== (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && AIUtils.dist(player, m) < rangeCheck);
+    const allyMinions = minions.filter(m => m.lane === player.lane && m.team === (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && AIUtils.dist(player, m) < rangeCheck);
 
-    // 1. [안전 확보] 아군 미니언이 전멸했으면 무조건 타워로 후퇴 (개싸움 방지)
-    if (allyMinions.length === 0 && enemyMinions.length > 0) {
-        const myTower = this.getMyTowerPos(player.lane, 1, isBlue);
-        return { 
-            action: 'WAIT', 
-            targetPos: myTower, 
-            reason: '라인전: 미니언 없음 (후퇴)' 
-        };
-    }
-
-    // 2. [CS 막타] 영웅 킬보다 CS가 우선 (초반 10분)
-    // 개싸움을 막는 핵심: 영웅 칠 각이어도 미니언 막타가 있으면 미니언을 침
+    // 1. [CS 막타] 최우선 (기존 유지)
     const atkRange = hero.stats.range / 100;
-    
-    // 내 평타 데미지 (대략적 계산)
     const myDmg = hero.stats.ad * 2.0; 
-
-    // 놓치면 안되는 미니언 찾기
-    const farmTarget = enemyMinions.find(m => 
-        Collision.inRange(player, m, atkRange) && m.hp <= myDmg
-    );
+    const farmTarget = enemyMinions.find(m => Collision.inRange(player, m, atkRange) && m.hp <= myDmg);
 
     if (farmTarget) {
-        return { 
-            action: 'FARM', 
-            targetPos: { x: farmTarget.x, y: farmTarget.y }, 
-            targetUnit: farmTarget as any, 
-            reason: '라인전: CS 막타 집중' 
-        };
+        return { action: 'FARM', targetPos: { x: farmTarget.x, y: farmTarget.y }, targetUnit: farmTarget as any, reason: 'CS 획득' };
     }
 
-    // 3. [딜교환 판단] 
-    // 조건: 상대가 사거리 내에 있고 + 우리 미니언이 충분히 있을 때만
+    // 2. [근본 해결] 딜교환 조건 강화 (미니언 수 싸움)
     const enemyHero = this.findLaneOpponent(player, match, isBlue);
     if (enemyHero) {
         const dist = AIUtils.dist(player, enemyHero);
         
-        // 너무 깊숙히 들어가지 않기 (적 타워 거리 체크)
+        // [조건 A] 적 미니언이 우리 미니언보다 많으면 절대 싸우지 않음 (초반 10분)
+        // MOBA 기본: 미니언 어그로 때문에 쪽수 밀리면 짐
+        if (enemyMinions.length > allyMinions.length && player.level < 6) {
+             // 뒤로 빠져서 사리기
+             const safePos = this.getSafePosition(player, allyMinions, isBlue);
+             return { action: 'WAIT', targetPos: safePos, reason: '라인 불리 (사리기)' };
+        }
+
+        // [조건 B] 내 체력이 60% 이하면 딜교 금지 (초반 생존력 강화)
+        if (player.level < 4 && AIUtils.hpPercent(player) < 0.6) {
+             const myTower = this.getMyTowerPos(player.lane, 1, isBlue);
+             return { action: 'WAIT', targetPos: myTower, reason: '체력 관리' };
+        }
+
+        // [조건 C] 적 타워 근처면 진입 금지
         const enemyTower = this.getMyTowerPos(player.lane, 1, !isBlue);
-        const distToEnemyTower = AIUtils.dist(player, enemyTower);
-
-        // (1) 적이 타워 근처면 딜교 포기하고 대기
-        if (distToEnemyTower < 16) {
-             return {
-                action: 'WAIT', // 춤추기 (무빙)
-                targetPos: { x: player.x + (Math.random()-0.5)*2, y: player.y + (Math.random()-0.5)*2 },
-                reason: '라인전: 적 타워 허깅 중 (대기)'
-            };
+        if (AIUtils.dist(player, enemyTower) < 16) {
+             return { action: 'WAIT', targetPos: { x: player.x, y: player.y }, reason: '적 타워 경계' };
         }
 
-        // (2) 딜교환 시도 (치고 빠지기)
+        // 위 조건을 모두 통과하고, 사거리 내에 적이 있으면 딜교
         if (dist <= atkRange + 2) {
-            // 내 체력이 적보다 많거나 비슷할 때만 싸움
-            if (AIUtils.hpPercent(player) >= AIUtils.hpPercent(enemyHero) - 0.1) {
-                return {
-                    action: 'FIGHT',
-                    targetPos: { x: enemyHero.x, y: enemyHero.y },
-                    targetUnit: enemyHero,
-                    reason: '라인전: 짧은 딜교환'
-                };
-            }
+            return { action: 'FIGHT', targetPos: { x: enemyHero.x, y: enemyHero.y }, targetUnit: enemyHero, reason: '유리한 딜교' };
         }
     }
 
-    // 4. [포지셔닝] 할 거 없으면 "아군 원거리 미니언" 옆에 서있기
-    // (적을 향해 무작정 걸어가는 것 방지)
+    // 3. [대기] 아군 미니언 뒤에 숨기
     if (allyMinions.length > 0) {
-        // 원거리 미니언은 보통 리스트 뒤쪽에 있음
-        const safeMinion = allyMinions[allyMinions.length - 1];
-        
-        // 미니언 뒤에서 좌우 무빙
-        const jitterX = (Math.random() - 0.5) * 4;
-        const jitterY = (Math.random() - 0.5) * 4;
-
-        return {
-            action: 'WAIT', // FIGHT가 아님 -> 공격 안하고 이동만 함
-            targetPos: { x: safeMinion.x + jitterX, y: safeMinion.y + jitterY },
-            reason: '라인전: 포지셔닝'
-        };
+        const safeMinion = allyMinions[allyMinions.length - 1]; // 가장 뒤쪽 미니언
+        return { action: 'WAIT', targetPos: { x: safeMinion.x, y: safeMinion.y }, reason: '포지셔닝' };
     }
 
-    // 5. 아무것도 없으면 타워 복귀
+    // 4. 미니언도 없으면 타워 허깅
     const myTower = this.getMyTowerPos(player.lane, 1, isBlue);
-    return { action: 'WAIT', targetPos: myTower, reason: '라인전: 대기' };
+    return { action: 'WAIT', targetPos: myTower, reason: '타워 대기' };
+  }
+
+  private static getSafePosition(player: LivePlayer, allyMinions: any[], isBlue: boolean) {
+      if (allyMinions.length > 0) {
+          // 아군 원거리 미니언보다 더 뒤쪽으로
+          const backMinion = allyMinions[allyMinions.length - 1];
+          return { x: backMinion.x + (isBlue ? -2 : 2), y: backMinion.y + (isBlue ? -2 : 2) };
+      }
+      return this.getMyTowerPos(player.lane, 1, isBlue);
   }
 
   private static getMyTowerPos(lane: string, tier: number, isBlue: boolean) {
     const coords = isBlue ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
-    if (lane === 'MID') return coords.MID[tier - 1];
-    if (lane === 'TOP') return coords.TOP[tier - 1];
-    if (lane === 'BOT') return coords.BOT[tier - 1];
-    return coords.NEXUS;
+    // @ts-ignore
+    return coords[lane][tier-1] || coords.NEXUS;
   }
 
   private static findLaneOpponent(player: LivePlayer, match: LiveMatch, isBlue: boolean) {

@@ -1,8 +1,4 @@
-// ==========================================
-// FILE PATH: /src/components/common/GameIcon.tsx
-// ==========================================
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
 
 interface Props {
@@ -13,17 +9,10 @@ interface Props {
   border?: string;
 }
 
-export const GameIcon: React.FC<Props> = ({ id, size = 40, fallback, shape = 'rounded', border = '1px solid #333' }) => {
+// React.memo를 써서 불필요한 리렌더링 자체를 막습니다.
+export const GameIcon = React.memo(({ id, size = 40, fallback, shape = 'rounded', border = '1px solid #333' }: Props) => {
   const customImages = useGameStore(state => state.gameState.customImages);
-  
-  // 이미지가 존재하는지 확인
   const imageUrl = customImages?.[id];
-  const [hasError, setHasError] = useState(false);
-
-  // ID가 바뀌면 에러 상태 초기화 (새로운 이미지는 다시 시도해봐야 하므로)
-  useEffect(() => {
-    setHasError(false);
-  }, [id, imageUrl]);
 
   const style: React.CSSProperties = {
     width: typeof size === 'number' ? `${size}px` : size,
@@ -33,50 +22,37 @@ export const GameIcon: React.FC<Props> = ({ id, size = 40, fallback, shape = 'ro
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#1c1c1f', // 이미지가 로딩되기 전 보여줄 배경색
+    background: '#1c1c1f', 
     border: border,
     flexShrink: 0,
     position: 'relative',
+    
+    // [핵심] img 태그 대신 background-image 사용
+    // 이러면 이미지 로딩 중/실패/성공 여부와 상관없이 태그 구조가 <div> 하나로 완벽하게 고정됩니다.
+    // 리액트가 태그를 뺐다 꼈다 할 일이 없습니다.
+    backgroundImage: imageUrl ? `url(${imageUrl})` : 'none',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat'
   };
 
-  // 1. 이미지가 있고, 에러가 나지 않은 경우 -> 이미지 렌더링
-  if (imageUrl && !hasError) {
-    return (
-      <div style={style}>
-        <img 
-          src={imageUrl} 
-          alt={id}
-          loading="lazy"
-          decoding="async"
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            objectFit: 'cover', 
-            display: 'block'
-          }}
-          onError={(e) => {
-            console.warn(`이미지 로드 실패: ${id}`);
-            e.currentTarget.style.display = 'none'; // 깨진 이미지 숨김
-            setHasError(true); // 에러 상태로 전환하여 Fallback 표시
-          }}
-        />
-        {/* 로딩 중 깜빡임 방지를 위해 뒤에 Fallback을 깔아둠 */}
-        <div style={{ position: 'absolute', inset:0, zIndex: -1, display:'flex', alignItems:'center', justifyContent:'center', opacity: 0.3 }}>
-           {fallback || <div style={{width:'50%', height:'50%', background:'#555', borderRadius:'50%'}}/>}
-        </div>
-      </div>
-    );
-  }
-
-  // 2. 이미지가 없거나 에러가 난 경우 -> Fallback 렌더링
   return (
     <div style={style}>
-      {fallback || (
-        // 기본 Fallback: 영웅/아이템 ID의 첫 글자 표시
-        <span style={{ fontSize: '12px', color: '#666', fontWeight:'bold', textTransform:'uppercase' }}>
-          {id.split('_')[1]?.substring(0, 2) || '??'}
-        </span>
-      )} 
+      {/* 이미지가 없을 때만 글자 표시 (배경 이미지가 덮으면 자연스럽게 안보임) */}
+      {!imageUrl && (
+        <div style={{ 
+          width:'100%', height:'100%', 
+          display: 'flex', alignItems:'center', justifyContent:'center', 
+          color: '#666', fontWeight:'bold',
+          backgroundColor: 'rgba(0,0,0,0.5)' 
+        }}>
+           {fallback || (
+             <span style={{ fontSize: '12px', textTransform:'uppercase' }}>
+               {id ? id.split('_')[1]?.substring(0, 2) || '??' : '??'}
+             </span>
+           )}
+        </div>
+      )}
     </div>
   );
-};
+});

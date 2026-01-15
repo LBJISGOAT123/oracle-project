@@ -1,5 +1,9 @@
-import { Item, LivePlayer, Hero, Role, HeroStats } from '../../../types';
+// ==========================================
+// FILE PATH: /src/engine/match/systems/ItemManager.ts
+// ==========================================
+import { Item, LivePlayer, Hero, Role } from '../../../types';
 import { getLevelScaledStats, calculateTotalStats } from '../utils/StatUtils';
+import { ItemOptimizer } from '../ai/mechanics/ItemOptimizer'; // [신규 모듈]
 
 export const updateLivePlayerStats = (player: LivePlayer, hero: Hero) => {
   const baseStats = getLevelScaledStats(hero.stats, player.level);
@@ -22,7 +26,6 @@ export const updateLivePlayerStats = (player: LivePlayer, hero: Hero) => {
   player.mpRegen = totalStats.mpRegen || 5;
 };
 
-// sellItem
 export const sellItem = (player: LivePlayer, index: number, hero: Hero) => {
   const itemToSell = player.items[index];
   if (!itemToSell) return 0;
@@ -33,113 +36,108 @@ export const sellItem = (player: LivePlayer, index: number, hero: Hero) => {
   return refundGold;
 };
 
-// calculateTotalStats는 StatUtils로 이동했으므로 여기서 제거하고, 필요 시 import해서 씀
-// (attemptBuyItem 등 다른 로직은 기존 유지하되 파일 끝부분에 덮어씀)
-
-const ROLE_WEIGHTS: Record<Role, any> = {
-  '집행관': { ad: 1.2, hp: 0.8, armor: 0.8, regen: 0.5, pen: 1.0, speed: 0.5, crit: 0.8 },
-  '추적자': { ad: 1.5, speed: 1.5, pen: 1.2, crit: 1.0, hp: 0.2 },
-  '선지자': { ap: 1.5, mp: 1.2, mpRegen: 1.2, pen: 0.8, hp: 0.3 },
-  '신살자': { ad: 1.5, crit: 1.5, speed: 1.0, pen: 1.2, hp: 0.1 },
-  '수호기사': { hp: 1.5, armor: 1.5, regen: 1.5, mp: 0.5, speed: 0.3 },
-};
-
-const analyzeEnemyThreat = (enemies: LivePlayer[], heroes: Hero[]) => {
-  let totalAD = 0, totalAP = 0;
-  let maxThreatType: 'AD' | 'AP' | 'BALANCED' = 'BALANCED';
-  let highestGold = 0;
-
-  enemies.forEach(e => {
-    const h = heroes.find(x => x.id === e.heroId);
-    if (!h) return;
-    const itemAD = e.items.reduce((s, i) => s + (i.ad || 0), 0);
-    const itemAP = e.items.reduce((s, i) => s + (i.ap || 0), 0);
-    const currentAD = h.stats.ad + itemAD + (h.stats.ad * e.level * 0.1);
-    const currentAP = h.stats.ap + itemAP + (h.stats.ap * e.level * 0.1);
-    totalAD += currentAD; totalAP += currentAP;
-
-    if (e.gold > highestGold) {
-        highestGold = e.gold;
-        if (currentAD > currentAP * 1.5) maxThreatType = 'AD';
-        else if (currentAP > currentAD * 1.5) maxThreatType = 'AP';
-        else maxThreatType = 'BALANCED';
-    }
-  });
-
-  if (maxThreatType === 'BALANCED') {
-      if (totalAD > totalAP * 1.3) maxThreatType = 'AD';
-      if (totalAP > totalAD * 1.3) maxThreatType = 'AP';
-  }
-  return maxThreatType;
-};
-
 export const attemptBuyItem = (
   player: LivePlayer, shopItems: Item[], heroes: Hero[], enemies: LivePlayer[], gameTime: number
 ) => {
   const hero = heroes.find(h => h.id === player.heroId);
   if (!hero) return;
 
-  const weights = { ...(ROLE_WEIGHTS[hero.role] || { ad: 1, ap: 1, hp: 1 }) };
-  const threatType = analyzeEnemyThreat(enemies, heroes);
-  
-  if (player.stats.brain >= 50) {
-      if (threatType === 'AD') { weights.armor = (weights.armor || 0.5) * 2.0; weights.hp = (weights.hp || 0.5) * 1.2; }
-      else if (threatType === 'AP') { weights.hp = (weights.hp || 0.5) * 2.0; weights.regen = (weights.regen || 0.5) * 1.5; weights.armor = (weights.armor || 0.5) * 0.5; }
-  }
-
-  const kdaRatio = player.deaths === 0 ? player.kills : player.kills / player.deaths;
-  if (player.deaths > 3 && kdaRatio < 0.5) { weights.hp = (weights.hp || 0.5) * 1.5; weights.regen = (weights.regen || 0.5) * 1.5; }
+  // [고도화] ItemOptimizer를 통해 현재 전황에 맞는 가중치를 받아옴
+  const weights = ItemOptimizer.getDynamicWeights(player, hero, enemies, heroes);
 
   const itemCount = player.items.length;
   const hasBoots = player.items.some(i => i.type === 'BOOTS');
   const existingPowerIdx = player.items.findIndex(i => i.type === 'POWER');
   const hasPower = existingPowerIdx !== -1;
 
-  let minPriceLimit = gameTime < 600 ? 300 : (gameTime < 1200 ? 800 : 1500);
-  if (itemCount >= 6) minPriceLimit = 2500;
+  // 최소 가격 제한 (인벤토리 낭비 방지)
+  let minPriceLimit = 300;
+  if (itemCount >= 4) minPriceLimit = 1000; 
 
+  // 구매 후보 점수 계산
   const candidates = shopItems.filter(item => {
-      if (player.items.some(owned => owned.id === item.id)) return false; 
-      if (item.type === 'BOOTS' && hasBoots) return false; 
-      if (item.type === 'POWER' && hasPower) { if (item.cost <= player.items[existingPowerIdx].cost) return false; }
-      return item.cost <= (player.gold + 200) && item.cost >= minPriceLimit;
+      if (player.items.some(owned => owned.id === item.id)) return false; // 중복 방지
+      if (item.type === 'BOOTS' && hasBoots) return false; // 신발 중복 방지
+      
+      // 권능 업그레이드 조건
+      if (item.type === 'POWER' && hasPower) { 
+          if (item.cost <= player.items[existingPowerIdx].cost) return false; 
+      }
+      
+      // 구매 가능 여부 확인
+      return item.cost <= (player.gold) && item.cost >= minPriceLimit;
     }).map(item => {
       let score = 0;
-      score += (item.ad || 0) * (weights.ad || 0.1);
-      score += (item.ap || 0) * (weights.ap || 0.1);
-      score += (item.hp || 0) * (weights.hp || 0.1) / 10;
-      score += (item.mp || 0) * (weights.mp || 0.1) / 10;
-      score += (item.armor || 0) * (weights.armor || 0.1);
-      score += (item.crit || 0) * (weights.crit || 0.1) * 2;
-      score += (item.pen || 0) * (weights.pen || 0.1) * 2;
-      score += (item.regen || 0) * (weights.regen || 0.1) * 5;
-      score += (item.mpRegen || 0) * (weights.mpRegen || 0.1) * 5;
-      score += (item.speed || 0) * (weights.speed || 0.5) * 2; 
+      // 동적 가중치 적용
+      score += (item.ad || 0) * weights.ad;
+      score += (item.ap || 0) * weights.ap;
+      score += (item.hp || 0) * weights.hp / 10;
+      score += (item.mp || 0) * weights.mp / 10;
+      score += (item.armor || 0) * weights.armor;
+      score += (item.crit || 0) * weights.crit * 2;
+      score += (item.pen || 0) * weights.pen * 2;
+      score += (item.regen || 0) * weights.regen * 5;
+      score += (item.mpRegen || 0) * weights.mpRegen * 5;
+      score += (item.speed || 0) * weights.speed * 2; 
+      
+      // 특수 보정
       if (hero.role === '선지자' && item.type === 'ARTIFACT') score *= 1.2;
       if (hero.role === '수호기사' && item.type === 'ARMOR') score *= 1.2;
-      if (!hasBoots && item.type === 'BOOTS') score += 1000; 
+      
+      // 신발 우선순위 (이속이 중요하면 점수 대폭 상향)
+      if (!hasBoots && item.type === 'BOOTS') score += 500 * weights.speed; 
+      
+      // 권능(Power) 아이템은 무조건 좋음
       if (item.type === 'POWER') score *= 5;
+      
       return { item, score };
     });
 
   if (candidates.length === 0) return;
+  
+  // 점수 높은 순 정렬
   candidates.sort((a, b) => b.score - a.score);
   const bestTarget = candidates[0].item;
 
+  // 권능 업그레이드 구매
   if (bestTarget.type === 'POWER' && hasPower) {
       const refund = sellItem(player, existingPowerIdx, hero);
-      if ((player.gold) >= bestTarget.cost) { player.gold -= bestTarget.cost; player.items.push(bestTarget); updateLivePlayerStats(player, hero); return; }
+      if ((player.gold) >= bestTarget.cost) { 
+          player.gold -= bestTarget.cost; 
+          player.items.push(bestTarget); 
+          updateLivePlayerStats(player, hero); 
+          return; 
+      }
   }
 
+  // 일반 구매
   if (itemCount < 6) {
-    if (player.gold >= bestTarget.cost) { player.gold -= bestTarget.cost; player.items.push(bestTarget); updateLivePlayerStats(player, hero); }
+    // 빈 슬롯 있으면 구매
+    if (player.gold >= bestTarget.cost) { 
+        player.gold -= bestTarget.cost; 
+        player.items.push(bestTarget); 
+        updateLivePlayerStats(player, hero); 
+    }
   } else {
+    // 풀템이면: 가장 싼 아이템(가치 낮은 템)을 팔고 더 좋은 걸 살 수 있는지 확인
     let cheapestIdx = -1; let minCost = 999999;
-    player.items.forEach((item, idx) => { if (item.type !== 'POWER' && item.type !== 'BOOTS' && item.cost < minCost) { minCost = item.cost; cheapestIdx = idx; } });
+    
+    player.items.forEach((item, idx) => { 
+        // 권능과 신발은 웬만하면 안 팜
+        if (item.type !== 'POWER' && item.type !== 'BOOTS' && item.cost < minCost) { 
+            minCost = item.cost; cheapestIdx = idx; 
+        } 
+    });
+    
     if (cheapestIdx !== -1) {
+      // 교체하려는 템이 기존 템보다 1.5배 이상 비쌀 때만 교체 (업그레이드 의미)
       if (bestTarget.cost > (minCost * 1.5)) {
           const refund = sellItem(player, cheapestIdx, hero); 
-          if ((player.gold) >= bestTarget.cost) { player.gold -= bestTarget.cost; player.items.push(bestTarget); updateLivePlayerStats(player, hero); }
+          if ((player.gold) >= bestTarget.cost) { 
+              player.gold -= bestTarget.cost; 
+              player.items.push(bestTarget); 
+              updateLivePlayerStats(player, hero); 
+          }
       }
     }
   }

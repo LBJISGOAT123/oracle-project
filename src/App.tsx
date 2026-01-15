@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ErrorInfo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { preloadGameImages } from './utils/ImageLoader';
 import { GlobalErrorBoundary } from './utils/GlobalErrorBoundary';
@@ -53,7 +53,6 @@ function GameContent() {
   const [spectatingMatch, setSpectatingMatch] = useState<LiveMatch | null>(null);
   const [activeTab, setActiveTab] = useState('hero-stats');
 
-  // [수정] 문법 오류가 있던 부분 (width 스타일)
   if (isImageLoading || !isGameReady) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f1115', color: '#fff' }}>
@@ -66,7 +65,6 @@ function GameContent() {
         </h2>
         {isImageLoading && (
           <div style={{ width: '300px', height: '6px', background: '#333', borderRadius: '3px', marginTop: '15px', overflow: 'hidden' }}>
-            {/* 여기의 백틱과 $ 기호 앞의 역슬래시 제거됨 */}
             <div style={{ width: `${loadProgress}%`, height: '100%', background: '#58a6ff', transition: 'width 0.1s' }}></div>
           </div>
         )}
@@ -77,7 +75,8 @@ function GameContent() {
   if (!gameState) return <div style={{ color: '#fff', padding: '20px' }}>데이터 초기화 실패. 새로고침 해주세요.</div>;
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: isMobile ? '10px' : '20px', paddingBottom: '100px' }}>
+    // [핵심] translate="no" 추가로 브라우저 자동 번역 및 DOM 침범 차단
+    <div className="notranslate" translate="no" style={{ maxWidth: '1400px', margin: '0 auto', padding: isMobile ? '10px' : '20px', paddingBottom: '100px' }}>
       <Header isMobile={isMobile} onOpenSystemMenu={() => setShowSystemMenu(true)} />
       <GameStats isMobile={isMobile} onOpenGameList={() => setShowGameList(true)} />
 

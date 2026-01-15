@@ -1,53 +1,59 @@
-import { Vector, Vector2 } from '../utils/Vector';
-import { BASES, MOVEMENT_SETTINGS } from '../constants/MapConstants';
-import { LivePlayer } from '../../../types';
-
-// MapConstants에서 정의한 좌표를 역으로 가져와서 경로로 사용
-// (순환 참조 방지를 위해 값 하드코딩 대신 로직으로 처리)
-const LANE_TARGETS = {
-  BLUE: {
-    TOP: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}, {x: 12, y: 88}],
-    MID: [{x: 40, y: 60}, {x: 30, y: 70}, {x: 22, y: 78}, {x: 12, y: 88}],
-    BOT: [{x: 75, y: 92}, {x: 50, y: 90}, {x: 25, y: 88}, {x: 12, y: 88}]
-  },
-  RED: {
-    TOP: [{x: 45, y: 10}, {x: 65, y: 12}, {x: 80, y: 15}, {x: 88, y: 12}],
-    MID: [{x: 60, y: 40}, {x: 70, y: 30}, {x: 78, y: 22}, {x: 88, y: 12}],
-    BOT: [{x: 92, y: 65}, {x: 92, y: 45}, {x: 88, y: 25}, {x: 88, y: 12}]
-  }
-};
+// ==========================================
+// FILE PATH: /src/engine/match/systems/PathSystem.ts
+// ==========================================
+import { Vector2 } from '../utils/Vector';
+import { BASES, TOWER_COORDS } from '../constants/MapConstants';
+import { LivePlayer, LiveMatch } from '../../../types';
+import { JunglePathFinder } from '../ai/pathing/JunglePathFinder';
 
 export class PathSystem {
-  static getNextWaypoint(player: LivePlayer, isBlue: boolean): Vector2 {
-    const lane = player.lane === 'JUNGLE' ? 'MID' : player.lane;
+  
+  /**
+   * 플레이어의 다음 이동 목표 지점을 반환합니다.
+   * - 정글러: 스마트 정글링 (살아있는 몹 추적)
+   * - 라이너: "살아있는 최전방 타워"를 목표로 이동 (무지성 복귀 방지)
+   */
+  static getNextWaypoint(player: LivePlayer, isBlue: boolean, match?: LiveMatch): Vector2 {
     
-    // 내가 가야할 목표 타워 리스트 (적 진영의 타워 위치)
-    // 블루팀이면 RED 진영의 타워를 1차->2차->3차 순으로 가야 함
-    const targets = isBlue ? LANE_TARGETS.RED[lane] : LANE_TARGETS.BLUE[lane];
-    
-    // 현재 도달해야 할 타워 인덱스 (pathIdx)
-    let currentIdx = (player as any).pathIdx || 0;
-    
-    // 만약 다 깼으면 마지막(넥서스) 유지
-    if (currentIdx >= targets.length) {
-      return targets[targets.length - 1];
+    // 1. 정글러 로직 (기존 유지)
+    if (player.lane === 'JUNGLE' && match) {
+        return JunglePathFinder.getNextCamp(player, match);
     }
+
+    // 2. 라이너 로직 (완전 개편)
+    // 기존의 'pathIdx' 순차 이동 방식을 버리고, '현재 전선(Frontline)'을 찾아갑니다.
     
-    const target = targets[currentIdx];
-    const dist = Vector.dist({ x: player.x, y: player.y }, target);
-    
-    // 타워 근처에 도달했으면 다음 타워로 목표 변경
-    // 단, 타워가 실제로 깨졌는지 확인하는 로직은 SiegePhase에서 처리하므로
-    // 여기서는 단순히 "도착하면 다음거"가 아니라, "도착했고 + 타워가 없으면 다음거" 로 가야 완벽하지만
-    // 시뮬레이션 단순화를 위해 "도착하면 일단 멈춰서 싸우고(SiegePhase), 시간 지나면 다음거" 로직으로 감.
-    
-    if (dist < MOVEMENT_SETTINGS.WAYPOINT_TOLERANCE) {
-      // 여기서 강제로 다음 인덱스로 넘기면 타워 무시하고 지나가버림.
-      // 따라서 SiegePhase에서 타워가 깨질 때 pathIdx를 증가시켜주는게 맞음.
-      // 임시로: 타워 근처에선 속도를 늦추거나 대기하게 됨 (DecisionEngine에서 처리)
-      return target; 
+    const defaultTarget = isBlue ? BASES.RED : BASES.BLUE; // 적 넥서스
+    if (!match) return defaultTarget;
+
+    const lane = player.lane === 'TOP' ? 'TOP' : (player.lane === 'BOT' ? 'BOT' : 'MID');
+    const laneKey = lane.toLowerCase();
+
+    // 적 진영의 타워 상태 확인
+    const enemyStats = isBlue ? match.stats.red : match.stats.blue;
+    const brokenCount = (enemyStats.towers as any)[laneKey];
+
+    // [중요] 살아있는 가장 앞쪽의 적 타워 위치를 목표로 설정
+    // 0개 깨짐 -> 1차 타워가 목표
+    // 1개 깨짐 -> 2차 타워가 목표
+    // 2개 깨짐 -> 3차 타워가 목표
+    // 3개 깨짐 -> 넥서스가 목표
+    let targetPos: Vector2;
+
+    if (brokenCount < 3) {
+        const tier = brokenCount + 1;
+        const coords = isBlue ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
+        // @ts-ignore
+        targetPos = coords[lane][tier - 1];
+    } else {
+        const coords = isBlue ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
+        targetPos = coords.NEXUS;
     }
+
+    // [보정] 너무 목표만 보고 달리면 타워에 들이박으므로, 
+    // 타워보다 살짝 앞(아군 쪽)에 멈추도록 좌표 미세 조정
+    // (여기서는 정확한 좌표만 주고, 거리 조절은 LaningLogic이나 MacroBrain의 'WAIT' 액션에서 처리함)
     
-    return target;
+    return targetPos || defaultTarget;
   }
 }

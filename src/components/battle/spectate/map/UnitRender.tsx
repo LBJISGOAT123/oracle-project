@@ -5,8 +5,10 @@ import React from 'react';
 import { GameIcon } from '../../../common/GameIcon';
 import { Plane, Skull } from 'lucide-react';
 import { useGameStore } from '../../../../store/useGameStore';
+// [신규] 모듈화된 스킬 말풍선 가져오기
+import { SkillBubble } from './objects/SkillBubble';
 
-export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
+export const UnitRender = ({ player, isBlue, isSelected, onClick, currentTime }: any) => {
   const { gameState } = useGameStore();
   const maxRecallTime = gameState.growthSettings?.recallTime || 10.0;
 
@@ -20,7 +22,6 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
   const deathTimer = Math.ceil(player.respawnTimer);
   const hasWatcherBuff = player.buffs && player.buffs.includes('WATCHER_BUFF');
 
-  // 팀 컬러 정의
   const teamColor = isBlue ? '#58a6ff' : '#e84057';
 
   return (
@@ -40,11 +41,14 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
         filter: isDead ? 'grayscale(100%) brightness(0.7)' : 'none'
       }}
     >
-      {/* 1. 귀환 인디케이터 (숫자 표시) */}
+      {/* [모듈 사용] 스킬 말풍선 (안전하게 분리됨) */}
+      <SkillBubble activeSkill={player.activeSkill} currentTime={currentTime} isDead={isDead} />
+
+      {/* 귀환 인디케이터 */}
       {isRecalling && (
         <div style={{
           position: 'absolute', top: -25, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0, 0, 0, 0.8)', color: '#3498db', // 배경 검정, 글씨 파랑으로 가독성 확보
+          background: 'rgba(0, 0, 0, 0.8)', color: '#3498db',
           padding: '2px 6px', borderRadius: '10px',
           fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', gap: '2px',
@@ -55,7 +59,7 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
         </div>
       )}
 
-      {/* 2. 사망 인디케이터 */}
+      {/* 사망 인디케이터 */}
       {isDead && (
         <div style={{
           position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)',
@@ -74,12 +78,9 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
       <div style={{
         width: '100%', height: '100%',
         borderRadius: '50%',
-        // [수정] 귀환 중이어도 테두리 색상 변경 없음 (팀 색상 유지)
         border: isDead ? '2px solid #555' : `2px solid ${teamColor}`,
         background: '#161b22',
         overflow: 'hidden',
-        // [수정] 귀환 시 파란색 글로우(그림자) 효과도 혼동을 줄 수 있으므로 제거하거나 약하게 처리
-        // 여기서는 주시자 버프가 아니면, 귀환 중일 때 하얀색 약한 빛만 나게 변경 (또는 아예 제거)
         boxShadow: hasWatcherBuff 
             ? '0 0 15px 5px #a371f7' 
             : (isRecalling ? '0 0 10px rgba(255,255,255,0.5)' : (isSelected ? '0 0 0 2px white' : 'none')),
@@ -88,7 +89,6 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
          <GameIcon id={player.heroId} size="100%" shape="circle" border="none" />
       </div>
 
-      {/* 레벨 뱃지 */}
       <div style={{ 
         position: 'absolute', top: -5, right: -5, 
         background: '#000', color: '#fff', 
@@ -99,7 +99,6 @@ export const UnitRender = ({ player, isBlue, isSelected, onClick }: any) => {
         {player.level}
       </div>
 
-      {/* 체력바 */}
       {!isDead && (
         <div style={{ 
           position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)', 

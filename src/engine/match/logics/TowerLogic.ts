@@ -6,9 +6,6 @@ import { getDistance } from '../../data/MapData';
 import { calcMitigatedDamage } from './CombatLogic';
 
 export class TowerLogic {
-  /**
-   * 타워의 공격 대상을 선정합니다.
-   */
   static selectTarget(
     towerPos: { x: number, y: number },
     enemies: { heroes: LivePlayer[], minions: Minion[] },
@@ -17,49 +14,36 @@ export class TowerLogic {
     currentTime: number
   ): { unit: any, type: 'HERO' | 'MINION' } | null {
     
-    // 1. 사거리 내 적 찾기 (영웅, 미니언)
-    const nearbyMinions = enemies.minions.filter(m => 
-        m.hp > 0 && getDistance(m, towerPos) <= range
-    );
-    const nearbyEnemyHeroes = enemies.heroes.filter(h => 
-        h.currentHp > 0 && h.respawnTimer <= 0 && getDistance(h, towerPos) <= range
-    );
+    const nearbyMinions = enemies.minions.filter(m => m.hp > 0 && getDistance(m, towerPos) <= range);
+    const nearbyEnemyHeroes = enemies.heroes.filter(h => h.currentHp > 0 && h.respawnTimer <= 0 && getDistance(h, towerPos) <= range);
 
     if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
 
-    // 2. [1순위] 아군 영웅을 공격한 적 영웅 (어그로)
+    // 1. [어그로] 아군 영웅을 친 적 영웅
     const AGGRO_DURATION = 2.0; 
     const aggroTarget = nearbyEnemyHeroes.find(enemy => {
         if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
         const timeSinceAttack = currentTime - enemy.lastAttackTime;
         if (timeSinceAttack > AGGRO_DURATION) return false;
-        // 적이 때린 대상이 아군 영웅인지 확인
         const victim = allies.find(a => a.heroId === enemy.lastAttackedTargetId);
         return !!victim;
     });
 
     if (aggroTarget) return { unit: aggroTarget, type: 'HERO' };
 
-    // 3. [2순위] 거신병 (탱킹)
-    const colossus = nearbyMinions.find(m => m.type === 'SUMMONED_COLOSSUS');
-    if (colossus) return { unit: colossus, type: 'MINION' };
-
-    // 4. [3순위] 일반 미니언 (가까운 순)
+    // 2. 미니언 (가까운 순)
     if (nearbyMinions.length > 0) {
         nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
         return { unit: nearbyMinions[0], type: 'MINION' };
     } 
     
-    // 5. [4순위] 적 영웅 (미니언 없으면 영웅 공격)
+    // 3. 영웅 (미니언 없으면)
     nearbyEnemyHeroes.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
     return { unit: nearbyEnemyHeroes[0], type: 'HERO' };
   }
 
-  /**
-   * 타워 데미지 적용 및 [즉시 사망 처리]
-   */
   static applyDamage(
-    match: LiveMatch, // match 객체 추가 (사망 처리를 위해)
+    match: LiveMatch,
     target: { unit: any, type: 'HERO' | 'MINION' },
     towerStats: any,
     dt: number,
@@ -67,56 +51,34 @@ export class TowerLogic {
     hasMinionsNearby: boolean,
     defendingTeamColor: 'BLUE' | 'RED'
   ) {
-    const atk = towerStats.atk || (isNexus ? 1000 : 400);
-    let damage = atk * dt;
+    const baseAtk = towerStats.atk || (isNexus ? 1000 : 300);
+    
+    // 기본 타워 공격력
+    let damage = baseAtk * dt;
 
-    // [백도어 방지] 미니언 없이 영웅만 있으면 데미지 3배
+    // [백도어 패널티] 미니언 없이 영웅 혼자면 데미지 3배 (매우 아픔)
     if (target.type === 'HERO' && !hasMinionsNearby) {
         damage *= 3.0;
     }
 
-    // 거신병 데미지 감소
-    if (target.type === 'MINION' && target.unit.type === 'SUMMONED_COLOSSUS') {
-        damage *= 0.7; 
-    }
-
-    // [확인 사살] 적 체력이 10% 미만이면 즉사 데미지 (99999)
-    // 좀비 현상 방지: 딸피면 계산이고 뭐고 그냥 죽임
-    const currentHp = target.type === 'HERO' ? target.unit.currentHp : target.unit.hp;
-    const maxHp = target.unit.maxHp;
-    
-    if (currentHp / maxHp < 0.1) {
-        damage = 99999; 
-    } else {
-        // 일반 데미지 계산
-        let armor = target.unit.armor || 0;
-        if (target.type === 'HERO') armor += (target.unit.level * 3);
-        
-        damage = calcMitigatedDamage(damage, armor);
-    }
-
-    // 데미지 차감
     if (target.type === 'HERO') {
-        target.unit.currentHp -= damage;
+        // 영웅 방어력 적용
+        let armor = (target.unit.level * 3) + (target.unit.items?.length * 10);
+        const realDmg = calcMitigatedDamage(damage, armor);
         
-        // [즉시 사망 처리] - 다음 프레임까지 기다리지 않음
+        target.unit.currentHp -= realDmg;
+        
         if (target.unit.currentHp <= 0) {
             target.unit.currentHp = 0;
-            
-            // 부활 시간 설정
-            const growth = (match as any).growthSettings || {}; // 안전 접근
-            const scale = growth.respawnPerLevel || 3.0;
-            let respawnTime = 5 + (target.unit.level * scale);
-            if (target.unit.level > 11) respawnTime += (target.unit.level - 11) * 3.0;
+            // 부활 시간: 5초 + 레벨당 3초 (자연스러운 증가)
+            const respawnTime = 5 + (target.unit.level * 3);
             target.unit.respawnTimer = Math.floor(respawnTime);
 
-            // 점수 및 로그
             if (defendingTeamColor === 'BLUE') match.score.blue++;
             else match.score.red++;
 
             target.unit.deaths++;
             
-            // 타워 처형 로그
             match.logs.push({
                 time: Math.floor(match.currentDuration),
                 message: `💀 [${target.unit.name}] 타워에 처형당했습니다!`,
@@ -125,8 +87,8 @@ export class TowerLogic {
             });
         }
     } else {
+        // 미니언은 방어력 0으로 가정하고 딜 박힘 (순삭 방지 위해 미니언 체력 세팅 중요)
         target.unit.hp -= damage;
-        // 미니언 사망 처리는 MinionSystem에서 일괄 처리하므로 둠 (영웅만큼 중요하지 않음)
     }
   }
 }

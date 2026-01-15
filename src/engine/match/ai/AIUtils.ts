@@ -5,6 +5,8 @@ import { BASES } from '../constants/MapConstants';
 
 export class AIUtils {
   static dist(a: {x:number, y:number}, b: {x:number, y:number}): number {
+    // a나 b가 없을 경우 방어 코드
+    if (!a || !b) return 9999;
     return Vector.dist({x: a.x, y: a.y}, {x: b.x, y: b.y});
   }
 
@@ -17,7 +19,9 @@ export class AIUtils {
   }
 
   static getCombatPower(unit: LivePlayer): number {
-    return (unit.level * 100) + (this.hpPercent(unit) * 1000) + (unit.items.length * 150);
+    // items 배열 안전 접근
+    const itemCount = unit.items ? unit.items.length : 0;
+    return (unit.level * 100) + (this.hpPercent(unit) * 1000) + (itemCount * 150);
   }
 
   static getMyBasePos(isBlue: boolean): {x: number, y: number} {
@@ -30,7 +34,9 @@ export class AIUtils {
     const enemyStats = isBlue ? match.stats.red : match.stats.blue;
     const laneKey = player.lane.toLowerCase(); 
     
-    const brokenCount = (enemyStats.towers as any)[laneKey];
+    // 안전하게 접근
+    const towers = enemyStats.towers as any;
+    const brokenCount = towers && towers[laneKey] !== undefined ? towers[laneKey] : 0;
 
     if (brokenCount >= 3) {
       return isBlue ? BASES.RED : BASES.BLUE;

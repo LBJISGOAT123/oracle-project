@@ -17,6 +17,7 @@ import { MinionSystem } from './systems/MinionSystem';
 import { JungleSystem } from './systems/JungleSystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
 import { ColossusLogic } from './logics/ColossusLogic';
+import { VisualSystem } from './systems/VisualSystem'; // [신규]
 
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
   const state = useGameStore.getState();
@@ -44,6 +45,8 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     if (!Array.isArray(m.projectiles)) m.projectiles = [];
     if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
     if (!Array.isArray(m.logs)) m.logs = [];
+    // [신규] 이펙트 배열 초기화
+    if (!Array.isArray(m.visualEffects)) m.visualEffects = [];
 
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
 
@@ -78,6 +81,11 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                        p.x = isBlue ? BASES.BLUE.x : BASES.RED.x;
                        p.y = isBlue ? BASES.BLUE.y : BASES.RED.y;
                        (p as any).pathIdx = 0;
+                       p.cooldowns = { q:0, w:0, e:0, r:0 };
+                       p.isRecalling = false;
+                       p.currentRecallTime = 0;
+                       p.killStreak = 0;
+                       p.bounty = 0;
                    }
                };
                match.blueTeam.forEach(p => initPlayer(p, true));
@@ -117,11 +125,12 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
         });
     }
 
-    // [수정] heroes 파라미터 전달
     MinionSystem.update(match, battleSettings, delta, heroes);
-    
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);
+    
+    // [신규] 시각 효과 업데이트
+    VisualSystem.update(match, delta);
 
     return match;
   });

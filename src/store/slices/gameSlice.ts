@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/store/slices/gameSlice.ts
-// ==========================================
 import { StateCreator } from 'zustand';
 import { GameStore, GameSlice } from '../types';
 import { INITIAL_CUSTOM_IMAGES } from '../../data/initialImages';
@@ -29,10 +26,6 @@ const initialPositions = {
   }
 };
 
-// [최적화] 화면 갱신 주기 제어 변수
-let lastUpdateTimestamp = 0;
-const UI_REFRESH_RATE = 33; // 약 30FPS 제한
-
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
   isPlaying: false, gameSpeed: 1,
@@ -46,7 +39,7 @@ const initialGameState: GameState = {
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
-    economy: { minionGold: 14, minionXp: 30, killGold: 300, goldPerLevel: 20, bountyIncrement: 100, assistPool: 50, killXpBase: 40, killXpPerLevel: 20 },
+    economy: { minionGold: 18, minionXp: 30, killGold: 200, goldPerLevel: 20, bountyIncrement: 100, assistPool: 50, killXpBase: 40, killXpPerLevel: 20 },
     siege: { minionDmg: 1.0, cannonDmg: 1.0, superDmg: 1.0, dmgToHero: 1.0, dmgToT1: 0.3, dmgToT2: 0.25, dmgToT3: 0.2, dmgToNexus: 0.1, colossusToHero: 0.3, colossusToT1: 0.4, colossusToT2: 0.2, colossusToT3: 0.1, colossusToNexus: 0.05 }
   },
   fieldSettings: {
@@ -80,23 +73,13 @@ export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set,
       state.communityPosts,
       deltaSeconds,
       (updates, newHeroes, newPosts) => {
-        const now = Date.now();
-        
-        // [수정] 렌더링 쓰로틀링 (Throttling) 적용
-        // 33ms(30FPS)가 지나지 않았으면 화면 갱신을 건너뜀
-        // 단, 게임 속도가 5배속 미만으로 느릴 땐 부드러움을 위해 매번 갱신
-        if (now - lastUpdateTimestamp >= UI_REFRESH_RATE || state.gameState.gameSpeed < 5) {
-            set((current) => ({
-              gameState: { ...current.gameState, ...updates },
-              heroes: newHeroes || current.heroes,
-              communityPosts: newPosts || current.communityPosts
-            }));
-            lastUpdateTimestamp = now;
-        } else {
-            // [중요] 여기서는 set을 호출하지 않고 넘어감 (상태 업데이트 생략)
-            // 다음 프레임에서 누적된 결과가 한 번에 반영됨
-            // Replit 환경 등에서 충돌을 방지하기 위함
-        }
+        // [원복] UI_REFRESH_RATE 제한 없이 매 틱마다 즉시 상태 갱신
+        // 엔진 계산과 화면 렌더링을 동기화하여 데이터 불일치 방지
+        set((current) => ({
+          gameState: { ...current.gameState, ...updates },
+          heroes: newHeroes || current.heroes,
+          communityPosts: newPosts || current.communityPosts
+        }));
       }
     );
   },

@@ -4,43 +4,82 @@
 import { LivePlayer, LiveMatch } from '../../../../types';
 import { AIUtils } from '../AIUtils';
 import { Vector, Vector2 } from '../../../match/utils/Vector';
+import { BASES } from '../../constants/MapConstants';
 
 export class SquadSystem {
   
-  static getGroupTarget(player: LivePlayer, match: LiveMatch): Vector2 | null {
-    // 뇌지컬이 60 이상이어야 합류 판단을 함 (낮으면 마이웨이)
-    if (player.stats.brain < 60) return null;
-
+  /**
+   * [전략적 집결지 계산]
+   * 아군들이 모여야 할 최적의 장소를 반환합니다.
+   * 1. 아군 본대가 있는 곳
+   * 2. 또는 가장 많이 밀린 라인의 최전방 미니언 위치
+   */
+  static getAssemblyPoint(player: LivePlayer, match: LiveMatch): Vector2 | null {
     const isBlue = match.blueTeam.includes(player);
     const allies = isBlue ? match.blueTeam : match.redTeam;
     
-    // 1. 아군 밀집도 계산 (Centroid)
-    let centerX = 0, centerY = 0, count = 0;
+    // 살아있는 아군들만 고려
+    const activeAllies = allies.filter(a => a.currentHp > 0 && a.respawnTimer <= 0 && a !== player);
     
-    for (const ally of allies) {
-        if (ally === player || ally.currentHp <= 0 || ally.respawnTimer > 0) continue;
-        // 우물에 있는 아군은 제외 (복귀 중인 애들)
-        if (AIUtils.dist(ally, AIUtils.getMyBasePos(isBlue)) < 15) continue;
+    if (activeAllies.length < 2) return null; // 뭉칠 아군이 없음
 
-        centerX += ally.x;
-        centerY += ally.y;
-        count++;
+    // 1. 아군 군집 중심점 (Centroid) 계산
+    let sumX = 0, sumY = 0;
+    activeAllies.forEach(a => { sumX += a.x; sumY += a.y; });
+    const centerX = sumX / activeAllies.length;
+    const centerY = sumY / activeAllies.length;
+    const centerPos = { x: centerX, y: centerY };
+
+    // 2. 만약 아군들이 흩어져 있다면? -> 목표물(미드/오브젝트) 중심으로 모임
+    // 아군들이 서로 30 이상 떨어져 있으면 흩어진 것으로 간주
+    const spread = activeAllies.reduce((s, a) => s + AIUtils.dist(a, centerPos), 0) / activeAllies.length;
+    
+    if (spread > 30) {
+        // 가장 잘 큰 아군(캐리)에게 합류
+        const carry = activeAllies.sort((a,b) => b.gold - a.gold)[0];
+        if (carry) return { x: carry.x, y: carry.y };
+        
+        // 아니면 미드 중앙으로
+        return { x: 50, y: 50 };
     }
 
-    if (count < 2) return null; // 2명 이하면 각자도생
+    return centerPos;
+  }
 
-    const avgX = centerX / count;
-    const avgY = centerY / count;
+  /**
+   * [한타 개시 여부 판단]
+   * 지금 싸움을 걸어야 하는가?
+   */
+  static shouldInitiateFight(player: LivePlayer, match: LiveMatch): boolean {
+    const nearby = this.getNearbyStats(player, match, 25);
     
-    // 2. 합류 가치 판단
-    // 내가 너무 멀리 있으면(거리 40 이상) 합류 포기하고 스플릿
-    const distToGroup = AIUtils.dist(player, {x: avgX, y: avgY});
-    if (distToGroup > 40) return null;
+    // 1. 수적 우위 (5vs4, 4vs3 등)
+    if (nearby.allyCount > nearby.enemyCount) return true;
 
-    // 3. 근처에 적이 있으면 합류 우선순위 상승 (한타 지원)
-    // (이 로직은 Perception과 연계되어야 하나, 여기선 단순화)
-    
-    // 합류 지점 반환
-    return { x: avgX, y: avgY };
+    // 2. 전투력 우위 (1.2배 이상)
+    if (nearby.powerRatio > 1.2) return true;
+
+    // 3. 내가 탱커고, 아군 딜러가 뒤에 있으면 이니시
+    if (player.role === '수호기사' && nearby.allyCount >= 3 && nearby.powerRatio > 0.9) return true;
+
+    return false;
+  }
+
+  private static getNearbyStats(player: LivePlayer, match: LiveMatch, range: number) {
+      const isBlue = match.blueTeam.includes(player);
+      const allies = isBlue ? match.blueTeam : match.redTeam;
+      const enemies = isBlue ? match.redTeam : match.blueTeam;
+
+      const nearbyAllies = allies.filter(a => a.currentHp > 0 && AIUtils.dist(player, a) <= range);
+      const nearbyEnemies = enemies.filter(e => e.currentHp > 0 && AIUtils.dist(player, e) <= range);
+
+      const allyPower = nearbyAllies.reduce((s, a) => s + AIUtils.getCombatPower(a), 0);
+      const enemyPower = nearbyEnemies.reduce((s, e) => s + AIUtils.getCombatPower(e), 0);
+
+      return {
+          allyCount: nearbyAllies.length,
+          enemyCount: nearbyEnemies.length,
+          powerRatio: allyPower / Math.max(1, enemyPower)
+      };
   }
 }

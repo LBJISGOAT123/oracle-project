@@ -7,27 +7,51 @@ import { POI, getDistance } from '../../data/MapData';
 import { TOWER_COORDS } from '../constants/MapConstants';
 
 export interface ThreatInfo { isThreatened: boolean; enemyUnit: any; distance: number; }
-export interface GameSituation { myTeamAlive: number; enemyTeamAlive: number; isEnemyWipedOut: boolean; powerDifference: number; hasSiegeBuff: boolean; isNexusVulnerable: boolean; }
+export interface GameSituation { 
+    myTeamAlive: number; 
+    enemyTeamAlive: number; 
+    isEnemyWipedOut: boolean; 
+    hasNumberAdvantage: boolean;
+    powerDifference: number; 
+    combatPowerRatio: number;
+    hasSiegeBuff: boolean; 
+    isNexusVulnerable: boolean; 
+}
 export interface NearbyInfo { allies: LivePlayer[]; enemies: LivePlayer[]; allyPower: number; enemyPower: number; }
 
 export class Perception {
 
-  // [신규] "지금 타워가 나를 때리고 있는가?" (긴급 탈출용)
+  // [전투력 계산] 안전장치 추가됨
+  static calculateTeamPower(team: LivePlayer[]): number {
+    return team.reduce((sum, p) => {
+        if (!p || p.currentHp <= 0) return sum;
+        
+        // 1. 기본: 레벨 + 아이템 가치
+        let power = (p.level * 100) + ((p.gold || 0) / 10);
+        
+        // 2. 체력 상태 반영
+        power *= AIUtils.hpPercent(p);
+
+        // 3. 주요 스킬(궁극기) 보유 여부 (안전장치 추가: cooldowns가 없으면 0으로 취급)
+        const cooldowns = p.cooldowns || { q:0, w:0, e:0, r:0 };
+        if ((cooldowns as any).r <= 0) power *= 1.2;
+
+        return sum + power;
+    }, 0);
+  }
+
   static isUnderTowerAggro(player: LivePlayer, match: LiveMatch): boolean {
     const isBlue = match.blueTeam.includes(player);
     const enemyStats = isBlue ? match.stats.red : match.stats.blue;
     const towerCoords = isBlue ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
     const lanes = ['top', 'mid', 'bot'] as const;
 
-    // 1. 내가 타워 사거리(13) 안에 있는지 확인
     let nearbyTowerPos = null;
 
-    // 넥서스 체크
     if (enemyStats.nexusHp > 0 && AIUtils.dist(player, towerCoords.NEXUS) <= 13) {
         nearbyTowerPos = towerCoords.NEXUS;
     } 
     else {
-        // 레인 타워 체크
         for (const lane of lanes) {
             const brokenCount = (enemyStats.towers as any)[lane];
             if (brokenCount < 3) {
@@ -42,11 +66,8 @@ export class Perception {
         }
     }
 
-    // 타워 근처가 아니면 안전
     if (!nearbyTowerPos) return false;
 
-    // 2. 어그로 조건 체크
-    // A. 내 주변(타워 근처)에 살아있는 아군 미니언이나 거신병이 있는가?
     const myMinions = match.minions || [];
     const hasMeatShield = myMinions.some(m => 
         m.team === (isBlue ? 'BLUE' : 'RED') && 
@@ -54,23 +75,18 @@ export class Perception {
         AIUtils.dist(m, nearbyTowerPos) < 13
     );
 
-    // 미니언이 없으면 -> 100% 내가 타겟임 -> 도망쳐야 함
     if (!hasMeatShield) return true;
 
-    // B. 미니언이 있어도, 내가 최근(2초 내)에 적 영웅을 쳤는가? -> 타워가 나를 봄
     const lastAttackAge = match.currentDuration - (player.lastAttackTime || 0);
     if (lastAttackAge < 2.0 && player.lastAttackedTargetId) {
-        // 내가 때린 대상이 적 영웅인지 확인
         const enemies = isBlue ? match.redTeam : match.blueTeam;
         const targetIsHero = enemies.some(e => e.heroId === player.lastAttackedTargetId);
-        
-        if (targetIsHero) return true; // 영웅 쳤으니 타워가 나를 찜함
+        if (targetIsHero) return true; 
     }
 
     return false;
   }
   
-  // (기존 함수들 유지 - isInActiveEnemyTowerRange 등)
   static isInActiveEnemyTowerRange(pos: {x:number, y:number}, match: LiveMatch, isBlue: boolean): boolean {
     const enemyStats = isBlue ? match.stats.red : match.stats.blue;
     const towerCoords = isBlue ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
@@ -94,6 +110,13 @@ export class Perception {
   static isSuicideMove(player: LivePlayer, targetPos: {x:number, y:number}, match: LiveMatch): boolean {
       const isBlue = match.blueTeam.includes(player);
       if (this.isInActiveEnemyTowerRange(targetPos, match, isBlue)) {
+          const allies = isBlue ? match.blueTeam : match.redTeam;
+          const nearbyAllies = allies.filter(a => a !== player && a.currentHp > 0 && AIUtils.dist(a, targetPos) < 15);
+          
+          if (nearbyAllies.length >= 2 && player.maxHp > 3000 && AIUtils.hpPercent(player) > 0.6) {
+              return false; 
+          }
+
           if (AIUtils.hpPercent(player) < 0.4) return true;
           if (!this.isSafeToSiege(player, match, targetPos)) return true;
       }
@@ -104,15 +127,21 @@ export class Perception {
     const isBlue = match.blueTeam.includes(player);
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const allies = isBlue ? match.blueTeam : match.redTeam;
+    
     const aliveEnemies = enemies.filter(e => e.currentHp > 0 && e.respawnTimer <= 0).length;
     const aliveAllies = allies.filter(a => a.currentHp > 0 && a.respawnTimer <= 0).length;
+    
     let score = 0;
-    if (aliveEnemies === 0) return 100;
-    if (aliveAllies >= aliveEnemies + 2) score += 60;
-    else if (aliveAllies > aliveEnemies) score += 30;
-    if (player.kills > 5 || player.items.length >= 3) score += 20;
+    const timeBonus = Math.max(0, (match.currentDuration - 900) / 60); 
+    score += timeBonus;
+
+    if (aliveEnemies === 0) return 200; 
+    
+    if (aliveAllies > aliveEnemies) score += (aliveAllies - aliveEnemies) * 40; 
+    
     const myStats = isBlue ? match.stats.blue : match.stats.red;
-    if (myStats.activeBuffs.siegeUnit) score += 40;
+    if (myStats.activeBuffs.siegeUnit) score += 50; 
+
     return score;
   }
 
@@ -120,19 +149,24 @@ export class Perception {
     const isBlue = match.blueTeam.includes(player);
     const myTeam = isBlue ? match.blueTeam : match.redTeam;
     const enemyTeam = isBlue ? match.redTeam : match.blueTeam;
+    
     const nearbyAllies = myTeam.filter(p => p !== player && p.currentHp > 0 && AIUtils.dist(player, p) <= range);
     const nearbyEnemies = enemyTeam.filter(p => p.currentHp > 0 && AIUtils.dist(player, p) <= range);
-    const calcPower = (units: LivePlayer[]) => units.reduce((acc, u) => acc + AIUtils.getCombatPower(u), 0);
-    const myPower = AIUtils.getCombatPower(player);
-    return { allies: nearbyAllies, enemies: nearbyEnemies, allyPower: calcPower(nearbyAllies) + myPower, enemyPower: calcPower(nearbyEnemies) };
+    
+    const allyPower = this.calculateTeamPower([player, ...nearbyAllies]);
+    const enemyPower = this.calculateTeamPower(nearbyEnemies);
+
+    return { allies: nearbyAllies, enemies: nearbyEnemies, allyPower, enemyPower };
   }
 
   static isSafeToSiege(player: LivePlayer, match: LiveMatch, targetPos: {x:number, y:number}): boolean {
     const isBlue = match.blueTeam.includes(player);
     const myMinions = match.minions || [];
     const nearbyMinions = myMinions.filter(m => m.team === (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && getDistance(m, targetPos) < 15);
+    
     if (nearbyMinions.length > 0) return true; 
-    if (player.level < 13) return false;
+    if (match.currentDuration > 1500 && AIUtils.hpPercent(player) > 0.8) return true;
+    
     const isTank = player.maxHp > 3500 && player.currentHp > player.maxHp * 0.9;
     return isTank; 
   }
@@ -143,15 +177,31 @@ export class Perception {
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const enemyStats = isBlue ? match.stats.red : match.stats.blue;
     const myStats = isBlue ? match.stats.blue : match.stats.red;
+    
     const myAlive = allies.filter(p => p.currentHp > 0 && p.respawnTimer <= 0).length;
     const enemyAlive = enemies.filter(p => p.currentHp > 0 && p.respawnTimer <= 0).length;
-    const getPower = (team: LivePlayer[]) => team.reduce((sum, p) => sum + (p.currentHp <= 0 ? 0 : (p.level * 100)), 0);
+    
+    const myPower = this.calculateTeamPower(allies);
+    const enemyPower = this.calculateTeamPower(enemies);
+    const powerRatio = myPower / Math.max(1, enemyPower);
+
     const isNexusVulnerable = enemyStats.towers.top >= 3 || enemyStats.towers.mid >= 3 || enemyStats.towers.bot >= 3;
-    return { myTeamAlive: myAlive, enemyTeamAlive: enemyAlive, isEnemyWipedOut: enemyAlive === 0, powerDifference: getPower(allies) - getPower(enemies), hasSiegeBuff: myStats.activeBuffs.siegeUnit, isNexusVulnerable };
+    
+    return { 
+        myTeamAlive: myAlive, 
+        enemyTeamAlive: enemyAlive, 
+        isEnemyWipedOut: enemyAlive === 0, 
+        hasNumberAdvantage: myAlive > enemyAlive, 
+        powerDifference: myPower - enemyPower, 
+        combatPowerRatio: powerRatio,
+        hasSiegeBuff: myStats.activeBuffs.siegeUnit, 
+        isNexusVulnerable 
+    };
   }
 
   static needsRecall(player: LivePlayer): boolean {
-    const iq = Math.max(0, Math.min(100, player.stats.brain)) / 100;
+    const brain = player.stats?.brain || 50; // 안전장치
+    const iq = Math.max(0, Math.min(100, brain)) / 100;
     const threshold = 0.25 - (iq * 0.15); 
     const lowMp = player.maxMp > 0 && (player.currentMp / player.maxMp) < 0.1;
     return AIUtils.hpPercent(player) < threshold || lowMp;
@@ -161,8 +211,10 @@ export class Perception {
     const myBase = AIUtils.getMyBasePos(isBlue);
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const myNexusHp = isBlue ? match.stats.blue.nexusHp : match.stats.red.nexusHp;
+    
     const emergencyMode = myNexusHp < 5000;
-    const threatRange = emergencyMode ? 40 : 25; 
+    const threatRange = emergencyMode ? 60 : 30; 
+    
     let closestThreat: any = null;
     let minDist = 999;
     for (const enemy of enemies) {
@@ -170,6 +222,7 @@ export class Perception {
       const d = AIUtils.dist(myBase, {x: enemy.x, y: enemy.y});
       if (d < minDist) { minDist = d; closestThreat = enemy; }
     }
+    
     if (closestThreat && minDist < threatRange) {
         return { isThreatened: true, enemyUnit: closestThreat, distance: minDist };
     }

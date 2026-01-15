@@ -4,13 +4,10 @@
 import { LivePlayer, LiveMatch, Hero } from '../../../types';
 import { BASES } from '../constants/MapConstants';
 import { useGameStore } from '../../../store/useGameStore';
-import { attemptBuyItem, updateLivePlayerStats } from './ItemManager';
+import { attemptBuyItem } from './ItemManager';
 
 export class RecallSystem {
   
-  /**
-   * 귀환 프로세스 업데이트 (매 프레임 호출)
-   */
   static update(player: LivePlayer, match: LiveMatch, heroes: Hero[], shopItems: any[], dt: number) {
     const isBlue = match.blueTeam.includes(player);
     const basePos = isBlue ? BASES.BLUE : BASES.RED;
@@ -21,22 +18,26 @@ export class RecallSystem {
         if (player.recallCooldown < 0) player.recallCooldown = 0;
         player.isRecalling = false;
         player.currentRecallTime = 0;
-        return; // 쿨타임 중엔 귀환 불가
-    }
-
-    // 2. 이미 우물이면 귀환 로직 불필요 (즉시 회복 및 아이템 구매)
-    const dist = Math.sqrt(Math.pow(player.x - basePos.x, 2) + Math.pow(player.y - basePos.y, 2));
-    if (dist <= 5) {
-        this.instantRestore(player, isBlue, dt, heroes, shopItems, match);
-        player.isRecalling = false;
-        player.currentRecallTime = 0;
         return;
     }
 
-    // 3. 귀환 진행 중일 때
+    // 2. [우물 도착 상태] 즉시 회복 및 판단 초기화
+    const dist = Math.sqrt(Math.pow(player.x - basePos.x, 2) + Math.pow(player.y - basePos.y, 2));
+    if (dist <= 5) {
+        this.instantRestore(player, isBlue, dt, heroes, shopItems, match);
+        
+        // [핵심] 귀환/우물 복귀 시 상태 완전 초기화 (새로운 판단 유도)
+        player.isRecalling = false;
+        player.currentRecallTime = 0;
+        (player as any).pathIdx = 0; // 예전 경로 기억 삭제
+        
+        return;
+    }
+
+    // 3. 귀환 채널링 중
     if (player.isRecalling) {
         const settings = useGameStore.getState().gameState.growthSettings;
-        const RECALL_DURATION = settings?.recallTime || 10.0;
+        const RECALL_DURATION = settings?.recallTime || 8.0; // 10초 -> 8초로 살짝 단축 (답답함 해소)
 
         player.currentRecallTime += dt;
 
@@ -47,47 +48,40 @@ export class RecallSystem {
             player.isRecalling = false;
             player.currentRecallTime = 0;
             
-            // 도착 즉시 체력 30% 회복
-            player.currentHp = Math.min(player.maxHp, player.currentHp + player.maxHp * 0.3);
+            // 도착 즉시 체력 50% 회복 (빠른 전선 복귀 준비)
+            player.currentHp = Math.min(player.maxHp, player.currentHp + player.maxHp * 0.5);
+            
+            // [핵심] 귀환 완료 시에도 경로 초기화
+            (player as any).pathIdx = 0;
         }
     } else {
-        // 귀환 중이 아니면 타이머 리셋
         player.currentRecallTime = 0;
     }
   }
 
-  /**
-   * 귀환 시작 명령 (AI가 호출)
-   */
   static startRecall(player: LivePlayer) {
-    if (player.recallCooldown > 0) return; // 쿨타임 중이면 무시
-    if (player.isRecalling) return; // 이미 하는 중이면 무시
+    if (player.recallCooldown > 0) return; 
+    if (player.isRecalling) return; 
 
     player.isRecalling = true;
     player.currentRecallTime = 0;
   }
 
-  /**
-   * 피격 시 귀환 취소 (CombatPhase에서 호출)
-   */
   static cancelRecall(player: LivePlayer) {
     if (player.isRecalling) {
         player.isRecalling = false;
         player.currentRecallTime = 0;
-        player.recallCooldown = 3.0; // 3초간 재귀환 불가
+        player.recallCooldown = 3.0; 
     }
   }
 
-  /**
-   * 우물 도착 시 회복 및 아이템 구매
-   */
   private static instantRestore(
       p: LivePlayer, isBlue: boolean, dt: number, 
       heroes: Hero[], shopItems: any[], match: LiveMatch
   ) {
-      // 고속 회복 (초당 50%)
-      p.currentHp = Math.min(p.maxHp, p.currentHp + p.maxHp * 0.5 * dt);
-      p.currentMp = Math.min(p.maxMp, p.currentMp + p.maxMp * 0.5 * dt);
+      // 우물 회복 속도: 초당 40% (2.5초면 풀피)
+      p.currentHp = Math.min(p.maxHp, p.currentHp + p.maxHp * 0.4 * dt);
+      p.currentMp = Math.min(p.maxMp, p.currentMp + p.maxMp * 0.4 * dt);
       
       // 아이템 구매 시도
       const enemyTeam = isBlue ? match.redTeam : match.blueTeam;
