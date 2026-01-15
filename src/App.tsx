@@ -75,7 +75,6 @@ function GameContent() {
   if (!gameState) return <div style={{ color: '#fff', padding: '20px' }}>데이터 초기화 실패. 새로고침 해주세요.</div>;
 
   return (
-    // [핵심] translate="no" 추가로 브라우저 자동 번역 및 DOM 침범 차단
     <div className="notranslate" translate="no" style={{ maxWidth: '1400px', margin: '0 auto', padding: isMobile ? '10px' : '20px', paddingBottom: '100px' }}>
       <Header isMobile={isMobile} onOpenSystemMenu={() => setShowSystemMenu(true)} />
       <GameStats isMobile={isMobile} onOpenGameList={() => setShowGameList(true)} />
@@ -90,25 +89,14 @@ function GameContent() {
         </div>
       )}
 
+      {/* 조건부 렌더링 (최적화) */}
       <div style={{ minHeight: '600px' }}>
-        <div style={{ display: activeTab === 'hero-stats' ? 'block' : 'none' }}>
-          <HeroStatsView />
-        </div>
-        <div style={{ display: activeTab === 'shop' ? 'block' : 'none' }}>
-          <ShopTab />
-        </div>
-        <div style={{ display: activeTab === 'user' ? 'block' : 'none' }}>
-          <UserDashboard onUserClick={setSelectedUser} />
-        </div>
-        <div style={{ display: activeTab === 'gods' ? 'block' : 'none' }}>
-          <BattleDashboard />
-        </div>
-        <div style={{ display: activeTab === 'battlefield' ? 'block' : 'none' }}>
-          <BattlefieldTab />
-        </div>
-        <div style={{ display: activeTab === 'community' ? 'block' : 'none' }}>
-          <CommunityBoard />
-        </div>
+        {activeTab === 'hero-stats' && <HeroStatsView />}
+        {activeTab === 'shop' && <ShopTab />}
+        {activeTab === 'user' && <UserDashboard onUserClick={setSelectedUser} />}
+        {activeTab === 'gods' && <BattleDashboard />}
+        {activeTab === 'battlefield' && <BattlefieldTab />}
+        {activeTab === 'community' && <CommunityBoard />}
       </div>
 
       {isMobile && (

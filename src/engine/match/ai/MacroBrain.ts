@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/engine/match/ai/MacroBrain.ts
-// ==========================================
 import { LivePlayer, LiveMatch, Hero } from '../../../types';
 import { Perception } from './Perception';
 import { AIUtils } from './AIUtils';
@@ -14,7 +11,7 @@ import { RoamingLogic } from '../logics/RoamingLogic';
 import { SquadSystem } from './tactics/SquadSystem';
 import { TacticalScorer } from './tactics/TacticalScorer';
 import { TeamTactics } from './tactics/TeamTactics';
-import { ObservationSystem } from './perception/ObservationSystem'; // [신규]
+import { ObservationSystem } from './perception/ObservationSystem'; 
 import { useGameStore } from '../../../store/useGameStore';
 
 export type MacroAction = 'RECALL' | 'DEFEND' | 'FIGHT' | 'FARM' | 'PUSH' | 'WAIT' | 'OBJECTIVE' | 'SUPPORT' | 'GANK' | 'FLEE' | 'FINISH' | 'ASSEMBLE' | 'LANING' | 'CHASE';
@@ -30,6 +27,7 @@ export class MacroBrain {
   static decide(player: LivePlayer, match: LiveMatch, hero: Hero): MacroDecision {
     const isBlue = match.blueTeam.includes(player);
     const myBase = AIUtils.getMyBasePos(isBlue);
+    const enemyBase = AIUtils.getMyBasePos(!isBlue); // 적 넥서스 위치
     const distToBase = AIUtils.dist(player, myBase);
 
     // [0] 우물 복귀 완료
@@ -56,11 +54,23 @@ export class MacroBrain {
         }
     }
 
-    // [2] 팀 오더
+    // [2] 팀 오더 & 넥서스 점사 (끝내기 각)
     const teamOrder = TeamTactics.analyzeTeamStrategy(match, isBlue);
+    
+    // [핵심] 적 넥서스가 노출되어 있고 아군이 근처에 있으면, 적 무시하고 넥서스 점사
+    // "엘리전" 또는 "마무리" 상황
+    if (teamOrder.type === 'ALL_PUSH') {
+        const distToEnemyNexus = AIUtils.dist(player, enemyBase);
+        // 넥서스 근처 25 거리 안이면
+        if (distToEnemyNexus < 25) {
+            // 적 챔피언이 있어도 무시하고 넥서스(PUSH) 명령 유지
+            return { action: 'PUSH', targetPos: enemyBase, reason: '🏁 넥서스 점사!' };
+        }
+        return { action: 'FINISH', targetPos: enemyBase, reason: teamOrder.reason };
+    }
+
     if (teamOrder.type !== 'FREE') {
         const targetPos = teamOrder.targetPos || myBase;
-        if (teamOrder.type === 'ALL_PUSH') return { action: 'FINISH', targetPos, reason: teamOrder.reason };
         if (teamOrder.type === 'SIEGE_MID') {
             const nearby = Perception.analyzeNearbySituation(player, match, 15);
             if (nearby.enemies.length > 0) {
@@ -74,7 +84,7 @@ export class MacroBrain {
         if (teamOrder.type === 'ALL_DEFEND') return { action: 'DEFEND', targetPos, reason: teamOrder.reason };
     }
 
-    // [3] 교전 & 킬각 & [신규] 추격(Chase)
+    // [3] 교전 & 킬각
     const nearby = Perception.analyzeNearbySituation(player, match, 25);
     if (nearby.enemies.length > 0) {
         if (SquadSystem.shouldInitiateFight(player, match)) {
@@ -86,7 +96,6 @@ export class MacroBrain {
             const globalHeroes = useGameStore.getState().heroes;
             const killScore = KillEvaluator.evaluateKillChance(player, enemy, globalHeroes, match, battleSettings, roleSettings);
             if (killScore > 500) {
-                // 공격한 적 기억 (추격용)
                 player.lastAttackedTargetId = enemy.heroId;
                 player.lastAttackTime = match.currentDuration;
                 return { action: 'FIGHT', targetPos: {x:enemy.x, y:enemy.y}, targetUnit: enemy, reason: '🩸 킬각!' };
@@ -94,12 +103,14 @@ export class MacroBrain {
         }
     }
     
-    // [신규] 시야엔 없지만, 방금 놓친 적 추격 (Bush Checking)
+    // 추격
     if (player.lastAttackedTargetId) {
         const lastPos = ObservationSystem.getLastKnownPosition(player, player.lastAttackedTargetId, match.currentDuration);
         if (lastPos) {
-            // 내가 그 위치에 도착했으면 추격 종료
-            if (AIUtils.dist(player, lastPos) < 2.0) {
+            // [우물 다이브 방지] 추격 위치가 우물이면 포기
+            if (Perception.isInEnemyFountain(lastPos, match, isBlue)) {
+                player.lastAttackedTargetId = undefined;
+            } else if (AIUtils.dist(player, lastPos) < 2.0) {
                 player.lastAttackedTargetId = undefined;
             } else {
                 return { action: 'CHASE', targetPos: lastPos, reason: '🏃 도망친 적 추격' };

@@ -53,7 +53,17 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
 
   const isDead = p.respawnTimer > 0;
   const kda = `${p.kills}/${p.deaths}/${p.assists}`;
-  const gold = `${(p.gold / 1000).toFixed(1)}k`;
+  
+  // [수정] 누적 골드 계산 로직 강화
+  // totalGold가 있으면 쓰고, 없으면 (현재골드 + 아이템가치)로 추정해서 보여줌
+  let totalGoldVal = p.totalGold;
+  if (totalGoldVal === undefined || totalGoldVal < p.gold) {
+      const itemsVal = (p.items || []).reduce((sum: number, i: any) => sum + (i.cost || 0), 0);
+      totalGoldVal = Math.floor(p.gold + itemsVal);
+  }
+  
+  const goldStr = `${(totalGoldVal / 1000).toFixed(1)}k`;
+  
   const dmg = p.totalDamageDealt > 1000 
     ? `${(p.totalDamageDealt / 1000).toFixed(1)}k` 
     : p.totalDamageDealt;
@@ -95,11 +105,11 @@ export const PlayerCard = ({ p, isSelected, onClick, heroName, teamColor }: any)
       </div>
 
       <div style={{ textAlign: 'right', marginLeft:'4px', display:'flex', flexDirection:'column', justifyContent:'center', minWidth:'55px', gap:'1px' }}>
-        <div style={{ fontSize: '11px', color: '#fff', fontWeight:'bold', letterSpacing:'-0.5px' }}>
+        <div style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold', letterSpacing:'-0.5px' }}>
           {kda}
         </div>
         <div style={{ fontSize: '10px', color: '#e89d40', fontWeight:'bold' }}>
-          {gold}
+          {goldStr}
         </div>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:'4px', fontSize:'9px', color:'#aaa', marginTop:'2px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'1px' }} title="CS">
@@ -128,11 +138,9 @@ export const ObjectStatBox = ({ stats, color, godName }: any) => {
   if (!stats) return null;
   const hpPercent = (stats.nexusHp / stats.maxNexusHp) * 100;
   
-  // [수정] 타워 표시 순서 변경: [3차] [2차] [1차] 순서로 배치
   const TowerLane = ({ label, brokenCount }: { label: string, brokenCount: number }) => (
     <div style={{ display:'flex', alignItems:'center', gap:'2px', fontSize:'9px', color:'#888', marginBottom:'2px' }}>
       <span style={{ width:'20px', fontWeight:'bold' }}>{label}</span>
-      {/* 3차 -> 2차 -> 1차 순서로 렌더링 (안쪽부터 바깥쪽으로) */}
       {[3, 2, 1].map(tier => {
         const isAlive = brokenCount < tier;
         return (

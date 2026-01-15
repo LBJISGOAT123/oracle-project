@@ -1,11 +1,9 @@
 // ==========================================
 // FILE PATH: /src/engine/match/phases/CombatPhase.ts
 // ==========================================
-import { LiveMatch, Hero, BattleSettings, RoleSettings } from '../../../types';
+import { LiveMatch, Hero, BattleSettings, RoleSettings, LivePlayer } from '../../../types';
 import { getLevelScaledStats } from '../utils/StatUtils';
-import { TargetEvaluator } from '../ai/evaluators/TargetEvaluator';
 import { Collision } from '../utils/Collision';
-import { SpatialGrid } from '../utils/SpatialGrid';
 import { 
     calculateHeroDamage, 
     calculateUnitDamage, 
@@ -14,7 +12,6 @@ import {
     MINION_REWARD 
 } from '../logics/CombatLogic';
 import { PersonalMemory } from '../ai/memory/PersonalMemory';
-import { VisualSystem } from '../systems/VisualSystem';
 
 export const processCombatPhase = (
   match: LiveMatch, 
@@ -25,132 +22,137 @@ export const processCombatPhase = (
   watcherBuffAmount: number,
   dt: number
 ) => {
-  const blueAlive = match.blueTeam.filter(p => p.currentHp > 0 && p.respawnTimer <= 0);
-  const redAlive = match.redTeam.filter(p => p.currentHp > 0 && p.respawnTimer <= 0);
+  const allPlayers = [...match.blueTeam, ...match.redTeam];
 
-  if (blueAlive.length === 0 && redAlive.length === 0) return;
+  allPlayers.forEach(attacker => {
+      if (attacker.currentHp <= 0 || attacker.respawnTimer > 0) return;
+      if (attacker.attackTimer > 0) return;
 
-  const enemyGrid = {
-      BLUE: new SpatialGrid(redAlive),
-      RED: new SpatialGrid(blueAlive)
-  };
-  
-  const minionList = match.minions || [];
-  const minionGrid = {
-      BLUE: new SpatialGrid(minionList.filter(m => m.team === 'RED' && m.hp > 0)),
-      RED: new SpatialGrid(minionList.filter(m => m.team === 'BLUE' && m.hp > 0))
-  };
-
-  const allAttackers = [...blueAlive, ...redAlive];
-  allAttackers.sort(() => Math.random() - 0.5);
-
-  allAttackers.forEach(attacker => {
       const isBlue = match.blueTeam.includes(attacker);
-      const enemyTeamKey = isBlue ? 'BLUE' : 'RED';
-      const teamColor = isBlue ? '#58a6ff' : '#e84057';
+      const enemies = isBlue ? match.redTeam : match.blueTeam;
+      const enemyMinions = match.minions ? match.minions.filter(m => m.team !== (isBlue ? 'BLUE' : 'RED') && m.hp > 0) : [];
+      const jungleMobs = match.jungleMobs ? match.jungleMobs.filter(m => m.isAlive) : [];
 
       const attackerHero = heroes.find(h => h.id === attacker.heroId);
       if (!attackerHero) return;
 
       const atkStats = getLevelScaledStats(attackerHero.stats, attacker.level);
-      const attackRange = atkStats.range / 100;
+      const rangeVal = Math.max(2.5, atkStats.range / 100); 
 
-      let farmed = false;
-      const brain = attacker.stats.brain;
+      // 공속 계산
+      const baseAS = 0.6 + (attacker.stats.mechanics / 200) + (attacker.items.length * 0.1);
+      const attackDelay = 1.0 / baseAS;
 
-      // 1. [미니언 공격]
-      if (match.minions && attacker.lane !== 'JUNGLE') {
-          const nearbyMinions = minionGrid[enemyTeamKey].getNearbyUnits(attacker);
-          const minionsInRange = nearbyMinions.filter(m => Collision.inRange(attacker, m, attackRange));
+      // 1. 영웅 공격
+      const heroesInRange = enemies.filter(e => 
+          e.currentHp > 0 && e.respawnTimer <= 0 && Collision.inRange(attacker, e, rangeVal)
+      );
 
-          if (minionsInRange.length > 0) {
-              const myDamage = calculateUnitDamage(attacker, atkStats, 5, isBlue, settings);
-              let executeThreshold = myDamage * 2.5; 
-              
-              const targetMinion = TargetEvaluator.selectFarmTarget(attacker, minionsInRange, executeThreshold);
-
-              if (targetMinion) {
-                  // [시각 효과] 미니언 평타 (크기 5, 0.5초)
-                  VisualSystem.addEffect(match, {
-                      type: 'PROJECTILE',
-                      x: attacker.x, y: attacker.y,
-                      targetX: targetMinion.x, targetY: targetMinion.y,
-                      color: teamColor,
-                      size: 5 // 잘 보이게 키움
-                  }, 0.5);
-
-                  if (targetMinion.hp <= executeThreshold) targetMinion.hp = 0; 
-                  else targetMinion.hp -= myDamage;
+      if (heroesInRange.length > 0) {
+          const target = heroesInRange.sort((a, b) => (a.currentHp/a.maxHp) - (b.currentHp/b.maxHp))[0];
+          
+          if (target) {
+              const targetHero = heroes.find(h => h.id === target.heroId);
+              if (targetHero) {
+                  const defStats = getLevelScaledStats(targetHero.stats, target.level);
+                  const dmg = calculateHeroDamage(attacker, target, atkStats, defStats, attackerHero, isBlue, settings, roleSettings, watcherBuffType);
                   
-                  attacker.totalDamageDealt += myDamage;
+                  target.currentHp -= dmg;
+                  attacker.totalDamageDealt += dmg;
+                  
+                  attacker.attackTimer = attackDelay;
+                  attacker.lastAttackTime = match.currentDuration;
+                  attacker.lastAttackedTargetId = target.heroId;
 
-                  if (targetMinion.hp <= 0) {
-                      const reward = (MINION_REWARD as any)[targetMinion.type] || MINION_REWARD.MELEE;
-                      attacker.cs++;
-                      attacker.gold += reward.gold;
-                      distributeRewards(match, targetMinion, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
+                  if (target.currentHp <= 0) {
+                      handleHeroKill(match, attacker, target, attackerHero, targetHero, isBlue);
                   }
-                  farmed = true;
               }
+              return; 
           }
       }
 
-      if (farmed) return;
+      // 2. 미니언 & 정글 몹 파밍
+      const minionsInRange = enemyMinions.filter(m => Collision.inRange(attacker, m, rangeVal));
+      const mobsInRange = jungleMobs.filter(m => Collision.inRange(attacker, m, rangeVal));
 
-      // 2. [영웅 공격]
-      if (Math.random() < dt * 2.0) {
-          const nearbyEnemies = enemyGrid[enemyTeamKey].getNearbyUnits(attacker);
-          const targetsInRange = nearbyEnemies.filter(e => Collision.inRange(attacker, e, attackRange));
+      if (minionsInRange.length > 0 || mobsInRange.length > 0) {
+          let targetUnit: any = null;
+          let isJungleMob = false;
 
-          if (targetsInRange.length > 0) {
-              const defender = TargetEvaluator.selectBestTarget(attacker, attackerHero, targetsInRange, heroes, match);
-              if (defender) {
-                // [시각 효과] 영웅 평타 (크기 8, 0.6초) - 아주 잘 보이게
-                VisualSystem.addEffect(match, {
-                    type: 'PROJECTILE',
-                    x: attacker.x, y: attacker.y,
-                    targetX: defender.x, targetY: defender.y,
-                    color: teamColor,
-                    size: 8 
-                }, 0.6);
+          if (attacker.lane === 'JUNGLE' && mobsInRange.length > 0) {
+              targetUnit = mobsInRange[0];
+              isJungleMob = true;
+          } else if (minionsInRange.length > 0) {
+              const myDamage = calculateUnitDamage(attacker, atkStats, 0, isBlue, settings);
+              targetUnit = minionsInRange.find(m => m.hp <= myDamage) || minionsInRange[0];
+          } else if (mobsInRange.length > 0) {
+              targetUnit = mobsInRange[0];
+              isJungleMob = true;
+          }
 
-                attacker.lastAttackTime = match.currentDuration;
-                attacker.lastAttackedTargetId = defender.heroId;
+          if (targetUnit) {
+              const baseDmg = calculateUnitDamage(attacker, atkStats, 0, isBlue, settings);
+              const finalDmg = Math.max(1, baseDmg * (isJungleMob ? 1.5 : 1.0));
 
-                const defenderHero = heroes.find(h => h.id === defender.heroId);
-                if (defenderHero) {
-                    const defStats = getLevelScaledStats(defenderHero.stats, defender.level);
-                    const damage = calculateHeroDamage(attacker, defender, atkStats, defStats, attackerHero, isBlue, settings, roleSettings, watcherBuffType);
-                    
-                    defender.currentHp -= damage;
-                    attacker.totalDamageDealt += damage;
+              targetUnit.hp -= finalDmg;
+              attacker.totalDamageDealt += finalDmg;
+              attacker.attackTimer = attackDelay;
 
-                    // [시각 효과] 피격 (크기 15)
-                    VisualSystem.addEffect(match, {
-                        type: 'HIT',
-                        x: defender.x, y: defender.y,
-                        color: '#ffffff', // 흰색 타격 섬광
-                        size: 15
-                    }, 0.3);
+              if (targetUnit.hp <= 0) {
+                  let reward = { gold: 0, xp: 0 };
+                  
+                  if (isJungleMob) {
+                      targetUnit.isAlive = false;
+                      targetUnit.respawnTimer = targetUnit.configRespawnTime || 60;
+                      reward = { gold: targetUnit.rewardGold || 50, xp: targetUnit.rewardXp || 100 };
+                      if (attacker.lane === 'JUNGLE') {
+                          reward.gold = Math.floor(reward.gold * 1.2);
+                          reward.xp = Math.floor(reward.xp * 1.2);
+                      }
+                  } else {
+                      reward = (MINION_REWARD as any)[targetUnit.type] || MINION_REWARD.MELEE;
+                  }
 
-                    if (defender.currentHp <= 0) {
-                        attacker.kills++; defender.deaths++; attacker.gold += 300;
-                        attacker.killStreak++;
-                        defender.killStreak = 0; 
-                        PersonalMemory.recordEvent(attacker, defender);
-                        distributeAssist(match, attacker, defender, isBlue);
-                        if (isBlue) match.score.blue++; else match.score.red++;
-                        match.logs.push({ 
-                            time: Math.floor(match.currentDuration), 
-                            message: `💀 [${attackerHero.name}]가 [${defenderHero.name}] 처치!`, 
-                            type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
-                        });
-                        defender.currentHp = 0;
-                        defender.respawnTimer = 10 + (defender.level * 2);
-                    }
-                }
+                  attacker.cs++; 
+                  attacker.gold += reward.gold;
+                  attacker.totalGold += reward.gold;
+                  distributeRewards(match, targetUnit, attacker, isBlue ? 'BLUE' : 'RED', reward, heroes);
               }
           }
       }
   });
 };
+
+function handleHeroKill(match: LiveMatch, attacker: LivePlayer, target: LivePlayer, attackerHero: Hero, targetHero: Hero, isBlue: boolean) {
+    attacker.kills++;
+    target.deaths++;
+    attacker.gold += 300;
+    attacker.totalGold += 300;
+    attacker.killStreak++;
+    target.killStreak = 0;
+    
+    // [핵심] 사망 시 주시자 버프 제거
+    if (target.buffs && target.buffs.includes('WATCHER_BUFF')) {
+        target.buffs = target.buffs.filter(b => b !== 'WATCHER_BUFF');
+        match.logs.push({
+            time: Math.floor(match.currentDuration),
+            message: `💔 [${target.name}] 사망하여 주시자의 힘을 잃었습니다.`,
+            type: 'KILL'
+        });
+    }
+
+    distributeAssist(match, attacker, target, isBlue);
+    PersonalMemory.recordEvent(attacker, target);
+
+    if (isBlue) match.score.blue++; else match.score.red++;
+    
+    match.logs.push({ 
+        time: Math.floor(match.currentDuration), 
+        message: `⚔️ [${attackerHero.name}] -> [${targetHero.name}] 처치!`, 
+        type: 'KILL', team: isBlue ? 'BLUE' : 'RED' 
+    });
+
+    target.currentHp = 0;
+    target.respawnTimer = 10 + (target.level * 3); 
+}

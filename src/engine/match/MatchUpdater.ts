@@ -17,14 +17,17 @@ import { MinionSystem } from './systems/MinionSystem';
 import { JungleSystem } from './systems/JungleSystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
 import { ColossusLogic } from './logics/ColossusLogic';
-import { VisualSystem } from './systems/VisualSystem'; // [신규]
+import { VisualSystem } from './systems/VisualSystem';
 
 export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: number): LiveMatch[] {
   const state = useGameStore.getState();
   const shopItems = state.shopItems || []; 
-  
+  const gameSpeed = state.gameState.gameSpeed;
+  const isHighSpeed = gameSpeed > 5;
+
   const { battleSettings, fieldSettings, roleSettings } = state.gameState;
 
+  // [안전장치] 설정값 누락 방지
   const safeField = fieldSettings || { 
     colossus: { hp: 15000, armor: 80, rewardGold: 100, respawnTime: 300, attack: 50 },
     watcher: { hp: 20000, armor: 120, rewardGold: 150, buffType: 'COMBAT', buffAmount: 20, buffDuration: 180, respawnTime: 420 }, 
@@ -45,10 +48,26 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     if (!Array.isArray(m.projectiles)) m.projectiles = [];
     if (!Array.isArray(m.jungleMobs)) m.jungleMobs = [];
     if (!Array.isArray(m.logs)) m.logs = [];
-    // [신규] 이펙트 배열 초기화
     if (!Array.isArray(m.visualEffects)) m.visualEffects = [];
 
+    if (isHighSpeed && m.status === 'PLAYING') {
+       if (m.logs.length > 0) m.logs = [];
+       if (m.visualEffects.length > 0) m.visualEffects = [];
+    }
+
     const match = { ...m, logs: [...m.logs], blueTeam: [...m.blueTeam], redTeam: [...m.redTeam] };
+
+    // [핵심] 진행 중인 게임 데이터 마이그레이션 (Total Gold 복구)
+    [...match.blueTeam, ...match.redTeam].forEach(p => {
+        // totalGold가 없거나 이상하면 복구 (현재 골드 + 아이템 가치)
+        if (p.totalGold === undefined || p.totalGold < p.gold) {
+            const itemValue = p.items.reduce((sum, i) => sum + (i.cost || 0), 0);
+            p.totalGold = Math.floor(p.gold + itemValue);
+        }
+        // 좌표 NaN 방지
+        if (isNaN(p.x)) p.x = 50;
+        if (isNaN(p.y)) p.y = 50;
+    });
 
     if (match.stats.blue.nexusHp <= 0 || match.stats.red.nexusHp <= 0) {
         return match;
@@ -69,7 +88,9 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
 
            if (match.draft.turnIndex >= 20) {
                match.status = 'PLAYING';
-               match.logs.push({ time: 0, message: "미니언 생성! 전군 출격!", type: 'START' });
+               if (!isHighSpeed) {
+                   match.logs.push({ time: 0, message: "미니언 생성! 전군 출격!", type: 'START' });
+               }
 
                const initPlayer = (p: any, isBlue: boolean) => {
                    const h = heroes.find(x => x.id === p.heroId);
@@ -86,6 +107,7 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
                        p.currentRecallTime = 0;
                        p.killStreak = 0;
                        p.bounty = 0;
+                       p.totalGold = 500; // 초기 골드 설정
                    }
                };
                match.blueTeam.forEach(p => initPlayer(p, true));
@@ -129,8 +151,9 @@ export function updateLiveMatches(matches: LiveMatch[], heroes: Hero[], delta: n
     JungleSystem.update(match, delta);
     ProjectileSystem.update(match, delta);
     
-    // [신규] 시각 효과 업데이트
-    VisualSystem.update(match, delta);
+    if (!isHighSpeed) {
+        VisualSystem.update(match, delta);
+    }
 
     return match;
   });

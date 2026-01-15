@@ -1,18 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { exportSaveFile, importSaveFile } from '../../engine/SaveLoadSystem';
-// [신규] 다운로더 임포트
 import { downloadAllResources, checkCachedStatus } from '../../utils/ResourceDownloader';
 import { 
-  Bot, Key, CheckCircle, Download, Upload, Trash2, RefreshCw, 
-  Map as MapIcon, Image as ImageIcon, Database, CloudLightning, Loader2 
+  Bot, CheckCircle, Download, Upload, Trash2, RefreshCw, 
+  Map as MapIcon, Image as ImageIcon, Database, CloudLightning, Monitor
 } from 'lucide-react';
 
 export const OptionTab: React.FC = () => {
-  const { gameState, heroes, shopItems, updateAIConfig, resetHeroStats, hardReset, loadModData, setCustomImage, removeCustomImage } = useGameStore();
+  const { gameState, heroes, shopItems, updateAIConfig, resetHeroStats, hardReset, loadModData, setCustomImage, removeCustomImage, setGameState } = useGameStore();
   const [aiSettings, setAiSettings] = useState(gameState.aiConfig);
-  
-  // [신규] 다운로드 상태 관리
   const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [cachedCount, setCachedCount] = useState(0);
@@ -62,7 +59,6 @@ export const OptionTab: React.FC = () => {
     }
   };
 
-  // 기존 함수들 유지
   const handleExportMod = () => {
     const cleanHeroes = heroes.map(h => ({
       id: h.id, name: h.name, role: h.role, concept: h.concept, stats: h.stats, skills: h.skills
@@ -122,13 +118,33 @@ export const OptionTab: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
-      {/* 1. [신규] 리소스 다운로드 섹션 */}
+      {/* 1. 성능 및 리소스 */}
       <div style={{ background: '#161b22', padding: '15px', borderRadius: '8px', border: '1px solid #30363d' }}>
         <h4 style={{ margin:'0 0 10px 0', color:'#f1c40f', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
-          <CloudLightning size={16}/> 게임 리소스 최적화
+          <Monitor size={16}/> 성능 최적화
         </h4>
+        
+        {/* [신규] 최대 게임 수 제한 */}
+        <div style={{ marginBottom:'15px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', color:'#ccc', marginBottom:'6px' }}>
+                <span>최대 동시 진행 게임 수</span>
+                <span style={{ fontWeight:'bold', color:'#58a6ff' }}>{gameState.maxMatches || 20}판</span>
+            </div>
+            <input 
+                type="range" 
+                min={1} max={100} step={1} 
+                value={gameState.maxMatches || 20} 
+                onChange={(e) => setGameState({ maxMatches: Number(e.target.value) })}
+                style={{ width:'100%', accentColor:'#58a6ff', cursor:'pointer' }}
+            />
+            <div style={{ fontSize:'10px', color:'#888', marginTop:'4px' }}>
+                * 낮을수록 렉이 줄어듭니다. (권장: 모바일 10~20, PC 30~50)
+            </div>
+        </div>
+
+        <div style={{ borderTop:'1px dashed #333', margin:'10px 0' }}></div>
+
         <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
-          이미지가 느리게 뜬다면 리소스를 미리 다운로드하세요.<br/>
           현재 저장된 리소스: <span style={{color:'#fff', fontWeight:'bold'}}>{cachedCount}개</span>
         </div>
         
@@ -148,7 +164,7 @@ export const OptionTab: React.FC = () => {
             className="btn" 
             style={{ width:'100%', background: '#d29922', color: '#000', border:'none', fontSize:'13px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', padding:'10px' }}
           >
-            <Database size={16}/> 리소스 전체 다운로드 (Fast Load)
+            <CloudLightning size={16}/> 리소스 전체 다운로드 (Fast Load)
           </button>
         )}
       </div>
@@ -160,9 +176,6 @@ export const OptionTab: React.FC = () => {
         <h4 style={{ margin:'0 0 10px 0', color:'#2ecc71', display:'flex', alignItems:'center', gap:'6px', fontSize:'14px' }}>
           <MapIcon size={16}/> 전장(Map) 스킨 설정
         </h4>
-        <div style={{ fontSize: '11px', color: '#8b949e', marginBottom: '10px' }}>
-          AI로 생성한 맵 이미지를 업로드하면 관전 배경에 적용됩니다.
-        </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => mapInputRef.current?.click()} className="btn" style={{ flex: 2, background: '#238636', color: '#fff', border:'none', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
             <ImageIcon size={14}/> 맵 이미지 업로드

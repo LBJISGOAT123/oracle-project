@@ -5,45 +5,59 @@ import { LiveMatch } from '../../../types';
 import { useGameStore } from '../../../store/useGameStore';
 import { POI, getDistance, BASES } from '../../data/MapData';
 
+// [거신병 보상]
 export function applyColossusReward(match: LiveMatch, isBlueTeam: boolean) {
   const teamName = isBlueTeam ? '단테' : '이즈마한';
-  const teamColor = isBlueTeam ? 'BLUE' : 'RED';
+  const teamColor = isBlueTeam ? '#58a6ff' : '#e84057';
+  const teamCode = isBlueTeam ? 'BLUE' : 'RED';
+  
   const stats = isBlueTeam ? match.stats.blue : match.stats.red;
-  const settings = useGameStore.getState().gameState.fieldSettings.colossus;
-  const stackCount = stats.colossus; 
-  const scaleFactor = 1.0 + Math.max(0, stackCount - 1) * 0.1;
-
+  stats.colossus++;
+  const scaleFactor = 1.0 + (stats.colossus * 0.2); 
   stats.activeBuffs.siegeUnit = true;
 
   if (!match.minions) match.minions = [];
   const startPos = isBlueTeam ? BASES.BLUE : BASES.RED;
   
-  const baseHp = settings.hp || 15000;
-  const baseAtk = settings.attack || 300;
-  const baseArmor = settings.armor || 100;
-  const finalHp = Math.floor(baseHp * scaleFactor);
-  const finalAtk = Math.floor(baseAtk * scaleFactor);
-  const finalArmor = Math.floor(baseArmor * scaleFactor);
+  const finalHp = Math.floor(15000 * scaleFactor);
+  const finalAtk = Math.floor(300 * scaleFactor);
+  const finalArmor = Math.floor(100 * scaleFactor);
 
   match.minions.push({
     id: `summoned_colossus_${Date.now()}`,
     type: 'SUMMONED_COLOSSUS',
-    team: teamColor,
+    team: teamCode,
     lane: 'MID', 
     x: startPos.x, y: startPos.y,
     hp: finalHp, maxHp: finalHp, atk: finalAtk,
     // @ts-ignore
-    armor: finalArmor,
-    pathIdx: 0
+    armor: finalArmor, pathIdx: 0
   });
 
-  const upgradeMsg = stackCount > 1 ? ` (Lv.${stackCount} 강화: +${Math.round((scaleFactor-1)*100)}%)` : '';
-  match.logs.push({ time: match.currentDuration, message: `🤖 ${teamName} 진영이 거신병을 소환했습니다!${upgradeMsg} 미드 라인으로 진격합니다!`, type: 'COLOSSUS', team: teamColor });
+  match.logs.push({ 
+    time: Math.floor(match.currentDuration), 
+    message: `🤖 [거신병] ${teamName} 팀이 거신병을 소환했습니다!`, 
+    type: 'COLOSSUS', team: teamCode 
+  });
+
+  // 알림 트리거
+  useGameStore.getState().setAnnouncement({
+      type: 'OBJECTIVE',
+      title: '거신병 해킹 성공!',
+      subtext: `${teamName} 진영이 거신병을 해킹하여 소환했습니다.`,
+      color: teamColor,
+      duration: 5.0,
+      createdAt: Date.now()
+  });
 }
 
+// [주시자 보상]
 export function applyWatcherReward(match: LiveMatch, isBlueTeam: boolean) {
   const teamName = isBlueTeam ? '단테' : '이즈마한';
-  const teamColor = isBlueTeam ? 'BLUE' : 'RED';
+  const teamCode = isBlueTeam ? 'BLUE' : 'RED';
+
+  const stats = isBlueTeam ? match.stats.blue : match.stats.red;
+  stats.watcher++;
   
   const allies = isBlueTeam ? match.blueTeam : match.redTeam;
   allies.forEach(p => {
@@ -55,10 +69,20 @@ export function applyWatcherReward(match: LiveMatch, isBlueTeam: boolean) {
   });
 
   match.logs.push({
-    time: match.currentDuration,
-    message: `👁️ ${teamName} 진영이 공허의 힘을 얻었습니다! (사망 시 소실)`,
+    time: Math.floor(match.currentDuration),
+    message: `👁️ [주시자] ${teamName} 팀이 공허의 힘을 획득했습니다!`,
     type: 'WATCHER',
-    team: teamColor
+    team: teamCode
+  });
+
+  // 알림 트리거
+  useGameStore.getState().setAnnouncement({
+      type: 'OBJECTIVE',
+      title: '심연의 주시자 처치!',
+      subtext: `${teamName} 진영이 주시자를 처형하고 공허의 힘을 흡수합니다!`,
+      color: '#f1c40f',
+      duration: 5.0,
+      createdAt: Date.now()
   });
 }
 
@@ -73,52 +97,74 @@ export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt
             obj.status = 'ALIVE';
             obj.hp = setting.hp;
             obj.maxHp = setting.hp;
-            // 부활 시 마지막 공격 시간 초기화
             (obj as any).lastAttackedTime = 0;
-            match.logs.push({ time: match.currentDuration, message: `📢 ${type === 'colossus' ? '거신병' : '주시자'}가 전장에 등장했습니다!`, type: 'START' });
+            
+            match.logs.push({ 
+                time: Math.floor(match.currentDuration), 
+                message: `📢 ${type === 'colossus' ? '거신병' : '주시자'}가 전장에 등장했습니다!`, 
+                type: 'START' 
+            });
         }
 
-        // 2. 살아있을 때 로직 (피격 및 회복)
+        // 2. 전투 로직
         if (obj.status === 'ALIVE') {
             const objectivePos = type === 'colossus' ? POI.BARON : POI.DRAGON;
             
-            // 주변 15거리 내에 살아있는 영웅이 있는지 확인 (어그로 범위)
-            const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(p => p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, objectivePos) < 15);
+            // 주변 12거리 내의 살아있는 영웅들 탐색
+            const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(p => 
+                p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, objectivePos) < 12
+            );
 
             if (nearbyHeroes.length > 0) {
-                // [전투 중] 데미지 입음
-                const dps = nearbyHeroes.reduce((sum, p) => sum + (p.level * 15) + (p.items.length * 10), 0);
-                obj.hp -= dps * dt;
+                // 팀별 DPS 계산
+                let blueDmg = 0;
+                let redDmg = 0;
+
+                nearbyHeroes.forEach(p => {
+                    const dmg = (p.level * 30) + (p.items.length * 20); // 대략적인 영웅 DPS
+                    if (match.blueTeam.includes(p)) blueDmg += dmg;
+                    else redDmg += dmg;
+                });
+
+                // 총 데미지 (이번 틱)
+                const totalDmgTick = (blueDmg + redDmg) * dt;
                 
-                // 마지막 공격 시간 기록
+                // [오브젝트 반격]
+                const damagePerHero = (setting.attack || 50) * dt;
+                nearbyHeroes.forEach(h => { h.currentHp -= damagePerHero; });
                 (obj as any).lastAttackedTime = match.currentDuration;
 
-                if (obj.hp <= 0) {
+                // [처치 판정]
+                // 이번 틱 데미지로 죽는가?
+                if (obj.hp <= totalDmgTick) {
+                    obj.hp = 0;
                     obj.status = 'DEAD';
                     obj.nextSpawnTime = match.currentDuration + (setting.respawnTime || 300);
 
-                    const blueCnt = nearbyHeroes.filter(p => match.blueTeam.includes(p)).length;
-                    const redCnt = nearbyHeroes.length - blueCnt;
-                    const isBlueWin = blueCnt >= redCnt;
-
-                    if (type === 'colossus') {
-                        match.stats[isBlueWin ? 'blue' : 'red'].colossus++;
-                        applyColossusReward(match, isBlueWin);
+                    // [핵심 수정] 머릿수가 아니라 "데미지 비중"으로 확률적 막타 판정
+                    // (스틸의 묘미를 살리기 위해, 데미지가 쎈 쪽이 확률이 높음)
+                    const totalDps = blueDmg + redDmg;
+                    if (totalDps > 0) {
+                        const blueChance = blueDmg / totalDps;
+                        const isBlueWin = Math.random() < blueChance;
+                        
+                        if (type === 'colossus') applyColossusReward(match, isBlueWin);
+                        else applyWatcherReward(match, isBlueWin);
                     } else {
-                        match.stats[isBlueWin ? 'blue' : 'red'].watcher++;
-                        applyWatcherReward(match, isBlueWin);
+                        // 만약 둘다 0데미지라면(그럴리 없겠지만), 머릿수로 fallback
+                        const blueCnt = nearbyHeroes.filter(p => match.blueTeam.includes(p)).length;
+                        if (type === 'colossus') applyColossusReward(match, blueCnt > 0);
+                        else applyWatcherReward(match, blueCnt > 0);
                     }
+                } else {
+                    // 안 죽었으면 체력 감소
+                    obj.hp -= totalDmgTick;
                 }
             } else {
-                // [비전투 상태] -> 회복(Reset) 로직
+                // [리셋] 비전투 시 회복
                 const lastAttacked = (obj as any).lastAttackedTime || 0;
-                
-                // 마지막 공격으로부터 10초가 지났고, 체력이 깎여있다면
                 if (match.currentDuration - lastAttacked > 10 && obj.hp < obj.maxHp) {
-                    // 초당 최대 체력의 20%씩 고속 회복
-                    const regenAmount = obj.maxHp * 0.2 * dt;
-                    obj.hp += regenAmount;
-                    
+                    obj.hp += obj.maxHp * 0.1 * dt; 
                     if (obj.hp > obj.maxHp) obj.hp = obj.maxHp;
                 }
             }

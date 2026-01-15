@@ -2,42 +2,6 @@
 // FILE PATH: /src/components/battle/spectate/map/MapConstants.ts
 // ==========================================
 
-export const TOWER_COORDS = {
-  BLUE: {
-    TOP: [
-      {x: 8, y: 35}, 
-      {x: 8, y: 55}, 
-      {x: 10, y: 75}
-    ],
-    MID: [
-      {x: 40, y: 60}, 
-      {x: 30, y: 70}, 
-      {x: 22, y: 78}
-    ],
-    BOT: [
-      {x: 75, y: 92}, 
-      {x: 50, y: 90}, 
-      {x: 25, y: 88}
-    ],
-    NEXUS: {x: 12, y: 88}
-  },
-  RED: {
-    // [원복] 타워 좌표를 원래대로 되돌립니다.
-    TOP: [
-      {x: 45, y: 10}, 
-      {x: 65, y: 12}, 
-      {x: 80, y: 15}
-    ],
-    MID: [
-      {x: 60, y: 40}, 
-      {x: 70, y: 30}, 
-      {x: 78, y: 22}
-    ],
-    BOT: [
-      {x: 92, y: 65}, 
-      {x: 92, y: 45}, 
-      {x: 88, y: 25}
-    ],
-    NEXUS: {x: 88, y: 12}
-  }
-};
+// [핵심] 뷰(View) 전용 상수를 따로 만들지 않고, 엔진의 상수를 그대로 내보냅니다.
+// 이제 화면에 그리는 좌표와 AI가 계산하는 좌표는 완벽하게 동일합니다.
+export { TOWER_COORDS, BASES, POI } from '../../../../engine/match/constants/MapConstants';

@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/engine/match/MatchCreator.ts
-// ==========================================
 import { Hero, LiveMatch, LivePlayer, TierConfig } from '../../types';
 import { userPool, getTierNameHelper } from '../system/UserManager';
 import { useGameStore } from '../../store/useGameStore';
@@ -32,14 +29,16 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
 
       return {
         name: user.name, heroId: '', 
-        kills: 0, deaths: 0, assists: 0, gold: 500, cs: 0, totalDamageDealt: 0, 
+        kills: 0, deaths: 0, assists: 0, 
+        gold: 500, totalGold: 500, 
+        cs: 0, totalDamageDealt: 0, 
         currentHp: 1000, maxHp: 1000, currentMp: 300, maxMp: 300, mpRegen: 5,
         level: 1, items: [], 
         x: base.x, y: base.y, 
         lane: lane, buffs: [], mmr: user.hiddenMmr, respawnTimer: 0,
         stats: { brain: user.brain || 50, mechanics: user.mechanics || 50 },
-        // [중요] 쿨타임 및 귀환 관련 초기화
         cooldowns: { q: 0, w: 0, e: 0, r: 0 },
+        attackTimer: 0, // [초기화] 공격 타이머 0
         isRecalling: false,
         currentRecallTime: 0,
         recallCooldown: 0,
@@ -86,7 +85,8 @@ export function createLiveMatches(heroes: Hero[], ccu: number, currentTime: numb
         watcher: { hp: 0, maxHp: 10000, status: 'DEAD', nextSpawnTime: state.fieldSettings.watcher.initialSpawnTime }
       },
       minions: [], projectiles: [], 
-      jungleMobs: jungleMobs as any 
+      jungleMobs: jungleMobs as any,
+      visualEffects: []
     });
   }
   return newMatches;

@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/types/index.ts
-// ==========================================
 export * from './user';
 export * from './hero';
 export * from './match';
@@ -17,38 +14,24 @@ export interface Item {
 }
 
 export interface ItemStatData { itemId: string; totalPicks: number; totalWins: number; totalKills: number; totalDeaths: number; totalAssists: number; }
-
 export interface ObjectStats { hp: number; armor: number; rewardGold: number; atk?: number; }
 
 export interface ColossusSettings extends ObjectStats { 
-  attack: number; 
-  initialSpawnTime: number; 
-  respawnTime: number;
-  dmgFromHero: number;   
-  dmgFromMinion: number; 
-  dmgFromTower: number;  
+  attack: number; initialSpawnTime: number; respawnTime: number;
+  dmgFromHero: number; dmgFromMinion: number; dmgFromTower: number;  
 }
-
 export interface WatcherSettings extends ObjectStats { buffType: 'COMBAT' | 'GOLD'; buffAmount: number; buffDuration: number; initialSpawnTime: number; respawnTime: number; }
 export interface JungleSettings { density: number; threat: number; yield: number; attack: number; defense: number; xp: number; gold: number; initialSpawnTime: number; respawnTime: number; }
 
 export interface Vector2 { x: number; y: number; }
 export interface MapPositions {
-  colossus: Vector2;
-  watcher: Vector2;
-  jungle: Vector2[];
-  towers: {
-    blue: { top: Vector2[]; mid: Vector2[]; bot: Vector2[]; nexus: Vector2; };
-    red: { top: Vector2[]; mid: Vector2[]; bot: Vector2[]; nexus: Vector2; };
-  };
+  colossus: Vector2; watcher: Vector2; jungle: Vector2[];
+  towers: { blue: { top: Vector2[]; mid: Vector2[]; bot: Vector2[]; nexus: Vector2; }; red: { top: Vector2[]; mid: Vector2[]; bot: Vector2[]; nexus: Vector2; }; };
 }
 
 export interface BattlefieldSettings { 
   towers: { t1: ObjectStats; t2: ObjectStats; t3: ObjectStats; nexus: ObjectStats; };
-  colossus: ColossusSettings; 
-  watcher: WatcherSettings; 
-  jungle: JungleSettings; 
-  positions: MapPositions;
+  colossus: ColossusSettings; watcher: WatcherSettings; jungle: JungleSettings; positions: MapPositions;
 }
 
 export interface RoleSettings { executor: { damage: number; defense: number }; tracker: { gold: number; smiteChance: number }; prophet: { cdrPerLevel: number }; slayer: { structureDamage: number }; guardian: { survivalRate: number }; }
@@ -59,55 +42,24 @@ export interface GodSettings {
   minions: { melee: MinionStats; ranged: MinionStats; siege: MinionStats; };
   servantGold: number; servantXp: number; 
 }
-
-// [수정] 경제 설정 확장 (현상금 시스템)
-export interface EconomySettings { 
-  minionGold: number; 
-  minionXp: number;
-  
-  killGold: number;       // 기본 킬 골드
-  goldPerLevel: number;   // [신규] 적 레벨당 추가 골드
-  bountyIncrement: number;// [신규] 연속 킬당 현상금 증가량
-  
-  assistPool: number;     
-  killXpBase: number;     
-  killXpPerLevel: number; 
-}
-
-export interface SiegeSettings {
-  minionDmg: number; cannonDmg: number; superDmg: number;
-  dmgToHero: number; dmgToT1: number; dmgToT2: number; dmgToT3: number; dmgToNexus: number;
-  colossusToHero: number; colossusToT1: number; colossusToT2: number; colossusToT3: number; colossusToNexus: number;
-}
-
-export interface GrowthIntervals {
-  early: number; 
-  mid: number;   
-  late: number;  
-}
-
-export interface GrowthSettings {
-  hp: GrowthIntervals;
-  ad: GrowthIntervals;
-  ap: GrowthIntervals;
-  armor: GrowthIntervals;
-  baseAtk: GrowthIntervals;
-  regen: GrowthIntervals;
-  respawnPerLevel: number; 
-  recallTime: number;      
-}
-
-export interface BattleSettings { 
-  izman: GodSettings; 
-  dante: GodSettings; 
-  economy: EconomySettings; 
-  siege: SiegeSettings; 
-}
-
+export interface EconomySettings { minionGold: number; minionXp: number; killGold: number; goldPerLevel: number; bountyIncrement: number; assistPool: number; killXpBase: number; killXpPerLevel: number; }
+export interface SiegeSettings { minionDmg: number; cannonDmg: number; superDmg: number; dmgToHero: number; dmgToT1: number; dmgToT2: number; dmgToT3: number; dmgToNexus: number; colossusToHero: number; colossusToT1: number; colossusToT2: number; colossusToT3: number; colossusToNexus: number; }
+export interface GrowthIntervals { early: number; mid: number; late: number; }
+export interface GrowthSettings { hp: GrowthIntervals; ad: GrowthIntervals; ap: GrowthIntervals; armor: GrowthIntervals; baseAtk: GrowthIntervals; regen: GrowthIntervals; respawnPerLevel: number; recallTime: number; }
+export interface BattleSettings { izman: GodSettings; dante: GodSettings; economy: EconomySettings; siege: SiegeSettings; }
 export interface AIConfig { provider: 'GEMINI' | 'OPENAI'; apiKey: string; model: string; enabled: boolean; }
 export interface GodStats { totalMatches: number; izmanWins: number; izmanAvgKills: string; izmanAvgTime: string; danteWins: number; danteAvgKills: string; danteAvgTime: string; avgGameDuration: number; guardianDeathRate: number; godAwakenRate: number; }
 export interface Comment { id: number; author: string; authorTier: string; content: string; timestamp: string; }
 export interface Post { id: number; author: string; authorTier: string; title: string; content: string; category: '공략' | '유머' | '징징' | '분석' | '잡담' | '질문' | '자랑' | '공지'; views: number; upvotes: number; downvotes: number; comments: number; commentList: Comment[]; createdAt: number; potential: number; isBest: boolean; displayTime: string; }
+
+export interface Announcement {
+  type: 'SYSTEM' | 'KILL' | 'OBJECTIVE';
+  title: string;
+  subtext: string;
+  color: string;
+  duration: number;
+  createdAt: number; // [신규] 생성 시간 (유통기한 체크용)
+}
 
 import { UserProfile, UserStatus } from './user';
 import { LiveMatch, LivePlayer } from './match';
@@ -115,7 +67,7 @@ import { LiveMatch, LivePlayer } from './match';
 export interface GameState { 
   season: number; day: number; hour: number; minute: number; second: number; 
   isPlaying: boolean; gameSpeed: number; userSentiment: number; 
-  ccu: number; totalUsers: number; 
+  ccu: number; totalUsers: number; maxMatches: number;
   userStatus: UserStatus; topRankers: UserProfile[]; godStats: GodStats; 
   liveMatches: LiveMatch[]; 
   tierConfig: TierConfig; battleSettings: BattleSettings; fieldSettings: BattlefieldSettings; 
@@ -124,35 +76,16 @@ export interface GameState {
   itemStats: Record<string, ItemStatData>; customImages: Record<string, string>; 
 }
 
-export interface Minion {
-  id: string;
-  team: 'BLUE' | 'RED';
-  lane: 'TOP' | 'MID' | 'BOT';
-  type: 'MELEE' | 'RANGED' | 'SIEGE' | 'SUMMONED_COLOSSUS';
-  x: number;
-  y: number;
-  hp: number;
-  maxHp: number;
-  atk: number;
-  pathIdx: number;
-  targetId?: string; 
-  armor?: number; 
-}
-
+export interface Minion { id: string; team: 'BLUE' | 'RED'; lane: 'TOP' | 'MID' | 'BOT'; type: 'MELEE' | 'RANGED' | 'SIEGE' | 'SUMMONED_COLOSSUS'; x: number; y: number; hp: number; maxHp: number; atk: number; pathIdx: number; targetId?: string; armor?: number; }
 export interface HeroSlice { heroes: any[]; addHero: (hero: any) => void; deleteHero: (heroId: string) => void; updateHero: (id: string, updates: any) => void; resetHeroStats: () => void; }
 export interface ItemSlice { shopItems: Item[]; addItem: (item: Item) => void; deleteItem: (id: string) => void; updateItem: (id: string, updates: Partial<Item>) => void; }
 export interface CommunitySlice { communityPosts: Post[]; selectedPost: Post | null; openPost: (post: Post) => void; closePost: () => void; setCommunityPosts: (posts: Post[]) => void; }
-export interface SettingSlice { 
-  updateBattleSettings: (settings: any) => void; 
-  updateFieldSettings: (settings: any) => void; 
-  updateTierConfig: (config: TierConfig) => void; 
-  updateAIConfig: (config: Partial<AIConfig>) => void; 
-  updateRoleSettings: (settings: Partial<RoleSettings>) => void; 
-  updateGrowthSettings: (settings: Partial<GrowthSettings>) => void; 
-  setCustomImage: (id: string, imageData: string) => void; 
-  removeCustomImage: (id: string) => void; 
-  loadModData: (modData: any) => void; 
-  updateObjectPosition: (key: string, x: number, y: number) => void;
-}
+export interface SettingSlice { updateBattleSettings: (settings: any) => void; updateFieldSettings: (settings: any) => void; updateTierConfig: (config: TierConfig) => void; updateAIConfig: (config: Partial<AIConfig>) => void; updateRoleSettings: (settings: Partial<RoleSettings>) => void; updateGrowthSettings: (settings: Partial<GrowthSettings>) => void; setCustomImage: (id: string, imageData: string) => void; removeCustomImage: (id: string) => void; loadModData: (modData: any) => void; updateObjectPosition: (key: string, x: number, y: number) => void; }
 export interface GameSlice { gameState: GameState; setSpeed: (speed: number) => void; togglePlay: () => void; setGameState: (updates: Partial<GameState>) => void; tick: (deltaSeconds: number) => void; hardReset: () => void; }
-export type GameStore = HeroSlice & ItemSlice & CommunitySlice & GameSlice & SettingSlice;
+
+export interface UISlice {
+  announcement: Announcement | null;
+  setAnnouncement: (ann: Announcement | null) => void;
+}
+
+export type GameStore = HeroSlice & ItemSlice & CommunitySlice & GameSlice & SettingSlice & UISlice;

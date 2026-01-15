@@ -34,10 +34,14 @@ export const SpectateHeader: React.FC<Props> = ({
       </div>
       
       <div style={{ display:'flex', justifyContent:'center', gap:'8px' }}>
-          <button onClick={onTogglePlay} style={{ width:'50px', height:'30px', borderRadius:'4px', background: isPlaying ? '#ff7675' : '#55efc4', color:'#000', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <button onClick={onTogglePlay} style={{ width:'50px', height:'28px', borderRadius:'4px', background: isPlaying ? '#ff7675' : '#55efc4', color:'#000', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
             {isPlaying ? <Pause size={16}/> : <Play size={16}/>}
           </button>
-          {[1, 10, 60].map(s => <SpeedButton key={s} label={`${s}배`} speed={s} currentSpeed={gameSpeed} setSpeed={onSetSpeed} />)}
+          
+          {/* [수정] 배속 옵션 변경: 1배, 5배, 10배 */}
+          {[1, 5, 10].map(s => (
+            <SpeedButton key={s} label={`${s}배`} speed={s} currentSpeed={gameSpeed} setSpeed={onSetSpeed} />
+          ))}
       </div>
       
       {isMobile && (

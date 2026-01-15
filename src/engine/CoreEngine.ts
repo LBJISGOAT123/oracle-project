@@ -1,6 +1,3 @@
-// ==========================================
-// FILE PATH: /src/engine/CoreEngine.ts
-// ==========================================
 import { GameState, Hero, Post } from '../types';
 import { updateLiveMatches } from './match/MatchUpdater';
 import { createLiveMatches } from './match/MatchCreator';
@@ -11,19 +8,14 @@ import { analyzeHeroMeta, calculateUserEcosystem } from './system/RankingSystem'
 import { updatePostInteractions, generatePostAsync } from './system/CommunityEngine';
 import { calculateTargetSentiment, smoothSentiment } from './system/SentimentEngine';
 
-// [핵심] 
-// 1. 고정 타임 스텝: 0.1초 (10 FPS 정밀도)
-// 2. 최대 루프: 36000 (1시간을 0.1초로 쪼개도 소화 가능하도록 대폭 상향)
-const FIXED_STEP = 0.1; 
-const MAX_STEPS = 36000; 
-
 export class CoreEngine {
   static processTick(
     initialState: GameState,
     initialHeroes: Hero[],
     initialPosts: Post[],
     totalDelta: number,
-    updateStateCallback: (updates: Partial<GameState>, newHeroes?: Hero[], newPosts?: Post[]) => void
+    baseStepSize: number, 
+    updateStateCallback: (updates: Partial<GameState>, newHeroes: Hero[], newPosts: Post[], remainingTime: number) => void
   ) {
     try {
       let currentState = { ...initialState };
@@ -31,99 +23,88 @@ export class CoreEngine {
       let currentPosts = [...initialPosts];
       
       let remainingTime = totalDelta;
-      let loopCount = 0;
+      let currentStep = baseStepSize;
+      
+      if (remainingTime > 600) currentStep = 10.0;      
+      else if (remainingTime > 60) currentStep = 1.0;   
+      else if (remainingTime > 5) currentStep = 0.5;    
 
-      // [수정] 남은 시간이 FIXED_STEP보다 작아질 때까지 무조건 반복
-      // "1분"을 누르면 이 루프가 600번 돕니다. (컴퓨터에겐 순식간임)
-      while (remainingTime >= FIXED_STEP && loopCount < MAX_STEPS) {
-        
-        // 무조건 0.1초씩만 진행
-        const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, FIXED_STEP);
-        
+      let loopCount = 0;
+      const MAX_LOOPS = 200; 
+
+      while (remainingTime >= currentStep && loopCount < MAX_LOOPS) {
+        const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, currentStep);
         currentState = { ...currentState, ...result.stateUpdates };
         if (result.newHeroes) currentHeroes = result.newHeroes;
         if (result.newPosts) currentPosts = result.newPosts;
-
-        remainingTime -= FIXED_STEP;
+        remainingTime -= currentStep;
         loopCount++;
       }
-
-      // 0.1초 미만의 자투리 시간 처리 (예: 0.04초)
-      // 이 정도는 순간이동해도 타워 사거리를 못 벗어나므로 안전함
-      if (remainingTime > 0) {
-           const result = this.executeSingleStep(currentState, currentHeroes, currentPosts, remainingTime);
-           currentState = { ...currentState, ...result.stateUpdates };
-      }
-
-      updateStateCallback(currentState, currentHeroes, currentPosts);
-
-    } catch (err) {
-      console.error("Critical Engine Error:", err);
-    }
+      updateStateCallback(currentState, currentHeroes, currentPosts, remainingTime);
+    } catch (err) { console.error("Critical Engine Error:", err); }
   }
 
-  private static executeSingleStep(
-    state: GameState,
-    heroes: Hero[],
-    posts: Post[],
-    deltaSeconds: number
-  ) {
+  private static executeSingleStep(state: GameState, heroes: Hero[], posts: Post[], deltaSeconds: number) {
     let { hour, minute, second, day, totalUsers, tierConfig, liveMatches, godStats, itemStats } = state;
 
-    // A. 시간 흐름
     second += deltaSeconds;
     if (second >= 60) {
-      const extraMinutes = Math.floor(second / 60);
-      second %= 60;
-      minute += extraMinutes;
+      const extraMinutes = Math.floor(second / 60); second %= 60; minute += extraMinutes;
       if (minute >= 60) {
-        const extraHours = Math.floor(minute / 60);
-        minute %= 60;
-        hour += extraHours;
-        if (hour >= 24) {
-          const extraDays = Math.floor(hour / 24);
-          hour %= 24;
-          day += extraDays;
-        }
+        const extraHours = Math.floor(minute / 60); minute %= 60; hour += extraHours;
+        if (hour >= 24) { const extraDays = Math.floor(hour / 24); hour %= 24; day += extraDays; }
       }
     }
-
     const currentTotalMinutes = day * 1440 + hour * 60 + Math.floor(minute);
     const isNewMinute = Math.floor(minute) !== Math.floor(state.minute);
+    const isNewHour = Math.floor(hour) !== Math.floor(state.hour);
+    const onlineCount = userPool ? userPool.filter(u => u.status !== 'OFFLINE').length : 0;
 
     if (!userPool || userPool.length === 0) {
       if (heroes.length > 0) initUserPool(heroes, totalUsers);
-      return { stateUpdates: { second, minute, hour, day }, newHeroes: heroes, newPosts: posts };
+      return { stateUpdates: { second, minute, hour, day, ccu: 0 }, newHeroes: heroes, newPosts: posts };
     }
+    if (isNewMinute && Math.floor(minute) % 10 === 0) UserActivitySystem.updateTraffic(hour + (minute/60), userPool);
 
-    // B. 유저 활동 (1분 단위)
-    if (isNewMinute) {
-       UserActivitySystem.updateTraffic(hour + (minute/60), userPool);
-    }
-
-    // C. 매치 업데이트
     let updatedMatches = [...liveMatches];
     const nextGodStats = { ...godStats };
     const nextItemStats = { ...itemStats }; 
 
     try {
-      const processedMatches = updateLiveMatches(updatedMatches, heroes, deltaSeconds);
+      updatedMatches = updateLiveMatches(updatedMatches, heroes, deltaSeconds);
       
-      updatedMatches = processedMatches.map(m => ({
-          ...m,
-          logs: m.logs.length > 15 ? m.logs.slice(-15) : [...m.logs],
-      }));
+      // [AutoFix] 데이터 무결성 강제 보정 (체력 NaN 복구 및 마나 오버플로우 방지)
+      updatedMatches.forEach(match => {
+          [...match.blueTeam, ...match.redTeam].forEach(p => {
+              // HP NaN 복구
+              if (isNaN(p.currentHp) || p.currentHp === Infinity) {
+                  p.currentHp = p.respawnTimer > 0 ? 0 : (p.maxHp || 1000);
+              }
+              if (isNaN(p.maxHp) || p.maxHp <= 0) p.maxHp = 1000;
+              
+              // MP NaN 복구
+              if (isNaN(p.currentMp)) p.currentMp = 0;
+              if (isNaN(p.maxMp)) p.maxMp = 300;
+
+              // [핵심] 체력/마나가 최대치보다 크면 잘라냄 (Clamp)
+              if (p.currentHp > p.maxHp) p.currentHp = p.maxHp;
+              if (p.currentMp > p.maxMp) p.currentMp = p.maxMp;
+
+              if (isNaN(p.gold)) p.gold = 0;
+              if (isNaN(p.totalGold)) p.totalGold = p.gold;
+              if (isNaN(p.x)) p.x = 50; 
+              if (isNaN(p.y)) p.y = 50;
+          });
+      });
 
       const isMatchEnded = (m: any) => (m.stats.blue.nexusHp <= 0 || m.stats.red.nexusHp <= 0);
       const endedMatches = updatedMatches.filter(m => isMatchEnded(m));
       updatedMatches = updatedMatches.filter(m => !isMatchEnded(m));
 
       endedMatches.forEach(match => {
-        try {
           const result = finishMatch(match, heroes, day, hour, state.battleSettings, tierConfig);
           nextGodStats.totalMatches++;
           if (result.isBlueWin) nextGodStats.danteWins++; else nextGodStats.izmanWins++;
-
           [...match.blueTeam, ...match.redTeam].forEach(p => {
               if(!p.items) return;
               p.items.forEach((item: any) => {
@@ -135,66 +116,49 @@ export class CoreEngine {
                   st.totalKills += p.kills; st.totalDeaths += p.deaths; st.totalAssists += p.assists;
               });
           });
-        } catch (settleError) {
-            console.error("Match Settlement Failed:", settleError);
-        }
       });
+    } catch (matchError) { console.warn("Match Update Skipped:", matchError); }
 
-    } catch (matchError) {
-      console.warn("Match Update Skipped:", matchError);
-    }
-
-    // D. 매치 생성
     if (Math.floor(second) % 10 === 0 && Math.floor(second - deltaSeconds) % 10 !== 0) { 
-        if (updatedMatches.length < 60) {
-            const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
+        const limit = state.maxMatches || 10;
+        if (updatedMatches.length < limit) {
             const idleUsers = userPool.filter(u => u && u.status === 'IDLE');
-            if (idleUsers.length >= 10) {
-                const newMatches = createLiveMatches(heroes, onlineUsers, Date.now(), tierConfig);
-                updatedMatches = [...updatedMatches, ...newMatches.slice(0, 3)];
+            const spaceAvailable = limit - updatedMatches.length;
+            if (idleUsers.length >= 10 && spaceAvailable > 0) {
+                const newMatches = createLiveMatches(heroes, onlineCount, Date.now(), tierConfig);
+                updatedMatches = [...updatedMatches, ...newMatches.slice(0, spaceAvailable)];
             }
         }
     }
 
-    // E. 통계 업데이트
     let finalHeroes = heroes;
     let finalPosts = posts;
     let nextUserStatus = state.userStatus;
     let nextTopRankers = state.topRankers;
     let nextSentiment = state.userSentiment;
 
-    if (isNewMinute && Math.floor(minute) % 5 === 0) { 
+    if (isNewHour) { 
       if (userPool.length > 0) {
           try {
-            const onlineUsers = userPool.filter(u => u && u.status !== 'OFFLINE').length;
             finalHeroes = analyzeHeroMeta([...heroes]);
-            nextUserStatus = calculateUserEcosystem(onlineUsers, userPool.length, tierConfig);
+            nextUserStatus = calculateUserEcosystem(onlineCount, userPool.length, tierConfig);
             userPool.sort((a, b) => (b.score || 0) - (a.score || 0));
             userPool.forEach((u, idx) => { if(u) { u.rank = idx + 1; u.isChallenger = (u.score >= tierConfig.master && u.rank <= tierConfig.challengerRank); } });
             nextTopRankers = getTopRankers(finalHeroes, tierConfig);
             nextSentiment = smoothSentiment(nextSentiment, calculateTargetSentiment(state, finalHeroes, finalPosts));
-            finalPosts = updatePostInteractions(finalPosts, currentTotalMinutes);
-
-            if (state.aiConfig && state.aiConfig.enabled && Math.random() < 0.1) {
-                generatePostAsync(Date.now(), finalHeroes, tierConfig, currentTotalMinutes, state.aiConfig, userPool, state.battleSettings, state.fieldSettings).then(()=>{}).catch(()=>{});
-            }
+            if (state.aiConfig && state.aiConfig.enabled && Math.random() < 0.5) generatePostAsync(Date.now(), finalHeroes, tierConfig, currentTotalMinutes, state.aiConfig, userPool, state.battleSettings, state.fieldSettings).then(()=>{}).catch(()=>{});
           } catch (updateError) {}
       }
     }
+    if (isNewMinute && Math.floor(minute) % 10 === 0) finalPosts = updatePostInteractions(finalPosts, currentTotalMinutes);
 
     return {
       stateUpdates: {
-        second, minute, hour, day,
-        totalUsers: userPool.length, 
-        userStatus: nextUserStatus,
-        topRankers: nextTopRankers,
-        godStats: nextGodStats, 
-        itemStats: nextItemStats, 
-        liveMatches: updatedMatches,
-        userSentiment: nextSentiment
+        second, minute, hour, day, totalUsers: userPool.length, ccu: onlineCount, 
+        userStatus: nextUserStatus, topRankers: nextTopRankers, godStats: nextGodStats, 
+        itemStats: nextItemStats, liveMatches: updatedMatches, userSentiment: nextSentiment
       },
-      newHeroes: finalHeroes,
-      newPosts: finalPosts
+      newHeroes: finalHeroes, newPosts: finalPosts
     };
   }
 }

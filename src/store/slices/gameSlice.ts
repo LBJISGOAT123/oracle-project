@@ -6,35 +6,23 @@ import { CoreEngine } from '../../engine/CoreEngine';
 import { userPool } from '../../engine/system/UserManager'; 
 import { INITIAL_HEROES } from '../../data/heroes';
 import { INITIAL_ITEMS } from '../../data/items';
+import { TOWER_COORDS, POI } from '../../engine/match/constants/MapConstants';
 
-const loadSavedAIConfig = () => {
-  try {
-    const saved = localStorage.getItem('GW_AI_CONFIG');
-    return saved ? JSON.parse(saved) : null;
-  } catch (e) { return null; }
-};
-
+const loadSavedAIConfig = () => { try { return JSON.parse(localStorage.getItem('GW_AI_CONFIG') || 'null'); } catch { return null; } };
 const savedAI = loadSavedAIConfig();
 
 const initialPositions = {
-  colossus: { x: 25, y: 28 }, 
-  watcher: { x: 78, y: 72 },  
-  jungle: [ { x: 15, y: 42 }, { x: 50, y: 82 }, { x: 58, y: 22 }, { x: 82, y: 55 } ],
-  towers: {
-    blue: { top: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}], mid: [{x: 40, y: 60}, {x: 30, y: 70}, {x: 22, y: 78}], bot: [{x: 75, y: 92}, {x: 50, y: 90}, {x: 25, y: 88}], nexus: { x: 12, y: 88 } },
-    red: { top: [{x: 45, y: 10}, {x: 65, y: 12}, {x: 80, y: 15}], mid: [{x: 60, y: 40}, {x: 70, y: 30}, {x: 78, y: 22}], bot: [{x: 92, y: 65}, {x: 92, y: 45}, {x: 88, y: 25}], nexus: { x: 88, y: 12 } }
-  }
+  colossus: POI.BARON, watcher: POI.DRAGON, jungle: POI.JUNGLE_SPOTS,
+  towers: { blue: { top: TOWER_COORDS.BLUE.TOP, mid: TOWER_COORDS.BLUE.MID, bot: TOWER_COORDS.BLUE.BOT, nexus: TOWER_COORDS.BLUE.NEXUS }, red: { top: TOWER_COORDS.RED.TOP, mid: TOWER_COORDS.RED.MID, bot: TOWER_COORDS.RED.BOT, nexus: TOWER_COORDS.RED.NEXUS } }
 };
 
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
-  isPlaying: false, gameSpeed: 1,
-  userSentiment: 60, ccu: 0, totalUsers: 3000, 
+  isPlaying: false, gameSpeed: 1, userSentiment: 60, ccu: 0, totalUsers: 3000, maxMatches: 10,
   userStatus: { totalGames: 0, playingUsers: 0, queuingUsers: 0, avgWaitTime: 0, tierDistribution: [] },
   topRankers: [],
   godStats: { totalMatches: 0, izmanWins: 0, izmanAvgKills: '0.0', izmanAvgTime: '00:00', danteWins: 0, danteAvgKills: '0.0', danteAvgTime: '00:00', avgGameDuration: 0, guardianDeathRate: 0, godAwakenRate: 0 },
-  itemStats: {},
-  liveMatches: [],
+  itemStats: {}, liveMatches: [],
   tierConfig: { challengerRank: 200, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 } },
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
@@ -52,47 +40,43 @@ const initialGameState: GameState = {
   roleSettings: { executor: { damage: 10, defense: 10 }, tracker: { gold: 20, smiteChance: 1.5 }, prophet: { cdrPerLevel: 2 }, slayer: { structureDamage: 30 }, guardian: { survivalRate: 20 } },
   growthSettings: { hp: { early: 3, mid: 5, late: 7 }, ad: { early: 5, mid: 10, late: 15 }, ap: { early: 5, mid: 10, late: 15 }, armor: { early: 2, mid: 3, late: 4 }, baseAtk: { early: 2, mid: 3, late: 4 }, regen: { early: 1, mid: 2, late: 3 }, respawnPerLevel: 3.0, recallTime: 10.0 },
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
-  customImages: INITIAL_CUSTOM_IMAGES 
+  customImages: INITIAL_CUSTOM_IMAGES,
+  announcement: null // [초기화] 알림 없음
 };
+
+let timeBuffer = 0;
+let lastRenderTime = 0;
+const FIXED_STEP = 0.1;
 
 export const createGameSlice: StateCreator<GameStore, [], [], GameSlice> = (set, get) => ({
   gameState: initialGameState,
-
   setSpeed: (s) => set((state) => ({ gameState: { ...state.gameState, gameSpeed: s } })),
   togglePlay: () => set((state) => ({ gameState: { ...state.gameState, isPlaying: !state.gameState.isPlaying } })),
-  
   setGameState: (updates) => set((state) => ({ gameState: { ...state.gameState, ...updates } })),
-
   tick: (deltaSeconds: number) => {
     const state = get();
     if (!state.gameState || !state.gameState.isPlaying) return;
-
-    CoreEngine.processTick(
-      state.gameState,
-      state.heroes,
-      state.communityPosts,
-      deltaSeconds,
-      (updates, newHeroes, newPosts) => {
-        // [원복] UI_REFRESH_RATE 제한 없이 매 틱마다 즉시 상태 갱신
-        // 엔진 계산과 화면 렌더링을 동기화하여 데이터 불일치 방지
-        set((current) => ({
-          gameState: { ...current.gameState, ...updates },
-          heroes: newHeroes || current.heroes,
-          communityPosts: newPosts || current.communityPosts
-        }));
-      }
-    );
+    const speed = state.gameState.gameSpeed;
+    timeBuffer += deltaSeconds * speed;
+    if (timeBuffer > 100.0) timeBuffer = 100.0;
+    if (timeBuffer >= FIXED_STEP) {
+        CoreEngine.processTick(state.gameState, state.heroes, state.communityPosts, timeBuffer, FIXED_STEP, (updates, newHeroes, newPosts, remainingTime) => {
+            timeBuffer = remainingTime;
+            const now = Date.now();
+            let renderInterval = 33; 
+            if (speed >= 3600) renderInterval = 2000; else if (speed >= 600) renderInterval = 1000; else if (speed >= 60) renderInterval = 500; else if (speed >= 10) renderInterval = 200;
+            if (now - lastRenderTime > renderInterval) {
+              lastRenderTime = now;
+              set((current) => ({ gameState: { ...current.gameState, ...updates }, heroes: newHeroes || current.heroes, communityPosts: newPosts || current.communityPosts }));
+            } else {
+              set((current) => ({ gameState: { ...current.gameState, ...updates }, heroes: newHeroes || current.heroes, communityPosts: newPosts || current.communityPosts }));
+            }
+        });
+    }
   },
-
   hardReset: () => {
     const currentAI = get().gameState.aiConfig;
-    userPool.length = 0; 
-    set({
-      gameState: { ...initialGameState, aiConfig: currentAI },
-      heroes: INITIAL_HEROES,
-      shopItems: INITIAL_ITEMS,
-      communityPosts: [],     
-      selectedPost: null
-    });
+    userPool.length = 0; timeBuffer = 0;
+    set({ gameState: { ...initialGameState, aiConfig: currentAI }, heroes: INITIAL_HEROES, shopItems: INITIAL_ITEMS, communityPosts: [], selectedPost: null });
   }
 });

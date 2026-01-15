@@ -1,7 +1,3 @@
-// ==========================================
-// FILE PATH: /src/types/match.ts
-// ==========================================
-
 export type EventType = 'KILL' | 'TOWER' | 'COLOSSUS' | 'WATCHER' | 'START' | 'LEVELUP' | 'RECALL_CANCEL';
 
 export interface GameLog {
@@ -19,33 +15,35 @@ export interface TimelineEvent {
   message: string;
 }
 
-// [신규] 시각 효과 인터페이스
 export interface VisualEffect {
   id: string;
   type: 'PROJECTILE' | 'EXPLOSION' | 'AREA' | 'HIT';
   x: number;
   y: number;
-  targetX?: number; // 투사체 목표
-  targetY?: number; // 투사체 목표
   color: string;
   size: number;
-  duration: number; // 남은 시간 (초)
-  maxDuration: number; // 전체 시간 (애니메이션용)
+  duration: number;
+  maxDuration: number;
 }
 
 export interface LivePlayer {
   name: string; 
   heroId: string;
   kills: number; deaths: number; assists: number;
-  gold: number; cs: number;
+  gold: number; totalGold: number;
+  cs: number;
   currentHp: number; maxHp: number;
   currentMp: number; maxMp: number; mpRegen: number;
   level: number; items: any[]; 
   totalDamageDealt: number;
   x: number; y: number; lane: 'TOP' | 'MID' | 'BOT' | 'JUNGLE';
   buffs: string[]; mmr: number; respawnTimer: number;
-  cooldowns?: { q:number, w:number, e:number, r:number };
+  cooldowns: { q:number, w:number, e:number, r:number };
   stats: { brain: number, mechanics: number };
+  
+  // [핵심 추가] 공격 타이머 (평타 쿨타임)
+  attackTimer: number; 
+  
   lastAttackTime?: number;       
   lastAttackedTargetId?: string;
   killStreak: number; bounty: number;
@@ -83,7 +81,5 @@ export interface LiveMatch {
   minions: any[];
   projectiles: any[];
   jungleMobs: any[];
-
-  // [신규] 시각 효과 리스트 (로직엔 영향 안 주고 렌더링에만 씀)
   visualEffects: VisualEffect[];
 }
