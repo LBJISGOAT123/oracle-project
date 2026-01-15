@@ -5,11 +5,19 @@ import { LivePlayer, LiveMatch } from '../../../../types';
 import { Vector2 } from '../../utils/Vector';
 import { BASES } from '../../constants/MapConstants';
 import { AIUtils } from '../AIUtils';
-import { InfluenceMap } from '../map/InfluenceMap'; // 위험도 체크
+import { InfluenceMap } from '../map/InfluenceMap';
 
 export class JunglePathFinder {
   
   static getNextCamp(player: LivePlayer, match: LiveMatch): Vector2 {
+    const isBlue = match.blueTeam.includes(player);
+    const myBase = isBlue ? BASES.BLUE : BASES.RED;
+
+    // [핵심 추가] 생존 로직: 체력이 30% 미만이면 정글링 중단하고 본진으로 도망
+    if (AIUtils.hpPercent(player) < 0.3) {
+        return myBase;
+    }
+
     const mobs = match.jungleMobs || [];
     const aliveMobs = mobs.filter(m => m.isAlive);
 
@@ -18,7 +26,6 @@ export class JunglePathFinder {
         return { x: 50, y: 50 };
     }
 
-    const isBlue = match.blueTeam.includes(player);
     const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
     const GRID_SIZE = 20;
     const CELL_SIZE = 5;
@@ -40,7 +47,7 @@ export class JunglePathFinder {
 
         // 위험하면 거리 페널티 (안 감)
         if (danger > 50) dist += 1000; 
-        else if (danger > 20) dist += 100; // 약간 위험하면 기피
+        else if (danger > 20) dist += 100;
 
         // 2. 내 진영 우선순위
         const isMySide = isBlue ? (mob.x + mob.y < 100) : (mob.x + mob.y > 100);
@@ -62,6 +69,6 @@ export class JunglePathFinder {
     if (bestTarget && minScore < 500) return bestTarget;
     
     // 갈 곳 없으면 본진 혹은 미드 대기
-    return isBlue ? BASES.BLUE : BASES.RED;
+    return myBase;
   }
 }

@@ -4,15 +4,14 @@
 import { LivePlayer, LiveMatch, Hero, RoleSettings } from '../../../types';
 import { updateLivePlayerStats } from './ItemManager'; 
 import { SteeringSystem } from './SteeringSystem';
-import { PathSystem } from './PathSystem';
-import { BASES, TOWER_COORDS } from '../constants/MapConstants';
-import { MacroBrain } from '../ai/MacroBrain';
-import { MicroBrain } from '../ai/MicroBrain';
+import { BASES } from '../constants/MapConstants';
 import { getDistance } from '../../data/MapData';
 import { RecallSystem } from './RecallSystem';
 import { processSkillEffect } from './SkillProcessor';
-import { AIUtils } from '../ai/AIUtils';
 import { StatusManager } from './StatusManager';
+import { UtilityBrain } from '../ai/UtilityBrain';
+import { MicroBrain } from '../ai/MicroBrain';
+import { InfluenceMap } from '../ai/map/InfluenceMap';
 
 const isSafeToRecall = (player: LivePlayer, match: LiveMatch, isBlue: boolean): boolean => {
   const enemies = isBlue ? match.redTeam : match.blueTeam;
@@ -34,15 +33,13 @@ export const updatePlayerBehavior = (
   roleSettings: RoleSettings,
   dt: number
 ) => {
-  // [Zombie Killer] 시작부터 죽었는지 체크
   if (player.currentHp <= 0 && player.respawnTimer <= 0) {
       player.currentHp = 0;
       player.respawnTimer = 10 + (player.level * 3);
-      return; // 죽었으면 행동 종료
+      return; 
   }
 
   StatusManager.update(player, dt);
-  
   if (player.attackTimer > 0) player.attackTimer -= dt;
 
   if (StatusManager.isStunned(player)) {
@@ -83,7 +80,6 @@ export const updatePlayerBehavior = (
   }
 
   RecallSystem.update(player, match, heroes, shopItems, dt);
-  
   if (player.isRecalling) return;
 
   const hero = heroes.find(h => h.id === player.heroId);
@@ -92,17 +88,15 @@ export const updatePlayerBehavior = (
   const isBlue = match.blueTeam.includes(player);
   const allies = isBlue ? match.blueTeam : match.redTeam;
 
-  const macroDecision = MacroBrain.decide(player, match, hero);
-  let finalTargetPos = macroDecision.targetPos;
+  const decision = UtilityBrain.decideAction(player, match, hero);
+  let finalTargetPos = decision.targetPos;
   let moveSpeed = (player as any).moveSpeed || hero.stats.speed;
 
-  switch (macroDecision.action) {
+  switch (decision.action) {
     case 'RECALL':
       const myBase = isBlue ? BASES.BLUE : BASES.RED;
-      if (getDistance(player, myBase) < 10) return; 
-
       if (!isSafeToRecall(player, match, isBlue)) {
-          finalTargetPos = myBase;
+          finalTargetPos = myBase; 
       } else {
           RecallSystem.startRecall(player);
           return;
@@ -110,14 +104,13 @@ export const updatePlayerBehavior = (
       break;
 
     case 'FIGHT':
-    case 'DEFEND': 
-      if (macroDecision.targetUnit) {
-        const micro = MicroBrain.control(player, macroDecision.targetUnit, hero, isBlue);
+      if (decision.targetUnit) {
+        const micro = MicroBrain.control(player, decision.targetUnit, hero, isBlue);
         
         if (micro.type === 'MOVE') {
           finalTargetPos = micro.targetPos;
         } else {
-          finalTargetPos = { x: player.x, y: player.y }; 
+          finalTargetPos = { x: player.x, y: player.y };
           
           if (micro.skillKey) {
              const key = micro.skillKey as 'q'|'w'|'e'|'r';
@@ -126,9 +119,11 @@ export const updatePlayerBehavior = (
              if ((player.cooldowns as any)[key] <= 0 && player.currentMp >= cost) {
                  player.currentMp -= cost;
                  (player.cooldowns as any)[key] = skill.cd * (1 - (roleSettings.prophet.cdrPerLevel * 0.01 * player.level));
-                 processSkillEffect(skill, player, macroDecision.targetUnit);
+                 processSkillEffect(skill, player, decision.targetUnit);
                  player.activeSkill = { key, timestamp: match.currentDuration };
-                 player.attackTimer = Math.max(0, player.attackTimer - 0.5);
+                 
+                 // [피지컬 보상] 스킬 사용 시 평타 딜레이 30% 감소 (연계 속도 증가)
+                 player.attackTimer = Math.max(0, player.attackTimer - 0.3); 
 
                  if (key === 'r') {
                      match.logs.push({
@@ -139,22 +134,20 @@ export const updatePlayerBehavior = (
                  }
              }
           }
+          
+          // [피지컬 보상] 평캔 적용 (공격 후 딜레이 감소)
+          if (micro.cancelAnimation && player.attackTimer > 0) {
+              // 남은 딜레이의 20%를 즉시 삭제
+              player.attackTimer *= 0.8;
+          }
         }
       }
       break;
 
-    case 'FLEE':
-    case 'SUPPORT':
-    case 'GANK':
-    case 'OBJECTIVE':
-    case 'CHASE': 
-      finalTargetPos = macroDecision.targetPos;
-      break;
-
+    case 'ASSEMBLE':
     case 'PUSH':
-    case 'FARM':
     default:
-      finalTargetPos = PathSystem.getNextWaypoint(player, isBlue, match);
+      finalTargetPos = InfluenceMap.getOptimalPos(player, match, finalTargetPos);
       break;
   }
 

@@ -3,24 +3,29 @@
 // ==========================================
 import { LivePlayer, LiveMatch } from '../../../../types';
 import { ObservationSystem } from '../perception/ObservationSystem';
+import { ReactionSystem } from './ReactionSystem'; // [New]
 
 export class PredictionSystem {
   
-  // 1. [예측 사격] 적의 이동 속도를 고려해 미래 위치 계산
   static getAimPosition(attacker: LivePlayer, target: LivePlayer, match: LiveMatch): {x:number, y:number} {
     const obs = ObservationSystem.getLastKnownPosition(attacker, target.heroId, match.currentDuration);
     if (!obs) return { x: target.x, y: target.y };
 
-    const brain = attacker.stats.mechanics; // 피지컬 스탯 활용
-    if (brain < 40) return { x: target.x, y: target.y }; // 피지컬 낮으면 정조준
+    const brain = attacker.stats.mechanics; 
+    if (brain < 40) return { x: target.x, y: target.y }; 
 
-    // 실제로는 ObservationSystem과 연계해 속도 벡터를 가져와야 하지만, 현재는 정조준으로 안전하게 처리
-    return { x: target.x, y: target.y }; 
+    // [New] 조준 오차 적용 (손떨림)
+    const error = ReactionSystem.getAimError(attacker);
+    
+    // 원래라면 속도 벡터 예측이 들어가야 하지만, 현재는 정조준 + 오차로 구현
+    return { 
+        x: target.x + error.x, 
+        y: target.y + error.y 
+    };
   }
 
-  // 2. [회피 기동] 투사체가 날아오면 수직 방향으로 무빙
   static getDodgeMovement(player: LivePlayer, match: LiveMatch): {x:number, y:number} | null {
-    if (player.stats.mechanics < 50) return null; // 피지컬 낮으면 안 피함
+    if (player.stats.mechanics < 20) return null; // 피지컬 너무 낮으면 포기
 
     const myTeam = match.blueTeam.includes(player) ? 'BLUE' : 'RED';
     let threat = null;
@@ -29,7 +34,7 @@ export class PredictionSystem {
     if (!match.projectiles) return null;
 
     for (const p of match.projectiles) {
-        if (p.team === myTeam) continue; // 아군 투사체 패스
+        if (p.team === myTeam) continue; 
         
         const dx = p.x - player.x;
         const dy = p.y - player.y;
@@ -42,11 +47,15 @@ export class PredictionSystem {
     }
 
     if (threat) {
-        // 투사체 진행 방향의 수직 벡터 계산 (회피)
+        // [New] 반응 속도 체크 (인지했는가?)
+        // 아직 반응 못했으면(딜레이 중이면) 피하지 않음
+        if (!ReactionSystem.canReactToThreat(player, threat.id || 'proj', match.currentDuration)) {
+            return null;
+        }
+
         const dx = player.x - threat.x;
         const dy = player.y - threat.y;
         
-        // 수직 벡터 (-y, x)
         const dodgeX = -dy;
         const dodgeY = dx;
         

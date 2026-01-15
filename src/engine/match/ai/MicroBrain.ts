@@ -9,12 +9,13 @@ import { SkillBrain } from './tactics/SkillBrain';
 import { ObservationSystem } from './perception/ObservationSystem'; 
 import { TeamCoordination } from './mechanics/TeamCoordination';
 import { PredictionSystem } from './systems/PredictionSystem';
-import { RoleAI } from './tactics/RoleAI'; // [New] 연결
+import { RoleAI } from './tactics/RoleAI';
 
 export interface MicroDecision {
   type: 'ATTACK' | 'MOVE';
   targetPos: { x: number, y: number };
   skillKey?: string; 
+  cancelAnimation?: boolean; // [New] 평캔 여부
 }
 
 export class MicroBrain {
@@ -59,7 +60,24 @@ export class MicroBrain {
         return { type: 'ATTACK', targetPos: aimPos, skillKey: bestSkill };
     }
 
-    // 3. [역할군별 전투 무빙] (RoleAI 위임)
-    return RoleAI.getDecision(player, target, hero, match);
+    // 3. [피지컬 기반 카이팅 & 평캔]
+    const mechanics = player.stats.mechanics;
+    const range = (hero.stats.range / 100);
+
+    // 피지컬 80 이상: 평캔 (공격 후 바로 무빙 명령을 내려 딜레이 줄임)
+    const canCancel = mechanics >= 80;
+
+    if (dist <= range) {
+        // 공격
+        return { 
+            type: 'ATTACK', 
+            targetPos: { x: target.x, y: target.y },
+            cancelAnimation: canCancel 
+        };
+    } else {
+        // 추격
+        // 피지컬 높으면 적의 예상 경로로 질러감 (간단히 구현)
+        return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
+    }
   }
 }

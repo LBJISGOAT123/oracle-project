@@ -2122,28 +2122,83 @@ FILE PATH: src/components/battle/spectate/InGameScreen.tsx
 // ==========================================
 // FILE PATH: /src/components/battle/spectate/InGameScreen.tsx
 // ==========================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../../store/useGameStore';
 import { SpectateHeader } from './views/SpectateHeader';
 import { SpectateMapView } from './views/SpectateMapView';
 import { SpectateListView } from './views/SpectateListView';
-import { HeroDetailPopup } from './modals/HeroDetailPopup'; // 신규 팝업 import
+import { HeroDetailPopup } from './modals/HeroDetailPopup';
 
 export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const match = useGameStore(state => state.gameState.liveMatches.find(m => m.id === initialMatch.id));
-  const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
+  const { heroes, gameState, setSpeed, togglePlay, setAnnouncement } = useGameStore();
 
-  // selectedHeroId는 이제 팝업을 띄우는 용도로도 사용됩니다.
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [mobileTab, setMobileTab] = useState<'LIST' | 'MAP'>('MAP'); // 기본값을 맵으로 변경 (요청사항 흐름상 자연스러움)
+  const [mobileTab, setMobileTab] = useState<'LIST' | 'MAP'>('MAP');
+
+  // [핵심] 마지막으로 처리한 로그의 시간 (중복 알림 방지)
+  const lastLogTimeRef = useRef<number>(match ? match.currentDuration : 0);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     setSpeed(1); 
-    return () => window.removeEventListener('resize', handleResize);
+    // 관전 시작 시 알림 초기화
+    setAnnouncement(null);
+    return () => {
+        window.removeEventListener('resize', handleResize);
+        setAnnouncement(null); // 나갈 때도 초기화
+    };
   }, []);
+
+  // [신규] 매치 로그 모니터링 & 알림 트리거
+  useEffect(() => {
+    if (!match) return;
+
+    // 마지막 확인 시점보다 늦게 찍힌 로그들만 필터링 (최근 3초 이내만 유효)
+    const newLogs = match.logs.filter(log => 
+        log.time > lastLogTimeRef.current && 
+        (log.type === 'COLOSSUS' || log.type === 'WATCHER')
+    );
+
+    if (newLogs.length > 0) {
+        // 가장 최신 로그 하나만 처리
+        const latestLog = newLogs[newLogs.length - 1];
+        lastLogTimeRef.current = latestLog.time;
+
+        // 알림 내용 구성
+        const isBlue = latestLog.team === 'BLUE';
+        const teamName = isBlue ? '단테' : '이즈마한';
+        const color = isBlue ? '#58a6ff' : '#e84057';
+        
+        let title = '';
+        let subtext = '';
+
+        if (latestLog.type === 'COLOSSUS') {
+            title = '거신병 해킹 성공!';
+            subtext = `${teamName} 진영이 거신병을 해킹하여 소환했습니다.`;
+        } else if (latestLog.type === 'WATCHER') {
+            title = '심연의 주시자 처치!';
+            subtext = `${teamName} 진영이 주시자를 처형하고 공허의 힘을 얻었습니다.`;
+            // 주시자는 공통 골드 컬러
+        }
+
+        setAnnouncement({
+            type: 'OBJECTIVE',
+            title,
+            subtext,
+            color: latestLog.type === 'WATCHER' ? '#f1c40f' : color,
+            duration: 5.0,
+            createdAt: Date.now()
+        });
+    } else {
+        // 일반적인 시간 업데이트 (로그 놓치지 않게 싱크 맞춤)
+        if (match.currentDuration > lastLogTimeRef.current) {
+            lastLogTimeRef.current = match.currentDuration;
+        }
+    }
+  }, [match?.logs.length, match?.currentDuration]); // 로그 개수나 시간이 변할 때 체크
 
   if (!match) return <div style={{color:'white', padding:50, textAlign:'center'}}>게임 종료됨</div>;
 
@@ -2157,7 +2212,6 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
 
   const getHeroName = (id: string) => heroes.find((h:any) => h.id === id)?.name || id;
 
-  // 선택된 플레이어 객체 찾기
   const selectedPlayer = selectedHeroId 
     ? [...match.blueTeam, ...match.redTeam].find(p => p.heroId === selectedHeroId) 
     : null;
@@ -2172,7 +2226,6 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
       display: 'flex', flexDirection: 'column'
     }}>
       
-      {/* 1. 상단바 */}
       <SpectateHeader 
         score={match.score}
         timeStr={isGameEnded ? 'END' : formatTime(match.currentDuration)}
@@ -2187,20 +2240,16 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
         setMobileTab={setMobileTab}
       />
 
-      {/* 2. 메인 컨텐츠 */}
       <div style={{ flex: 1, overflowY: 'hidden', position:'relative' }}>
-        
-        {/* [MAP] 맵 뷰 (하단에 오브젝트 정보 포함됨) */}
         <SpectateMapView 
           match={match}
           isMobile={isMobile}
           mobileTab={mobileTab}
-          selectedHeroId={null} // 맵에서는 하이라이트만 하고, 클릭 시 팝업 띄움
+          selectedHeroId={null} 
           onSelectHero={(id) => setSelectedHeroId(id)}
           setMobileTab={setMobileTab}
         />
 
-        {/* [LIST] 리스트 뷰 */}
         <SpectateListView 
           match={match}
           heroes={heroes}
@@ -2212,10 +2261,8 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
           formatTime={formatTime}
           getHeroName={getHeroName}
         />
-
       </div>
 
-      {/* 3. 영웅 상세 팝업 (모듈화됨) */}
       {selectedPlayer && selectedHeroData && (
         <HeroDetailPopup 
           player={selectedPlayer}
@@ -11672,55 +11719,47 @@ const BASE: JungleMonsterStats = {
 export const DEFAULT_JUNGLE_CONFIG: JungleSettings = {
   density: 100,
   camps: {
-    // 1. [Blue Top] 수정 동굴: 중앙 길가가 아니라 '좌측 둥지'로 이동
+    // 1. [Blue Top] 
     TOP_BLUE: {
       id: 'TOP_BLUE',
       name: '수정 동굴 (Blue Top)',
       monsters: [
-        // 메인: 좌측 벽쪽 깊숙이
-        { spotId: 'main', x: 28, y: 45, stats: { ...BASE, name: '수정 파수꾼', hp: 2000, isBuffMob: true, buffs: [{type: 'REGEN', value: 50}] } }, 
-        // 쫄몹: 둥지 안에서 메인을 감싸도록
-        { spotId: 'sub1', x: 18, y: 35, stats: { ...BASE, name: '수정 도마뱀', hp: 600, gold: 30, xp: 40 } },
-        { spotId: 'sub2', x: 18, y: 55, stats: { ...BASE, name: '수정 도마뱀', hp: 600, gold: 30, xp: 40 } },
-        { spotId: 'sub3', x: 40, y: 45, stats: { ...BASE, name: '수정 도마뱀', hp: 600, gold: 30, xp: 40 } }
+        { spotId: 'main', x: 22, y: 40, stats: { ...BASE, name: '수정 파수꾼', hp: 2000, isBuffMob: true, buffs: [{type: 'REGEN', value: 50}] } }, 
+        { spotId: 'sub1', x: 20, y: 35, stats: { ...BASE, name: '수정 도마뱀', hp: 600, gold: 30, xp: 40 } },
+        { spotId: 'sub2', x: 20, y: 45, stats: { ...BASE, name: '수정 도마뱀', hp: 600, gold: 30, xp: 40 } }
       ]
     },
 
-    // 2. [Blue Bot] 붉은 숲: 중앙 삼거리가 아니라 '우측 하단 둥지'로 이동
+    // 2. [Blue Bot] 
     BOT_BLUE: {
       id: 'BOT_BLUE',
       name: '붉은 숲 (Blue Bot)',
       monsters: [
-        // 메인: 우측 둥지 안쪽
-        { spotId: 'main', x: 72, y: 60, stats: { ...BASE, name: '용암 거북', hp: 2200, isBuffMob: true, buffs: [{type: 'ATK', value: 15}] } }, 
-        // 쫄몹: 둥지 테두리
-        { spotId: 'sub1', x: 62, y: 50, stats: { ...BASE, name: '불꽃 임프', hp: 800, gold: 40, xp: 50 } }, 
-        { spotId: 'sub2', x: 82, y: 50, stats: { ...BASE, name: '불꽃 임프', hp: 800, gold: 40, xp: 50 } }, 
-        { spotId: 'sub3', x: 72, y: 75, stats: { ...BASE, name: '불꽃 임프', hp: 800, gold: 40, xp: 50 } }
+        { spotId: 'main', x: 60, y: 80, stats: { ...BASE, name: '용암 거북', hp: 2200, isBuffMob: true, buffs: [{type: 'ATK', value: 15}] } }, 
+        { spotId: 'sub1', x: 55, y: 78, stats: { ...BASE, name: '불꽃 임프', hp: 800, gold: 40, xp: 50 } }, 
+        { spotId: 'sub2', x: 65, y: 82, stats: { ...BASE, name: '불꽃 임프', hp: 800, gold: 40, xp: 50 } }
       ]
     },
     
-    // 3. [Red Top] 메마른 협곡: 좌측 상단 둥지 (이전 수정 유지)
+    // 3. [Red Top]
     TOP_RED: {
       id: 'TOP_RED',
       name: '메마른 협곡 (Red Top)',
       monsters: [
-        { spotId: 'main', x: 30, y: 30, stats: { ...BASE, name: '황야의 포식자', hp: 2200, isBuffMob: true, buffs: [{type: 'ATK', value: 15}] } }, 
-        { spotId: 'sub1', x: 20, y: 40, stats: { ...BASE, name: '사막 전갈', hp: 800, gold: 40, xp: 50 } }, 
-        { spotId: 'sub2', x: 40, y: 40, stats: { ...BASE, name: '사막 전갈', hp: 800, gold: 40, xp: 50 } }, 
-        { spotId: 'sub3', x: 30, y: 50, stats: { ...BASE, name: '사막 전갈', hp: 800, gold: 40, xp: 50 } }  
+        { spotId: 'main', x: 40, y: 20, stats: { ...BASE, name: '황야의 포식자', hp: 2200, isBuffMob: true, buffs: [{type: 'ATK', value: 15}] } }, 
+        { spotId: 'sub1', x: 35, y: 18, stats: { ...BASE, name: '사막 전갈', hp: 800, gold: 40, xp: 50 } }, 
+        { spotId: 'sub2', x: 45, y: 22, stats: { ...BASE, name: '사막 전갈', hp: 800, gold: 40, xp: 50 } } 
       ]
     },
 
-    // 4. [Red Bot] 심연의 늪: 우측 상단 둥지 (이전 수정 유지)
+    // 4. [Red Bot]
     BOT_RED: {
       id: 'BOT_RED',
       name: '심연의 늪 (Red Bot)',
       monsters: [
-        { spotId: 'main', x: 65, y: 35, stats: { ...BASE, name: '심연의 주시자', hp: 2000, isBuffMob: true, buffs: [{type: 'HASSTE', value: 20}] } }, 
-        { spotId: 'sub1', x: 55, y: 25, stats: { ...BASE, name: '진흙 괴물', hp: 700, gold: 30, xp: 40 } },
-        { spotId: 'sub2', x: 75, y: 25, stats: { ...BASE, name: '진흙 괴물', hp: 700, gold: 30, xp: 40 } },
-        { spotId: 'sub3', x: 65, y: 50, stats: { ...BASE, name: '진흙 괴물', hp: 700, gold: 30, xp: 40 } }
+        { spotId: 'main', x: 80, y: 55, stats: { ...BASE, name: '심연의 주시자', hp: 2000, isBuffMob: true, buffs: [{type: 'HASSTE', value: 20}] } }, 
+        { spotId: 'sub1', x: 78, y: 50, stats: { ...BASE, name: '진흙 괴물', hp: 700, gold: 30, xp: 40 } },
+        { spotId: 'sub2', x: 82, y: 60, stats: { ...BASE, name: '진흙 괴물', hp: 700, gold: 30, xp: 40 } }
       ]
     }
   }
@@ -12426,32 +12465,25 @@ FILE PATH: src/engine/data/MapData.ts
 // ==========================================
 // FILE PATH: /src/engine/data/MapData.ts
 // ==========================================
+import { POI as MAP_POI, BASES as MAP_BASES } from '../match/constants/MapConstants';
 
 export interface Vector2 { x: number; y: number; }
 
-export const BASES = {
-  BLUE: { x: 5, y: 95 },
-  RED: { x: 95, y: 5 }
-};
+export const BASES = MAP_BASES;
 
 // 단순 거리 계산 (서버 로직용)
 export const getDistance = (a: {x:number, y:number}, b: {x:number, y:number}) => {
+  if (!a || !b) return 9999;
   return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
 };
 
-export const POI = { 
-  // [수정] 거신병 위치를 맵의 10~11시 방향(바론 둥지)으로 이동
-  BARON: { x: 25, y: 30 },    
-  // [수정] 주시자 위치를 맵의 4~5시 방향(용 둥지)으로 이동
-  DRAGON: { x: 75, y: 70 },   
-  TOP_RIVER: { x: 20, y: 20 },
-  BOT_RIVER: { x: 80, y: 80 }
-};
+// MapConstants에서 정의한 POI를 그대로 내보냄 (Single Source of Truth)
+export const POI = MAP_POI;
 
 export const getTowerSafeZone = (lane: string, isBlue: boolean) => {
-    if (lane === 'TOP') return isBlue ? {x: 5, y: 20} : {x: 20, y: 5};
-    if (lane === 'MID') return isBlue ? {x: 20, y: 80} : {x: 80, y: 20}; 
-    if (lane === 'BOT') return isBlue ? {x: 80, y: 95} : {x: 95, y: 80};
+    if (lane === 'TOP') return isBlue ? {x: 12, y: 25} : {x: 75, y: 10};
+    if (lane === 'MID') return isBlue ? {x: 38, y: 62} : {x: 62, y: 38}; 
+    if (lane === 'BOT') return isBlue ? {x: 45, y: 90} : {x: 90, y: 35};
     return isBlue ? BASES.BLUE : BASES.RED;
 };
 
@@ -12705,8 +12737,8 @@ export class EconomyEvaluator {
     const isBlue = match.blueTeam.includes(player);
     const myBase = isBlue ? BASES.BLUE : BASES.RED;
     
-    // 1. [상태 체크] 이미 우물 근처라면 "귀환 명령"을 내릴 필요가 없음 (이미 도착함)
-    if (AIUtils.dist(player, myBase) < 10) return false;
+    // 1. [상태 체크] 이미 우물 근처(거리 15 이내)라면 굳이 '귀환 판단'을 내릴 필요 없음 (이미 쇼핑 가능 지역)
+    if (AIUtils.dist(player, myBase) < 15) return false;
 
     // 2. [안전 체크] 교전 중이거나 위협받으면 쇼핑 금지
     if (this.isInCombatOrDanger(player, match)) return false;
@@ -12728,22 +12760,22 @@ export class EconomyEvaluator {
             // 중반: 코어템 완성 비용 (비싼 거 사러 감)
             targetGoldThreshold = 1200;
         }
-    } else {
-        // [핵심] 풀템(6개)인 경우
-        // 소비 아이템(영약 등)이 없으므로, 사실상 집에 갈 필요가 없음.
-        // 다만 템을 팔고 상위템을 가는 경우를 대비해 아주 높은 금액 설정
-        targetGoldThreshold = 3000; 
-    }
+        
+        // 뇌지컬 보정: 뇌지컬이 높을수록 돈을 더 확실히 모아서 감
+        if (brain > 60) targetGoldThreshold *= 1.2;
 
-    // 뇌지컬 보정: 뇌지컬이 높을수록 돈을 더 확실히 모아서 감 (쓸데없는 동선 낭비 안 함)
-    if (brain > 60) targetGoldThreshold *= 1.2;
+    } else {
+        // [핵심 수정] 템창(6칸)이 꽉 찼으면 절대 쇼핑하러 가지 않음 (무한 루프 방지)
+        // 나중에 영약이나 상위템 교체 로직이 생기면 그때 조건 추가
+        return false; 
+    }
 
     // 4. [라인 상황 판단]
     // 라인이 우리 타워에 박히고 있으면, 돈이 있어도 막으러 가야 함
     const isLineBad = this.isWavePushingMyTower(player, match);
     if (isLineBad) {
-        // 라인이 급하면 필요 골드의 2배가 있어도 안 감
-        targetGoldThreshold *= 2.0;
+        // 라인이 급하면 필요 골드의 2.5배가 있어도 안 감
+        targetGoldThreshold *= 2.5;
     }
 
     // 최종 판단
@@ -12754,7 +12786,7 @@ export class EconomyEvaluator {
     const now = match.currentDuration;
     // 최근 5초간 전투 했으면 금지
     if ((player.lastAttackTime && now - player.lastAttackTime < 5) || 
-        (player.lastAttackedTargetId && now - (player as any).lastHitTime < 5)) {
+        (player.lastAttackedTargetId && (player as any).lastHitTime && now - (player as any).lastHitTime < 5)) {
         return true;
     }
     // 주변에 적이 있으면 금지
@@ -12769,10 +12801,10 @@ export class EconomyEvaluator {
     const isBlue = match.blueTeam.includes(player);
     const myTeamColor = isBlue ? 'BLUE' : 'RED';
     
-    // 내 근처(20)에 적 미니언은 있는데 아군 미니언이 없다? -> 라인 밀리는 중
     const minions = match.minions || [];
-    const enemyMinionsNear = minions.filter(m => m.lane === player.lane && m.team !== myTeamColor && m.hp > 0 && AIUtils.dist(player, m) < 20);
-    const allyMinionsNear = minions.filter(m => m.lane === player.lane && m.team === myTeamColor && m.hp > 0 && AIUtils.dist(player, m) < 20);
+    // 내 근처(25)에 적 미니언은 있는데 아군 미니언이 없다? -> 라인 밀리는 중
+    const enemyMinionsNear = minions.filter(m => m.lane === player.lane && m.team !== myTeamColor && m.hp > 0 && AIUtils.dist(player, m) < 25);
+    const allyMinionsNear = minions.filter(m => m.lane === player.lane && m.team === myTeamColor && m.hp > 0 && AIUtils.dist(player, m) < 25);
     
     if (enemyMinionsNear.length > 0 && allyMinionsNear.length === 0) return true;
     return false;
@@ -13091,6 +13123,9 @@ export class RecallInterrupter {
 ==========================================
 FILE PATH: src/engine/match/ai/evaluators/TargetEvaluator.ts
 ==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/evaluators/TargetEvaluator.ts
+// ==========================================
 import { LivePlayer, Hero, Minion, LiveMatch } from '../../../../types';
 import { AIUtils } from '../AIUtils';
 import { Perception } from '../Perception';
@@ -13112,60 +13147,85 @@ export class TargetEvaluator {
     let bestTarget: LivePlayer | null = null;
     let maxScore = -99999;
     
+    // 심리 상태: 너무 위축되면 공격 안 함
     const morale = match ? PsychologyEvaluator.getMorale(attacker, match) : 1.0;
-    const aggressionThreshold = morale < 0.8 ? 100 : -5000; 
+    const aggressionThreshold = morale < 0.7 ? 500 : -5000; 
 
-    const myRange = (attackerHero.stats.range / 100);
     const isBlue = match ? match.blueTeam.includes(attacker) : true;
 
     for (const enemy of enemiesInRange) {
-      // [핵심] 적이 우물 안에 있으면 절대 타겟팅 금지 (다이브 방지)
-      if (match && Perception.isInEnemyFountain({x: enemy.x, y: enemy.y}, match, isBlue)) {
-          continue;
-      }
+      // 1. [절대 금지] 우물 다이브
+      if (match && Perception.isInEnemyFountain({x: enemy.x, y: enemy.y}, match, isBlue)) continue;
 
       const enemyHero = heroes.find(h => h.id === enemy.heroId);
       if (!enemyHero) continue;
 
       let score = 0;
 
-      // 1. 기본 점수 (체력, 킬각)
-      const dmg = attackerHero.stats.ad * 2 + attackerHero.stats.ap * 1.5;
-      if (enemy.currentHp < dmg) score += 5000; 
-      else score += (1 - AIUtils.hpPercent(enemy)) * 200;
+      // 2. 딜교환 계산 (내 데미지 vs 적 체력)
+      const myDmg = attackerHero.stats.ad * 2.5 + attackerHero.stats.ap * 2.0;
+      const enemyHp = enemy.currentHp;
+      
+      // 킬각이면 점수 대폭 상승
+      if (enemyHp < myDmg) score += 5000; 
+      else score += (1 - AIUtils.hpPercent(enemy)) * 300; // 딸피일수록 유혹됨
 
+      // 거리 페널티
       const dist = AIUtils.dist(attacker, enemy);
-      score -= dist * 5;
+      score -= dist * 10;
 
+      // 트라우마 (나를 죽인 적은 무서워함)
       const threatScore = PersonalMemory.getThreatLevel(attacker, enemy.heroId);
-      if (threatScore > 0 && brain > 40) {
-          score -= threatScore; 
+      if (threatScore > 0 && brain > 40) score -= threatScore; 
+
+      // 3. [핵심 패치] 쪽수 파악 (Number Disadvantage)
+      if (match) {
+          const enemyPos = { x: enemy.x, y: enemy.y };
+          
+          // 적 주변 15거리 내에 또 다른 적이 몇 명인가?
+          const enemiesNearTarget = (isBlue ? match.redTeam : match.blueTeam).filter(e => 
+              e !== enemy && e.currentHp > 0 && AIUtils.dist({x: e.x, y: e.y}, enemyPos) < 15
+          ).length;
+
+          // 아군 주변 15거리 내에 내 편이 몇 명인가?
+          const alliesNearMe = (isBlue ? match.blueTeam : match.redTeam).filter(a => 
+              a !== attacker && a.currentHp > 0 && AIUtils.dist(attacker, a) < 15
+          ).length;
+
+          // [판단] 내가 불리한 싸움인가? (적 숫자 > 아군 숫자)
+          if (enemiesNearTarget > alliesNearMe) {
+              // 기본적으로 1:2 상황이면 -2000점 (절대 안 감)
+              let penalty = (enemiesNearTarget - alliesNearMe) * 2000;
+              
+              // 뇌지컬이 높으면 페널티를 더 세게 받음 (더 사림)
+              if (brain > 70) penalty *= 1.5;
+              
+              // 내가 암살자(추적자)나 원딜(신살자)이면 더 사림
+              if (attackerHero.role === '추적자' || attackerHero.role === '신살자') penalty *= 1.5;
+
+              score -= penalty;
+          }
+          
+          // [예외] 내가 압도적으로 잘 컸으면(3코어 이상 차이) 1:2 정도는 해볼만 함
+          if (attacker.items.length - enemy.items.length >= 3) {
+              score += 1500; // 자신감 회복
+          }
+      }
+
+      // 4. 타워 다이브 체크
+      if (match) {
+          const enemyPos = {x: enemy.x, y: enemy.y};
+          if (Perception.isInActiveEnemyTowerRange(enemyPos, match, isBlue)) {
+              // 기본적으로 타워 안은 지옥임
+              score -= 4000; 
+
+              // 딸피 유혹 (뇌지컬 낮으면 낚임)
+              if (AIUtils.hpPercent(enemy) < 0.15 && brain < 40) score += 2000;
+          }
       }
 
       score *= morale;
-
-      const interruptScore = RecallInterrupter.getInterruptionScore(attacker, enemy);
-      score += interruptScore;
-
-      // 2. 타워 다이브 판단
-      if (match) {
-          const enemyPos = {x: enemy.x, y: enemy.y};
-          
-          if (Perception.isInActiveEnemyTowerRange(enemyPos, match, isBlue)) {
-              const hasMinion = Perception.isSafeToSiege(attacker, match, enemyPos);
-              const canPoke = myRange > 5.0;
-
-              if (!hasMinion && !canPoke) {
-                  let penalty = 2000;
-                  if (morale > 1.5 && brain < 30) penalty = 0; 
-                  if (AIUtils.hpPercent(enemy) < 0.15) penalty -= 1000;
-                  if (interruptScore > 1000) penalty -= 500;
-                  score -= penalty;
-              } else if (!hasMinion && canPoke) {
-                   score -= 100;
-              }
-          }
-      }
+      score += RecallInterrupter.getInterruptionScore(attacker, enemy);
 
       if (score > aggressionThreshold && score > maxScore) {
         maxScore = score;
@@ -13205,10 +13265,7 @@ import { BASES } from '../constants/MapConstants';
 import { LaningLogic } from '../logics/LaningLogic';
 import { RoamingLogic } from '../logics/RoamingLogic';
 import { SquadSystem } from './tactics/SquadSystem';
-import { TacticalScorer } from './tactics/TacticalScorer';
 import { TeamTactics } from './tactics/TeamTactics';
-import { KillEvaluator } from './evaluators/KillEvaluator';
-import { ObservationSystem } from './perception/ObservationSystem'; 
 
 export type MacroAction = 'RECALL' | 'DEFEND' | 'FIGHT' | 'FARM' | 'PUSH' | 'WAIT' | 'OBJECTIVE' | 'SUPPORT' | 'GANK' | 'FLEE' | 'FINISH' | 'ASSEMBLE' | 'LANING' | 'CHASE';
 
@@ -13227,21 +13284,20 @@ export class MacroBrain {
     const distToBase = AIUtils.dist(player, myBase);
 
     // =================================================================
-    // [0] 우물 탈출 로직 (최우선 순위)
-    // 우물에 있는데 체력/마나가 충분하다면? 닥치고 나간다.
+    // [0] 우물 탈출 로직 (최우선 순위 - 멍청하게 왔다갔다 방지)
     // =================================================================
-    if (distToBase < 8) { 
+    // 우물 근처(12)에 있는데 체력/마나가 충분하다면? 뒤도 돌아보지 말고 나간다.
+    if (distToBase < 12) { 
       const hpP = AIUtils.hpPercent(player);
       const mpP = AIUtils.mpPercent(player);
       
-      // 아직 회복 덜 됐으면 대기
+      // 회복이 덜 됐으면 대기 (95% 미만)
       if (hpP < 0.95 || (player.maxMp > 0 && mpP < 0.95)) {
         return { action: 'RECALL', targetPos: myBase, reason: '우물 회복 중' };
       }
       
-      // 회복 다 됐으면?
-      // 여기서 EconomyEvaluator를 호출하지 않음. 이미 우물이니까 쇼핑은 끝났다고 가정.
-      // 바로 전선 복귀 명령 하달.
+      // [핵심] 회복 다 됐으면? -> EconomyEvaluator(쇼핑 체크)를 건너뛰고 강제 출격
+      // 여기서 쇼핑 체크를 하면 "나가는 중에 돈이 모임 -> 다시 백" 하는 현상 발생
       const pathPos = PathSystem.getNextWaypoint(player, isBlue, match);
       return { action: 'PUSH', targetPos: pathPos, reason: '전선 복귀' };
     }
@@ -13250,7 +13306,10 @@ export class MacroBrain {
     // [1] 생존 판단 (Low HP)
     // =================================================================
     if (Perception.needsRecall(player)) {
-        if (Perception.analyzeNearbySituation(player, match, 15).enemies.length > 0) return { action: 'FLEE', targetPos: myBase, reason: '교전 이탈' };
+        // 적이 근처에 있으면 도망, 없으면 귀환
+        if (Perception.analyzeNearbySituation(player, match, 15).enemies.length > 0) {
+            return { action: 'FLEE', targetPos: myBase, reason: '교전 이탈' };
+        }
         return { action: 'RECALL', targetPos: myBase, reason: '긴급 정비' };
     }
     
@@ -13259,13 +13318,11 @@ export class MacroBrain {
     // =================================================================
     const teamOrder = TeamTactics.analyzeTeamStrategy(match, isBlue);
     if (teamOrder.type === 'ALL_PUSH') {
-        // 적 넥서스 점사
         return { action: 'FINISH', targetPos: enemyBase, reason: '넥서스 파괴' };
     }
 
     if (teamOrder.type === 'SIEGE_MID') {
         const nearby = Perception.analyzeNearbySituation(player, match, 15);
-        // 적이 있으면 싸우고, 없으면 민다
         if (nearby.enemies.length > 0) {
              const target = nearby.enemies[0];
              return { action: 'FIGHT', targetPos: {x:target.x, y:target.y}, targetUnit: target, reason: '공성 교전' };
@@ -13287,11 +13344,8 @@ export class MacroBrain {
             const target = nearby.enemies[0];
             return { action: 'FIGHT', targetPos: {x:target.x, y:target.y}, targetUnit: target, reason: '한타 개시' };
         }
-        // 암살/짤라먹기 각?
+        // 짤라먹기 각?
         for (const enemy of nearby.enemies) {
-             // (이전 코드에서 import 필요)
-             const { battleSettings, roleSettings } = (window as any).gameStoreState?.gameState || {}; 
-             // store 접근이 어려우므로 간소화된 판단 사용
              if (AIUtils.hpPercent(enemy) < 0.4) {
                  player.lastAttackedTargetId = enemy.heroId;
                  player.lastAttackTime = match.currentDuration;
@@ -13303,7 +13357,8 @@ export class MacroBrain {
     // =================================================================
     // [4] 경제적 귀환 (돈 많으면 집)
     // =================================================================
-    if (EconomyEvaluator.shouldRecallForShopping(player, match)) {
+    // 기지를 막 벗어난 상태(거리 30 이내)에서는 웬만하면 다시 집에 가지 않음 (깜빡한 물건 사러가는 짓 방지)
+    if (distToBase > 30 && EconomyEvaluator.shouldRecallForShopping(player, match)) {
         return { action: 'RECALL', targetPos: myBase, reason: '아이템 구매' };
     }
 
@@ -13326,7 +13381,8 @@ export class MacroBrain {
         if (Perception.isSafeToSiege(player, match, towerPos)) {
             return { action: 'PUSH', targetPos: towerPos, reason: '라인 푸쉬' };
         } else {
-            const safeWaitPos = { x: towerPos.x + (isBlue ? -10 : 10), y: towerPos.y + (isBlue ? -10 : 10) };
+            // 안전하지 않으면 타워 사거리 밖에서 대기 (집에 가지 말고)
+            const safeWaitPos = { x: towerPos.x + (isBlue ? -12 : 12), y: towerPos.y + (isBlue ? -12 : 12) };
             return { action: 'WAIT', targetPos: safeWaitPos, reason: '대기' };
         }
     }
@@ -13334,6 +13390,111 @@ export class MacroBrain {
     // 정글링
     const nextPath = PathSystem.getNextWaypoint(player, isBlue, match);
     return { action: 'FARM', targetPos: nextPath, reason: '정글링' };
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/map/InfluenceMap.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/map/InfluenceMap.ts
+// ==========================================
+import { LiveMatch, LivePlayer } from '../../../../types';
+import { TOWER_COORDS } from '../../constants/MapConstants';
+
+// 맵을 20x20 그리드로 나눔 (100 좌표계 기준, 1칸 = 5)
+const GRID_SIZE = 20;
+const CELL_SIZE = 100 / GRID_SIZE;
+
+export class InfluenceMap {
+  // 팀별 위험지도 (값이 높을수록 위험)
+  static getDangerMap(match: LiveMatch, isBlueTeam: boolean): number[][] {
+    const grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
+    const enemyTeam = isBlueTeam ? match.redTeam : match.blueTeam;
+    const enemyTowers = isBlueTeam ? match.stats.red.towers : match.stats.blue.towers;
+    const enemyTowerCoords = isBlueTeam ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
+
+    // 1. 적 영웅의 영향력 (위험)
+    enemyTeam.forEach(e => {
+      if (e.currentHp <= 0) return;
+      const gx = Math.floor(e.x / CELL_SIZE);
+      const gy = Math.floor(e.y / CELL_SIZE);
+      // 영웅 주변 3x3 칸에 위험도 전파
+      this.addInfluence(grid, gx, gy, 50, 2); 
+    });
+
+    // 2. 적 타워의 영향력 (극도로 위험 - 다이브 방지)
+    const lanes = ['top', 'mid', 'bot'] as const;
+    lanes.forEach(lane => {
+        const broken = (enemyTowers as any)[lane];
+        // @ts-ignore
+        const coords = enemyTowerCoords[lane.toUpperCase()];
+        coords.forEach((pos:any, idx:number) => {
+            if (idx >= broken) { // 살아있는 타워
+                const gx = Math.floor(pos.x / CELL_SIZE);
+                const gy = Math.floor(pos.y / CELL_SIZE);
+                this.addInfluence(grid, gx, gy, 200, 2); // 타워는 매우 위험 (200점)
+            }
+        });
+    });
+
+    return grid;
+  }
+
+  // 3. 최적의 안전 이동 위치 찾기
+  static getOptimalPos(player: LivePlayer, match: LiveMatch, targetPos: {x:number, y:number}): {x:number, y:number} {
+    const isBlue = match.blueTeam.includes(player);
+    const dangerMap = this.getDangerMap(match, isBlue);
+    
+    const startX = Math.floor(player.x / CELL_SIZE);
+    const startY = Math.floor(player.y / CELL_SIZE);
+    
+    let bestScore = -9999;
+    let bestPos = { x: player.x, y: player.y };
+
+    // 주변 1칸(8방향) 탐색
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            const nx = startX + dx;
+            const ny = startY + dy;
+            
+            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                const danger = dangerMap[ny][nx];
+                const worldX = (nx * CELL_SIZE) + (CELL_SIZE/2);
+                const worldY = (ny * CELL_SIZE) + (CELL_SIZE/2);
+                
+                // 목표지점까지의 거리 (가까울수록 좋음)
+                const distToTarget = Math.sqrt(Math.pow(targetPos.x - worldX, 2) + Math.pow(targetPos.y - worldY, 2));
+                
+                // 점수 = (목표 접근성 * 2) - (위험도 * 뇌지컬 가중치)
+                const brainFactor = player.stats.brain / 20; // 멍청하면 위험도 무시
+                const score = (100 - distToTarget) - (danger * brainFactor);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPos = { x: worldX, y: worldY };
+                }
+            }
+        }
+    }
+    return bestPos;
+  }
+
+  private static addInfluence(grid: number[][], x: number, y: number, value: number, radius: number) {
+    for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                // 거리에 따른 감쇠
+                const dist = Math.abs(dx) + Math.abs(dy);
+                const decay = Math.max(0, value - (dist * (value / (radius + 1))));
+                grid[ny][nx] += decay;
+            }
+        }
+    }
   }
 }
 
@@ -13718,19 +13879,20 @@ FILE PATH: src/engine/match/ai/MicroBrain.ts
 // FILE PATH: /src/engine/match/ai/MicroBrain.ts
 // ==========================================
 import { LivePlayer, Hero, LiveMatch } from '../../../types';
-import { EvasionSystem } from './tactics/EvasionSystem';
-import { TacticalComputer } from './tactics/TacticalComputer';
 import { AIUtils } from './AIUtils';
 import { useGameStore } from '../../../store/useGameStore';
 import { ComboSystem } from './mechanics/ComboSystem';
 import { SkillBrain } from './tactics/SkillBrain';
 import { ObservationSystem } from './perception/ObservationSystem'; 
-import { TeamCoordination } from './mechanics/TeamCoordination'; // [신규]
+import { TeamCoordination } from './mechanics/TeamCoordination';
+import { PredictionSystem } from './systems/PredictionSystem';
+import { RoleAI } from './tactics/RoleAI';
 
 export interface MicroDecision {
   type: 'ATTACK' | 'MOVE';
   targetPos: { x: number, y: number };
   skillKey?: string; 
+  cancelAnimation?: boolean; // [New] 평캔 여부
 }
 
 export class MicroBrain {
@@ -13752,56 +13914,48 @@ export class MicroBrain {
 
     ObservationSystem.updateObservations(player, match);
 
-    // 1. 투사체 회피
-    const dodgePos = EvasionSystem.getDodgeVector(player, match);
+    // 1. [회피 기동]
+    const dodgePos = PredictionSystem.getDodgeMovement(player, match);
     if (dodgePos) return { type: 'MOVE', targetPos: dodgePos };
 
-    // 2. 콤보 및 스킬 사용
+    // 2. [콤보 및 스킬]
     const dist = AIUtils.dist(player, target);
     let bestSkill: string | null = null;
 
     bestSkill = ComboSystem.getNextSkill(player, target, hero, dist, match.currentDuration);
-
-    if (!bestSkill) {
-        bestSkill = SkillBrain.getBestSkill(player, target, hero, dist);
-    }
+    if (!bestSkill) bestSkill = SkillBrain.getBestSkill(player, target, hero, dist);
 
     if (bestSkill) {
-        // [핵심] CC 연계 판단 (TeamCoordination)
-        // 아군이 기절을 걸어놨으면 내 CC기는 아낌 (Hold)
         const skillInfo = hero.skills[bestSkill as 'q'|'w'|'e'|'r'];
-        
         if (TeamCoordination.shouldHoldCC(target, skillInfo.mechanic)) {
-            // 스킬 쓰는 대신 평타나 무빙 (기다림)
-            // 그냥 공격 사거리 안이면 평타, 아니면 접근
             const range = (hero.stats.range / 100);
-            if (dist <= range + 1.0) {
-                return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
-            }
+            if (dist <= range + 1.0) return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
             return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
         }
 
-        // 예측 사격
-        const aimPos = ObservationSystem.getPredictedPosition(player, target, 15.0);
-        
+        const aimPos = PredictionSystem.getAimPosition(player, target, match);
+        return { type: 'ATTACK', targetPos: aimPos, skillKey: bestSkill };
+    }
+
+    // 3. [피지컬 기반 카이팅 & 평캔]
+    const mechanics = player.stats.mechanics;
+    const range = (hero.stats.range / 100);
+
+    // 피지컬 80 이상: 평캔 (공격 후 바로 무빙 명령을 내려 딜레이 줄임)
+    const canCancel = mechanics >= 80;
+
+    if (dist <= range) {
+        // 공격
         return { 
             type: 'ATTACK', 
-            targetPos: aimPos, 
-            skillKey: bestSkill 
+            targetPos: { x: target.x, y: target.y },
+            cancelAnimation: canCancel 
         };
+    } else {
+        // 추격
+        // 피지컬 높으면 적의 예상 경로로 질러감 (간단히 구현)
+        return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
     }
-
-    // 3. 스마트 포지셔닝 (카이팅)
-    const range = (hero.stats.range / 100);
-    const optimalPos = TacticalComputer.getSiegePosition(player, target, match, range);
-
-    const distToOptimal = AIUtils.dist(player, optimalPos);
-    
-    if (distToOptimal < 2.0 && dist <= range + 1.0) {
-        return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
-    }
-
-    return { type: 'MOVE', targetPos: optimalPos };
   }
 }
 
@@ -13817,31 +13971,59 @@ import { LivePlayer, LiveMatch } from '../../../../types';
 import { Vector2 } from '../../utils/Vector';
 import { BASES } from '../../constants/MapConstants';
 import { AIUtils } from '../AIUtils';
+import { InfluenceMap } from '../map/InfluenceMap';
 
 export class JunglePathFinder {
   
   static getNextCamp(player: LivePlayer, match: LiveMatch): Vector2 {
+    const isBlue = match.blueTeam.includes(player);
+    const myBase = isBlue ? BASES.BLUE : BASES.RED;
+
+    // [핵심 추가] 생존 로직: 체력이 30% 미만이면 정글링 중단하고 본진으로 도망
+    if (AIUtils.hpPercent(player) < 0.3) {
+        return myBase;
+    }
+
     const mobs = match.jungleMobs || [];
     const aliveMobs = mobs.filter(m => m.isAlive);
 
-    // 몬스터 없으면 미드 강가로 이동해서 싸움 유도
+    // 몬스터 없으면 미드 합류
     if (aliveMobs.length === 0) {
         return { x: 50, y: 50 };
     }
 
+    const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
+    const GRID_SIZE = 20;
+    const CELL_SIZE = 5;
+
     let bestTarget: Vector2 | null = null;
     let minScore = 99999;
-
-    const isBlue = match.blueTeam.includes(player);
 
     for (const mob of aliveMobs) {
         let dist = AIUtils.dist(player, mob);
         
-        // 내 진영 정글 우선순위 (안전 지향)
-        const isMySide = isBlue ? (mob.x + mob.y < 100) : (mob.x + mob.y > 100);
-        if (!isMySide && player.level < 4) dist += 50; 
+        // 1. 적 정글(카정) 위험도 체크
+        const gx = Math.floor(mob.x / CELL_SIZE);
+        const gy = Math.floor(mob.y / CELL_SIZE);
+        
+        let danger = 0;
+        if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+            danger = dangerMap[gy][gx];
+        }
 
-        // 버프 몹 우선
+        // 위험하면 거리 페널티 (안 감)
+        if (danger > 50) dist += 1000; 
+        else if (danger > 20) dist += 100;
+
+        // 2. 내 진영 우선순위
+        const isMySide = isBlue ? (mob.x + mob.y < 100) : (mob.x + mob.y > 100);
+        if (!isMySide) {
+            // 카정 가려면 레벨 높거나 뇌지컬 좋아야 함
+            if (player.level < 6 && player.stats.brain < 60) dist += 200;
+            else dist += 30; // 기본적으로 남의 정글은 멈
+        }
+
+        // 3. 버프 몹 우선
         if (mob.type === 'GOLEM') dist -= 20;
 
         if (dist < minScore) {
@@ -13850,8 +14032,10 @@ export class JunglePathFinder {
         }
     }
 
-    if (bestTarget) return bestTarget;
-    return isBlue ? BASES.BLUE : BASES.RED;
+    if (bestTarget && minScore < 500) return bestTarget;
+    
+    // 갈 곳 없으면 본진 혹은 미드 대기
+    return myBase;
   }
 }
 
@@ -14197,6 +14381,333 @@ export class Perception {
 
 
 ==========================================
+FILE PATH: src/engine/match/ai/systems/MapAwareness.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/systems/MapAwareness.ts
+// ==========================================
+import { LivePlayer, LiveMatch } from '../../../../types';
+import { AIUtils } from '../AIUtils';
+
+export class MapAwareness {
+  
+  /**
+   * [육감 (Sixth Sense)]
+   * 시야에 보이지 않는 적(MIA)에 대한 공포감을 계산합니다.
+   * - 뇌지컬 높음: 안 보이면 "매복해 있겠구나" 하고 사림 (Danger Score 높음)
+   * - 뇌지컬 낮음: 안 보이면 "집 갔겠지" 하고 던짐 (Danger Score 0)
+   */
+  static getHiddenThreatScore(player: LivePlayer, match: LiveMatch): number {
+    const brain = player.stats.brain; // 0 ~ 100
+    
+    // 뇌지컬 40 이하는 맵리딩 안함
+    if (brain < 40) return 0;
+
+    const isBlue = match.blueTeam.includes(player);
+    const enemies = isBlue ? match.redTeam : match.blueTeam;
+    
+    // 시야에서 사라진 적 카운트
+    // (여기서는 시야 시스템이 단순하므로, 나와 거리가 먼 적을 MIA로 간주)
+    const visibleRange = 25;
+    const missingEnemies = enemies.filter(e => 
+        e.currentHp > 0 && 
+        e.respawnTimer <= 0 && 
+        AIUtils.dist(player, e) > visibleRange
+    );
+
+    if (missingEnemies.length === 0) return 0;
+
+    // 뇌지컬에 따른 위협 가중치
+    // brain 100 -> 적 1명당 위협도 50
+    // brain 50  -> 적 1명당 위협도 20
+    const threatPerEnemy = (brain - 30) * 0.8;
+    
+    // 아군 영토(타워 근처)에 있으면 위협 감소
+    const myBase = isBlue ? {x:0, y:100} : {x:100, y:0}; // 대략적 본진 방향
+    const safety = 100 - AIUtils.dist(player, myBase);
+    
+    // 최종 위험 점수 (내가 적진 깊숙이 있을수록 공포감이 커짐)
+    let dangerScore = missingEnemies.length * threatPerEnemy;
+    
+    // 우리 진영이면 안 무서움
+    if (safety > 70) dangerScore *= 0.1;
+    
+    return dangerScore;
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/systems/PredictionSystem.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/systems/PredictionSystem.ts
+// ==========================================
+import { LivePlayer, LiveMatch } from '../../../../types';
+import { ObservationSystem } from '../perception/ObservationSystem';
+import { ReactionSystem } from './ReactionSystem'; // [New]
+
+export class PredictionSystem {
+  
+  static getAimPosition(attacker: LivePlayer, target: LivePlayer, match: LiveMatch): {x:number, y:number} {
+    const obs = ObservationSystem.getLastKnownPosition(attacker, target.heroId, match.currentDuration);
+    if (!obs) return { x: target.x, y: target.y };
+
+    const brain = attacker.stats.mechanics; 
+    if (brain < 40) return { x: target.x, y: target.y }; 
+
+    // [New] 조준 오차 적용 (손떨림)
+    const error = ReactionSystem.getAimError(attacker);
+    
+    // 원래라면 속도 벡터 예측이 들어가야 하지만, 현재는 정조준 + 오차로 구현
+    return { 
+        x: target.x + error.x, 
+        y: target.y + error.y 
+    };
+  }
+
+  static getDodgeMovement(player: LivePlayer, match: LiveMatch): {x:number, y:number} | null {
+    if (player.stats.mechanics < 20) return null; // 피지컬 너무 낮으면 포기
+
+    const myTeam = match.blueTeam.includes(player) ? 'BLUE' : 'RED';
+    let threat = null;
+    let minDist = 10;
+
+    if (!match.projectiles) return null;
+
+    for (const p of match.projectiles) {
+        if (p.team === myTeam) continue; 
+        
+        const dx = p.x - player.x;
+        const dy = p.y - player.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if (dist < minDist) {
+            minDist = dist;
+            threat = p;
+        }
+    }
+
+    if (threat) {
+        // [New] 반응 속도 체크 (인지했는가?)
+        // 아직 반응 못했으면(딜레이 중이면) 피하지 않음
+        if (!ReactionSystem.canReactToThreat(player, threat.id || 'proj', match.currentDuration)) {
+            return null;
+        }
+
+        const dx = player.x - threat.x;
+        const dy = player.y - threat.y;
+        
+        const dodgeX = -dy;
+        const dodgeY = dx;
+        
+        const len = Math.sqrt(dodgeX*dodgeX + dodgeY*dodgeY);
+        return { 
+            x: player.x + (dodgeX/len) * 5, 
+            y: player.y + (dodgeY/len) * 5 
+        };
+    }
+    return null;
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/systems/ReactionSystem.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/systems/ReactionSystem.ts
+// ==========================================
+import { LivePlayer } from '../../../../types';
+
+const threatMemory = new WeakMap<LivePlayer, { id: string, detectedAt: number }[]>();
+
+export class ReactionSystem {
+  
+  static canReactToThreat(player: LivePlayer, threatId: string, currentTime: number): boolean {
+    let threats = threatMemory.get(player);
+    if (!threats) {
+      threats = [];
+      threatMemory.set(player, threats);
+    }
+
+    let memory = threats.find(t => t.id === threatId);
+    
+    if (!memory) {
+      memory = { id: threatId, detectedAt: currentTime };
+      threats.push(memory);
+      if (threats.length > 10) threats.shift();
+    }
+
+    const mechanics = player.stats.mechanics;
+    
+    // [밸런스 패치] 반응 속도 공식 완화
+    // 기존: 0.6초 - (mechanics * 0.005) -> 피지컬 50일 때 0.35초 (느림)
+    // 변경: 0.5초 - (mechanics * 0.004) -> 피지컬 50일 때 0.3초, 피지컬 80이면 0.18초
+    // "보고 피했다" 소리 나오게 상향
+    const reactionDelay = Math.max(0.1, 0.5 - (mechanics * 0.004)); 
+
+    return (currentTime - memory.detectedAt) >= reactionDelay;
+  }
+
+  static getAimError(player: LivePlayer): { x: number, y: number } {
+    const mechanics = player.stats.mechanics;
+    
+    // 피지컬 70 이상이면 오차 없음 (기존 80에서 완화)
+    if (mechanics >= 70) return { x: 0, y: 0 };
+
+    const errorMagnitude = (70 - mechanics) * 0.05; 
+    const angle = Math.random() * Math.PI * 2;
+    
+    return {
+        x: Math.cos(angle) * errorMagnitude,
+        y: Math.sin(angle) * errorMagnitude
+    };
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/systems/RiskAssessment.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/systems/RiskAssessment.ts
+// ==========================================
+import { LivePlayer, LiveMatch } from '../../../../types';
+import { AIUtils } from '../AIUtils';
+import { Perception } from '../Perception';
+import { InfluenceMap } from '../map/InfluenceMap';
+
+export class RiskAssessment {
+  
+  /**
+   * [위험도 측정]
+   * 특정 위치(targetPos)로 이동했을 때의 위험도를 0~100점으로 반환
+   */
+  static calculateRisk(player: LivePlayer, targetPos: {x:number, y:number}, match: LiveMatch): number {
+    let risk = 0;
+    const isBlue = match.blueTeam.includes(player);
+
+    // 1. [지형 위험도] InfluenceMap 활용
+    // 적 타워 근처, 적 본진 근처면 위험도 급상승
+    const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
+    const gx = Math.floor(Math.max(0, Math.min(99, targetPos.x)) / 5);
+    const gy = Math.floor(Math.max(0, Math.min(99, targetPos.y)) / 5);
+    
+    // InfluenceMap 값이 보통 0~200 사이로 나옴 -> 0~50으로 스케일링
+    if (dangerMap[gy] && dangerMap[gy][gx]) {
+        risk += Math.min(50, dangerMap[gy][gx] / 4);
+    }
+
+    // 2. [수적 열세] 주변 적 vs 아군 수
+    // 타겟 지점 반경 15 내의 상황 파악
+    const enemies = isBlue ? match.redTeam : match.blueTeam;
+    const allies = isBlue ? match.blueTeam : match.redTeam;
+
+    const nearbyEnemies = enemies.filter(e => e.currentHp > 0 && AIUtils.dist({x:e.x, y:e.y}, targetPos) < 15).length;
+    const nearbyAllies = allies.filter(a => a !== player && a.currentHp > 0 && AIUtils.dist({x:a.x, y:a.y}, targetPos) < 15).length;
+
+    // 나 혼자(0) vs 적(N) 상황
+    // 1:2 -> 위험도 +30
+    // 1:3 -> 위험도 +60
+    // 1:1 -> 위험도 +0
+    if (nearbyEnemies > nearbyAllies + 1) { // 나 포함하면 nearbyAllies+1
+        risk += (nearbyEnemies - (nearbyAllies + 1)) * 30;
+    }
+
+    // 3. [체력 상태] 내 피가 적을수록 모든 상황이 위험함
+    const hpPercent = AIUtils.hpPercent(player);
+    if (hpPercent < 0.3) risk += 40;
+    else if (hpPercent < 0.5) risk += 20;
+
+    // 4. [고립 여부] 아군 타워/본진과의 거리
+    const myBase = AIUtils.getMyBasePos(isBlue);
+    const distToBase = AIUtils.dist(targetPos, myBase);
+    
+    // 적진 깊숙한 곳(거리가 70 이상)이면 위험
+    if (distToBase > 70) risk += 10;
+
+    return Math.min(100, Math.max(0, risk));
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/systems/SafetyCheck.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/systems/SafetyCheck.ts
+// ==========================================
+import { LivePlayer, LiveMatch } from '../../../../types';
+import { RiskAssessment } from './RiskAssessment';
+import { AIUtils } from '../AIUtils';
+
+export class SafetyCheck {
+  
+  static validateAction(
+    player: LivePlayer, 
+    match: LiveMatch, 
+    intendedAction: string, 
+    targetPos: {x:number, y:number}
+  ): { action: string, targetPos: {x:number, y:number}, reason?: string } {
+    
+    // 이미 도망가거나 대기 중이면 패스
+    if (intendedAction === 'RECALL' || intendedAction === 'WAIT') {
+        return { action: intendedAction, targetPos };
+    }
+
+    const brain = player.stats.brain; // 운영 능력 (판단력)
+    const mechanics = player.stats.mechanics; // 피지컬 (반사신경)
+    
+    // [핵심 패치] 동물적 감각 (Reflex Save)
+    // 뇌지컬이 낮아서 위험한 곳에 들어갔더라도,
+    // 피지컬이 좋으면 "어? 나 죽겠는데?" 하고 본능적으로 빠져나옴.
+    
+    // 조건: 체력이 30% 미만이고, 최근 2초 안에 피해를 입음
+    const isLowHp = AIUtils.hpPercent(player) < 0.3;
+    const isTakingDamage = match.currentDuration - (player as any).lastHitTime < 2.0;
+
+    if (isLowHp && isTakingDamage) {
+        // 피지컬 40 이상이면 반응 (기존엔 뇌지컬만 봤음)
+        if (mechanics > 40) {
+             const myBase = AIUtils.getMyBasePos(match.blueTeam.includes(player));
+             return {
+                 action: 'FLEE', // 뒤도 안 돌아보고 도망
+                 targetPos: myBase,
+                 reason: '동물적 감각 발동'
+             };
+        }
+    }
+
+    // --- 기존 뇌지컬 판단 로직 ---
+    
+    // 뇌지컬 30 이하는 위험 계산 불가 (그냥 들이박음 -> 위 피지컬 로직이 구제해줌)
+    if (brain < 30) {
+        return { action: intendedAction, targetPos };
+    }
+
+    const currentRisk = RiskAssessment.calculateRisk(player, targetPos, match);
+    const riskTolerance = 100 - (brain * 0.6); 
+
+    if (currentRisk > riskTolerance) {
+        if (currentRisk > riskTolerance + 20) {
+            const myBase = AIUtils.getMyBasePos(match.blueTeam.includes(player));
+            return { action: 'RECALL', targetPos: myBase, reason: '위험 감지' };
+        }
+        return { action: 'WAIT', targetPos: { x: player.x, y: player.y }, reason: '진입 대기' };
+    }
+
+    return { action: intendedAction, targetPos };
+  }
+}
+
+
+
+==========================================
 FILE PATH: src/engine/match/ai/tactics/EvasionSystem.ts
 ==========================================
 // ==========================================
@@ -14279,7 +14790,7 @@ FILE PATH: src/engine/match/ai/tactics/RoleAI.ts
 // ==========================================
 // FILE PATH: /src/engine/match/ai/tactics/RoleAI.ts
 // ==========================================
-import { LivePlayer, Hero } from '../../../../types';
+import { LivePlayer, Hero, LiveMatch } from '../../../../types';
 import { MicroDecision } from '../MicroBrain';
 import { TacticalComputer } from './TacticalComputer';
 import { AIUtils } from '../AIUtils';
@@ -14290,9 +14801,7 @@ export class RoleAI {
     player: LivePlayer, 
     target: LivePlayer, 
     hero: Hero, 
-    enemies: LivePlayer[],
-    allies: LivePlayer[],
-    isBlue: boolean
+    match: LiveMatch
   ): MicroDecision {
     const brain = player.stats.brain;
     const role = hero.role;
@@ -14306,62 +14815,68 @@ export class RoleAI {
             return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
         }
 
-        // 카이팅 위치 계산
-        const kitingPos = TacticalComputer.getOptimalKitingPosition(player, target, enemies, range);
+        // InfluenceMap 기반 안전한 카이팅 위치 계산
+        const kitingPos = TacticalComputer.getOptimalKitingPosition(player, target, match, range);
         
-        // 공격 가능하면 공격, 아니면 무빙
-        // (Attack Move 로직: 쿨타임과 거리를 고려)
+        // 공격 사거리 내라면? -> 무빙샷 (Attack Move)
         if (dist <= range) {
-             // 뇌지컬이 높으면 무빙샷 (이동 -> 공격 -> 이동)
-             // 여기선 단순화: 50% 확률로 위치 재조정 (무빙), 50% 확률로 공격
+             // 뇌지컬이 높을수록 무빙 빈도 증가 (칼같은 카이팅)
+             // brain 100 -> 50% 확률로 포지셔닝 조정, 50% 공격
              if (Math.random() < (brain / 200)) { 
                  return { type: 'MOVE', targetPos: kitingPos };
              }
              return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
         } else {
+            // 사거리 밖이면 카이팅 위치로 이동 (추격 or 거리벌리기 자동 적용됨)
             return { type: 'MOVE', targetPos: kitingPos };
         }
     }
 
     // 2. [추적자] (암살자) -> 진입 각 보기
     if (role === '추적자') {
-        // 적의 주요 스킬(CC)이 빠졌는지 체크하는 척 (뇌지컬 반영)
-        const isSafeToEnter = brain < 50 || Math.random() > 0.3; 
+        // 간보기 (Flanking) - 적의 측후방을 노림
+        const flankPos = TacticalComputer.getFlankingPosition(player, target);
+        
+        // 진입 타이밍: 적 주요 스킬 빠짐 or 딸피 or 뇌지컬 낮음
+        const isSafeToEnter = brain < 50 || AIUtils.hpPercent(target) < 0.5 || Math.random() > 0.7; 
         
         if (isSafeToEnter) {
-            // 암살 시도: 적에게 붙음
             if (dist > 2.0) {
+                // 붙어야 때림
                 return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
             }
             return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
         } else {
-            // 간보기 (Flanking)
-            const flankPos = TacticalComputer.getFlankingPosition(player, target);
+            // 진입 각 보는 중 (주변 배회)
             return { type: 'MOVE', targetPos: flankPos };
         }
     }
 
-    // 3. [수호기사] (탱커) -> 아군 보호 및 앞라인
+    // 3. [수호기사] (탱커) -> 아군 보호 (Peeling)
     if (role === '수호기사') {
+        const isBlue = match.blueTeam.includes(player);
+        const allies = isBlue ? match.blueTeam : match.redTeam;
+        
         // 가장 강한 아군(딜러) 찾기
         const carry = allies.find(a => a !== player && (a.role === '신살자' || a.role === '선지자') && a.currentHp > 0);
         
         if (carry && brain > 60) {
-            // 아군 딜러가 위협받는지 확인
-            const threat = enemies.find(e => AIUtils.dist(carry, e) < 10);
-            if (threat) {
-                // 필링(Peeling): 적과 아군 사이로 이동
-                const peelPos = TacticalComputer.getPeelingPosition(player, carry, threat);
+            const enemyDistToCarry = AIUtils.dist(carry, target);
+            // 적이 우리 딜러를 물려고 하면?
+            if (enemyDistToCarry < 8.0) {
+                // 적과 아군 사이를 가로막음
+                const peelPos = TacticalComputer.getPeelingPosition(player, carry, target);
+                
                 // 이동 후 적이 사거리 내면 공격 (CC 걸기 위해)
-                if (AIUtils.dist(player, threat) < range) {
-                    return { type: 'ATTACK', targetPos: { x: threat.x, y: threat.y } };
+                if (AIUtils.dist(player, target) < range) {
+                    return { type: 'ATTACK', targetPos: { x: target.x, y: target.y } };
                 }
                 return { type: 'MOVE', targetPos: peelPos };
             }
         }
     }
 
-    // [기본] 집행관 및 기타 -> 닥공
+    // [기본] 집행관 및 기타 -> 닥공 (단, 너무 깊숙히는 안 들어감)
     if (dist > range * 0.8) {
         return { type: 'MOVE', targetPos: { x: target.x, y: target.y } };
     }
@@ -14427,6 +14942,49 @@ export class SkillBrain {
     if (AIUtils.hpPercent(player) < 0.4 && canUse('w')) return 'w'; // 생존용
 
     return null;
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/tactics/SquadController.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/tactics/SquadController.ts
+// ==========================================
+import { LiveMatch, LivePlayer } from '../../../../types';
+import { AIUtils } from '../AIUtils';
+import { BASES } from '../../constants/MapConstants';
+
+export class SquadController {
+  
+  static getGroupOrder(player: LivePlayer, match: LiveMatch): { action: string, pos?: {x:number, y:number} } | null {
+    const isBlue = match.blueTeam.includes(player);
+    const allies = isBlue ? match.blueTeam : match.redTeam;
+    
+    // 15분 이전에는 라인전 (각자도생)
+    if (match.currentDuration < 900) return null;
+
+    // 살아있는 아군 수
+    const activeAllies = allies.filter(a => a.currentHp > 0 && a.respawnTimer <= 0);
+    if (activeAllies.length < 3) return null; // 3명 미만이면 각자 행동
+
+    // 가장 잘 큰 아군(에이스) 찾기
+    const ace = activeAllies.sort((a,b) => b.totalGold - a.totalGold)[0];
+    
+    // 내가 에이스라면? -> 내가 리더이므로 자유 행동
+    if (ace === player) return null;
+
+    // 에이스가 본진에 있으면 집결 해제
+    const myBase = isBlue ? BASES.BLUE : BASES.RED;
+    if (AIUtils.dist(ace, myBase) < 20) return null;
+
+    // [명령] 에이스 주변으로 집결
+    return {
+        action: 'ASSEMBLE',
+        pos: { x: ace.x, y: ace.y }
+    };
   }
 }
 
@@ -14529,161 +15087,62 @@ FILE PATH: src/engine/match/ai/tactics/TacticalComputer.ts
 // ==========================================
 // FILE PATH: /src/engine/match/ai/tactics/TacticalComputer.ts
 // ==========================================
-import { LivePlayer, LiveMatch, Hero } from '../../../../types';
+import { LivePlayer, LiveMatch } from '../../../../types';
 import { Vector, Vector2 } from '../../../match/utils/Vector';
 import { AIUtils } from '../AIUtils';
-import { TOWER_COORDS } from '../../../match/constants/MapConstants';
-import { Perception } from '../Perception';
+import { InfluenceMap } from '../map/InfluenceMap'; // [New]
 
 export class TacticalComputer {
 
   /**
-   * [카이팅/무빙 로직]
-   * 적의 위협을 피하면서 공격 사거리를 유지하는 최적의 위치를 계산합니다.
+   * [지능형 카이팅]
+   * 단순히 뒤로 빠지는 게 아니라, '영향력 지도(InfluenceMap)'상 안전한 곳으로 무빙샷
    */
   static getOptimalKitingPosition(
     player: LivePlayer, 
     target: LivePlayer, 
-    enemies: LivePlayer[], 
+    match: LiveMatch,
     range: number
   ): Vector2 {
     const myPos = { x: player.x, y: player.y };
-    const targetPos = { x: target.x, y: target.y };
     
-    // 1. 기본 벡터: 타겟을 향한 방향
-    let moveDir = Vector.sub(targetPos, myPos);
-    const distToTarget = Vector.mag(moveDir);
+    // 1. 기본 카이팅 방향 (타겟 반대)
+    let kitingDir = Vector.normalize(Vector.sub(myPos, {x: target.x, y: target.y}));
     
-    // 사거리 유지
-    const optimalDist = range * (0.8 + (player.stats.brain / 500)); 
-
-    if (distToTarget < optimalDist) {
-        // 너무 가까우면 뒤로 빠짐
-        moveDir = Vector.mult(moveDir, -1);
-    }
-
-    // 2. 위협 회피
-    let avoidForce = { x: 0, y: 0 };
-    for (const enemy of enemies) {
-        if (enemy === target) continue;
-        const dist = AIUtils.dist(player, enemy);
-        const awarenessRange = 5 + (player.stats.brain / 10);
-        
-        if (dist < awarenessRange) {
-            let push = Vector.sub(myPos, { x: enemy.x, y: enemy.y });
-            push = Vector.normalize(push);
-            push = Vector.mult(push, (awarenessRange - dist) * 2.0);
-            avoidForce = Vector.add(avoidForce, push);
-        }
-    }
-
-    const finalDir = Vector.add(Vector.normalize(moveDir), avoidForce);
-    return Vector.add(myPos, Vector.mult(Vector.normalize(finalDir), 5));
+    // 2. Influence Map을 이용해 '안전하면서도 사거리가 닿는' 위치 탐색
+    // 현재 위치 주변 8방향 중 가장 안전한 곳 찾기
+    const safePos = InfluenceMap.getOptimalPos(player, match, {x: target.x, y: target.y});
+    
+    // 안전한 위치 쪽으로 힘을 줌
+    const safetyDir = Vector.normalize(Vector.sub(safePos, myPos));
+    
+    // 카이팅 벡터와 안전 벡터 합성
+    const finalDir = Vector.normalize(Vector.add(kitingDir, Vector.mult(safetyDir, 1.5)));
+    
+    return Vector.add(myPos, Vector.mult(finalDir, 3.0));
   }
 
   /**
    * [암살자 로직]
-   * 적의 측면이나 후방을 노리는 벡터를 계산합니다.
+   * 적의 후방(Flank)을 노리는 위치 계산
    */
   static getFlankingPosition(player: LivePlayer, target: LivePlayer): Vector2 {
     const isBlue = player.lane !== 'JUNGLE' ? player.x < 50 : true;
+    // 적의 뒤쪽 대각선 방향
     const flankOffsetX = isBlue ? 10 : -10;
-    return { x: target.x + flankOffsetX, y: target.y + (Math.random() * 10 - 5) };
+    const flankOffsetY = (Math.random() - 0.5) * 10;
+    return { x: target.x + flankOffsetX, y: target.y + flankOffsetY };
   }
 
   /**
    * [탱커 로직]
-   * 아군 딜러와 적 사이에 위치하려는 좌표 계산
+   * 아군 딜러와 적 사이에 위치 (Peeling)
    */
   static getPeelingPosition(player: LivePlayer, allyCarry: LivePlayer, nearestEnemy: LivePlayer): Vector2 {
     const allyPos = { x: allyCarry.x, y: allyCarry.y };
     const enemyPos = { x: nearestEnemy.x, y: nearestEnemy.y };
-    return Vector.lerp(allyPos, enemyPos, 0.3);
-  }
-
-  /**
-   * [스마트 타워 공략]
-   * 적이 타워 안에 있을 때, 내가 서 있어야 할 최적의 위치를 계산합니다.
-   */
-  static getSiegePosition(
-    player: LivePlayer, 
-    target: LivePlayer, 
-    match: LiveMatch,
-    attackRange: number
-  ): Vector2 {
-    const isBlue = match.blueTeam.includes(player);
-    const myPos = { x: player.x, y: player.y };
-    const targetPos = { x: target.x, y: target.y };
-
-    // 1. 가장 가까운 위협적인 적 타워 찾기
-    const towerInfo = this.getNearestEnemyTower(player, match, isBlue);
-    if (!towerInfo) return targetPos;
-
-    const towerPos = towerInfo.pos;
-    const towerRange = 13.0; 
-
-    const targetDistToTower = AIUtils.dist(target, towerPos);
-
-    // 2. 상황별 위치 선정
-    
-    // Case A: 미니언이 어그로를 끌어주고 있음 -> 안전하게 진입
-    if (Perception.isSafeToSiege(player, match, towerPos)) {
-        return targetPos;
-    }
-
-    // Case B: 미니언 없음 (맨몸)
-    if (player.stats.brain < 30) return targetPos; // 멍청하면 그냥 들어감
-
-    // (1) 적이 타워 깊숙이 있음 (못 때리는 위치) -> 타워 사거리 밖 대기
-    if (targetDistToTower < towerRange - attackRange) {
-        return this.getPointOnCircleEdge(towerPos, myPos, towerRange + 1.0);
-    }
-
-    // (2) 적이 타워 가장자리에 있음 -> 밖에서 칠 수 있으면 침
-    if (attackRange > 5.0) { // 원거리
-        const safeSpot = this.getPointOnCircleEdge(towerPos, targetPos, towerRange + 0.5);
-        if (AIUtils.dist(safeSpot, targetPos) <= attackRange) {
-            return safeSpot;
-        }
-    }
-
-    // (3) 근거리인데 미니언 없음 -> 대기
-    return this.getPointOnCircleEdge(towerPos, targetPos, towerRange + 1.5);
-  }
-
-  // 원의 중심(center)에서 target을 바라보는 방향으로 radius만큼 떨어진 지점 반환
-  private static getPointOnCircleEdge(center: Vector2, target: Vector2, radius: number): Vector2 {
-    const dir = Vector.normalize(Vector.sub(target, center));
-    return Vector.add(center, Vector.mult(dir, radius));
-  }
-
-  private static getNearestEnemyTower(player: LivePlayer, match: LiveMatch, isBlue: boolean) {
-      const enemyStats = isBlue ? match.stats.red : match.stats.blue;
-      const towerCoords = isBlue ? TOWER_COORDS.RED : TOWER_COORDS.BLUE;
-      const lanes = ['top', 'mid', 'bot'] as const;
-      
-      let nearest = null;
-      let minDist = 999;
-
-      // 레인 타워
-      for (const lane of lanes) {
-          const brokenCount = (enemyStats.towers as any)[lane];
-          if (brokenCount < 3) {
-              const tier = brokenCount + 1;
-              // @ts-ignore
-              const tPos = towerCoords[lane.toUpperCase()][tier - 1];
-              const d = AIUtils.dist(player, tPos);
-              if (d < minDist) { minDist = d; nearest = { pos: tPos }; }
-          }
-      }
-      // 넥서스
-      if (enemyStats.nexusHp > 0) {
-          const d = AIUtils.dist(player, towerCoords.NEXUS);
-          if (d < minDist) { minDist = d; nearest = { pos: towerCoords.NEXUS }; }
-      }
-
-      if (minDist > 30) return null;
-      return nearest;
+    // 아군 3 : 적 7 지점 (적 쪽에 좀 더 가깝게 비벼줌)
+    return Vector.lerp(allyPos, enemyPos, 0.7);
   }
 }
 
@@ -14821,9 +15280,9 @@ FILE PATH: src/engine/match/ai/tactics/TeamTactics.ts
 // ==========================================
 import { LiveMatch, LivePlayer } from '../../../../types';
 import { AIUtils } from '../AIUtils';
-import { BASES, TOWER_COORDS } from '../../constants/MapConstants';
+import { BASES, POI } from '../../constants/MapConstants';
 
-export type TeamOrderType = 'FREE' | 'ALL_PUSH' | 'ALL_DEFEND' | 'SIEGE_MID' | 'RETREAT';
+export type TeamOrderType = 'FREE' | 'ALL_PUSH' | 'ALL_DEFEND' | 'SIEGE_MID' | 'RETREAT' | 'TAKE_BARON' | 'TAKE_DRAGON';
 
 export interface TeamOrder {
   type: TeamOrderType;
@@ -14833,9 +15292,6 @@ export interface TeamOrder {
 
 export class TeamTactics {
   
-  /**
-   * 해당 팀의 현재 전략적 상태를 결정합니다.
-   */
   static analyzeTeamStrategy(match: LiveMatch, isBlueTeam: boolean): TeamOrder {
     const allies = isBlueTeam ? match.blueTeam : match.redTeam;
     const enemies = isBlueTeam ? match.redTeam : match.blueTeam;
@@ -14848,62 +15304,182 @@ export class TeamTactics {
     
     const allyCount = activeAllies.length;
     const enemyCount = activeEnemies.length;
-    const advantage = allyCount - enemyCount; // 양수면 우리가 유리
+    const advantage = allyCount - enemyCount; 
 
-    // 2. 라인 상황 (미드 억제기 밀렸는지)
+    // 2. 라인 상황
     const enemyStats = isBlueTeam ? match.stats.red : match.stats.blue;
     const myStats = isBlueTeam ? match.stats.blue : match.stats.red;
-    
     const isEnemyInhibitorDown = enemyStats.towers.mid >= 3;
     const isMyInhibitorDown = myStats.towers.mid >= 3;
 
     // --------------------------------------------------------
     // [전략 1] 엘리전 / 끝내기 (Game Ending)
-    // 조건: 적이 거의 전멸했거나(2명 이상 차이), 20분 넘었는데 수적 우위일 때
     // --------------------------------------------------------
-    if (match.currentDuration > 900) { // 15분 이후
+    if (match.currentDuration > 1200) { // 20분 이후
         if (enemyCount === 0 || (advantage >= 2 && isEnemyInhibitorDown)) {
-            return { 
-                type: 'ALL_PUSH', 
-                targetPos: enemyBase, 
-                reason: '🚀 적 궤멸! 전원 넥서스 돌격!' 
-            };
+            return { type: 'ALL_PUSH', targetPos: enemyBase, reason: '🚀 적 궤멸! 넥서스 점사!' };
         }
     }
 
     // --------------------------------------------------------
-    // [전략 2] 긴급 수비 (Emergency Defense)
-    // 조건: 우리 억제기가 밀렸고, 적이 우리 기지 근처에 2명 이상 있음
+    // [전략 2] 긴급 수비 (Emergency)
     // --------------------------------------------------------
     if (isMyInhibitorDown) {
         const enemiesInBase = activeEnemies.filter(e => AIUtils.dist(e, myBase) < 30).length;
-        if (enemiesInBase >= 2) {
-            return { 
-                type: 'ALL_DEFEND', 
-                targetPos: myBase, 
-                reason: '🛡️ 본진 위험! 전원 수비!' 
-            };
+        if (enemiesInBase >= 1) { // 1명이라도 들어오면 수비
+            return { type: 'ALL_DEFEND', targetPos: myBase, reason: '🛡️ 본진 방어!' };
         }
     }
 
     // --------------------------------------------------------
-    // [전략 3] 스노우볼링 (Siege)
-    // 조건: 수적 우위(1명 이상) 이고 아군이 3명 이상 뭉쳐있음 -> 미드 고속도로
+    // [전략 3] 오브젝트 오더 (Baron / Dragon) - New
     // --------------------------------------------------------
-    if (advantage >= 1 && allyCount >= 3) {
-        const midObjective = AIUtils.getNextObjectivePos(activeAllies[0], match, isBlueTeam); // 미드 타워 좌표
-        return { 
-            type: 'SIEGE_MID', 
-            targetPos: midObjective, 
-            reason: '🔥 수적 우위! 미드 압박!' 
-        };
+    // 수적 우위 2명 이상 & 정글러 살아있음 & 강타 싸움 가능
+    const myJungler = activeAllies.find(p => p.lane === 'JUNGLE');
+    if (advantage >= 2 && myJungler) {
+        // 거신병(바론) 확인
+        const colossus = match.objectives.colossus;
+        if (colossus.status === 'ALIVE' && match.currentDuration > 900) { // 15분 이후
+            return { type: 'TAKE_BARON', targetPos: POI.BARON, reason: '🤖 수적 우위! 거신병 사냥!' };
+        }
+        
+        // 주시자(용) 확인
+        const watcher = match.objectives.watcher;
+        if (watcher.status === 'ALIVE') {
+            return { type: 'TAKE_DRAGON', targetPos: POI.DRAGON, reason: '👁️ 주시자 사냥!' };
+        }
     }
 
     // --------------------------------------------------------
-    // [전략 4] 정비 및 분산 (Free)
-    // 특별한 상황 아니면 각자 판단 (라인전, 정글링)
+    // [전략 4] 스노우볼링 (미드 모여)
+    // --------------------------------------------------------
+    if (advantage >= 1 && allyCount >= 3) {
+        const midObjective = AIUtils.getNextObjectivePos(activeAllies[0], match, isBlueTeam);
+        return { type: 'SIEGE_MID', targetPos: midObjective, reason: '🔥 미드 고속도로!' };
+    }
+
+    // --------------------------------------------------------
+    // [전략 5] 자유 행동
     // --------------------------------------------------------
     return { type: 'FREE', reason: '자유 행동' };
+  }
+}
+
+
+
+==========================================
+FILE PATH: src/engine/match/ai/UtilityBrain.ts
+==========================================
+// ==========================================
+// FILE PATH: /src/engine/match/ai/UtilityBrain.ts
+// ==========================================
+import { LivePlayer, LiveMatch, Hero } from '../../../types';
+import { AIUtils } from './AIUtils';
+import { EconomyEvaluator } from './evaluators/EconomyEvaluator';
+import { Perception } from './Perception';
+import { SquadController } from './tactics/SquadController';
+import { BASES } from '../constants/MapConstants';
+import { PathSystem } from '../systems/PathSystem';
+import { MapAwareness } from './systems/MapAwareness';
+import { SafetyCheck } from './systems/SafetyCheck'; // [New] 연결
+
+export class UtilityBrain {
+  
+  static decideAction(player: LivePlayer, match: LiveMatch, hero: Hero): { action: string, targetPos: {x:number, y:number}, targetUnit?: any } {
+    const isBlue = match.blueTeam.includes(player);
+    const myBase = isBlue ? BASES.BLUE : BASES.RED;
+    
+    // [0] 생존 본능 (Override)
+    if (AIUtils.dist(player, myBase) < 15) {
+        if (AIUtils.hpPercent(player) < 0.95 || (player.maxMp > 0 && AIUtils.mpPercent(player) < 0.95)) {
+            return { action: 'RECALL', targetPos: myBase };
+        }
+        const pushPos = PathSystem.getNextWaypoint(player, isBlue, match);
+        return { action: 'PUSH', targetPos: pushPos };
+    }
+
+    // [1] 점수 계산
+    const scores = {
+        recall: 0,
+        farm: 0,
+        fight: 0,
+        push: 0,
+        group: 0
+    };
+
+    // 1. 귀환 점수
+    if (EconomyEvaluator.shouldRecallForShopping(player, match)) scores.recall += 60;
+    if (Perception.needsRecall(player)) scores.recall += 80;
+    
+    // 2. 전투 점수
+    const nearby = Perception.analyzeNearbySituation(player, match, 25);
+    if (nearby.enemies.length > 0) {
+        const powerRatio = nearby.allyPower / Math.max(1, nearby.enemyPower);
+        
+        // [수정] 뇌지컬이 높으면 전투력 차이를 더 민감하게 봄
+        const brainFactor = player.stats.brain > 70 ? 1.2 : 1.0;
+        
+        if (powerRatio > 1.2 * brainFactor) scores.fight += 80; 
+        else if (powerRatio < 0.8 / brainFactor) scores.recall += 50; 
+        
+        if (nearby.enemies.some(e => AIUtils.hpPercent(e) < 0.3)) scores.fight += 40;
+    }
+
+    // 3. 군집 점수
+    const squadOrder = SquadController.getGroupOrder(player, match);
+    if (squadOrder) scores.group += 70;
+
+    // 4. 파밍/푸쉬 점수
+    scores.farm = 30;
+    if (player.lane === 'JUNGLE') scores.farm += 20;
+
+    // 5. 맵 리딩 (사리기)
+    const hiddenThreat = MapAwareness.getHiddenThreatScore(player, match);
+    if (hiddenThreat > 50) {
+        scores.push -= hiddenThreat; 
+        scores.farm -= (hiddenThreat / 2);
+        scores.recall += (hiddenThreat / 3); 
+        scores.group += (hiddenThreat / 2);
+    }
+
+    // [2] 최적 행동 1차 선택
+    const bestActionKey = Object.keys(scores).reduce((a, b) => (scores as any)[a] > (scores as any)[b] ? a : b);
+    
+    let result = { action: 'WAIT', targetPos: {x: player.x, y: player.y}, targetUnit: undefined as any };
+
+    switch (bestActionKey) {
+        case 'recall':
+            result = { action: 'RECALL', targetPos: myBase, targetUnit: undefined };
+            break;
+        case 'fight':
+            const target = nearby.enemies[0];
+            result = { action: 'FIGHT', targetPos: {x: target.x, y: target.y}, targetUnit: target };
+            break;
+        case 'group':
+            if (squadOrder && squadOrder.pos) result = { action: 'ASSEMBLE', targetPos: squadOrder.pos, targetUnit: undefined };
+            break;
+        case 'push':
+        case 'farm':
+        default:
+            const path = PathSystem.getNextWaypoint(player, isBlue, match);
+            result = { action: 'PUSH', targetPos: path, targetUnit: undefined };
+            break;
+    }
+
+    // [New] 3. 안전성 최종 검증 (SafetyCheck)
+    // 여기서 "뇌지컬 좋은 놈이 던지는 현상"을 막음
+    const safeDecision = SafetyCheck.validateAction(player, match, result.action, result.targetPos);
+    
+    if (safeDecision.action !== result.action) {
+        // 행동이 반려됨 (위험함) -> 반려된 행동(RECALL or WAIT) 반환
+        // 만약 RECALL이면 타겟 위치는 본진
+        if (safeDecision.action === 'RECALL') {
+            return { action: 'RECALL', targetPos: myBase };
+        }
+        return { action: safeDecision.action, targetPos: safeDecision.targetPos };
+    }
+
+    return result;
   }
 }
 
@@ -14997,8 +15573,8 @@ import { Vector2 } from '../utils/Vector';
 export const MAP_SIZE = 100;
 
 export const BASES = {
-  BLUE: { x: 5, y: 95 },
-  RED: { x: 95, y: 5 }
+  BLUE: { x: 6, y: 94 }, // 좌측 하단
+  RED: { x: 94, y: 6 }   // 우측 상단
 };
 
 export const FOUNTAIN_AREAS = {
@@ -15013,45 +15589,100 @@ export const MOVEMENT_SETTINGS = {
   MAX_FORCE: 0.5, 
 };
 
-// [핵심] 라인별 격전지 (미니언이 만나는 곳)
-// 맵 이미지를 기반으로 좌표를 직접 지정합니다.
+// 라인전 격전지 (강가 부쉬 근처)
 export const LANE_FRONTS = {
-    TOP: { x: 20, y: 25 },  // 탑 라인 중앙 (강가쪽)
-    MID: { x: 50, y: 50 },  // 미드 정중앙
-    BOT: { x: 80, y: 75 }   // 봇 라인 중앙
+    TOP: { x: 15, y: 15 }, 
+    MID: { x: 50, y: 50 }, 
+    BOT: { x: 85, y: 85 }
 };
 
 export const TOWER_COORDS = {
   BLUE: {
-    TOP: [{x: 8, y: 35}, {x: 8, y: 55}, {x: 10, y: 75}],
-    MID: [{x: 40, y: 60}, {x: 30, y: 70}, {x: 22, y: 78}],
-    BOT: [{x: 75, y: 92}, {x: 50, y: 90}, {x: 25, y: 88}],
-    NEXUS: {x: 12, y: 88}
+    // 탑 (왼쪽 벽)
+    TOP: [
+        {x: 9, y: 40},  // 1차
+        {x: 10, y: 65}, // 2차
+        {x: 12, y: 82}  // 3차
+    ],
+    // 미드 (대각선)
+    MID: [
+        {x: 35, y: 65}, // 1차
+        {x: 25, y: 75}, // 2차
+        {x: 18, y: 82}  // 3차
+    ],
+    // 봇 (아래쪽 벽)
+    BOT: [
+        {x: 60, y: 91}, // 1차
+        {x: 35, y: 90}, // 2차
+        {x: 18, y: 88}  // 3차
+    ],
+    NEXUS: {x: 8, y: 90}
   },
   RED: {
-    TOP: [{x: 45, y: 10}, {x: 65, y: 12}, {x: 80, y: 15}],
-    MID: [{x: 60, y: 40}, {x: 70, y: 30}, {x: 78, y: 22}],
-    BOT: [{x: 92, y: 65}, {x: 92, y: 45}, {x: 88, y: 25}],
-    NEXUS: {x: 88, y: 12}
+    // [수정] 탑 (위쪽 벽): 오른쪽에서 왼쪽으로 뻗어나감
+    TOP: [
+        {x: 40, y: 9},  // 1차 (강가 근처까지 전진)
+        {x: 65, y: 10}, // 2차
+        {x: 82, y: 12}  // 3차 (본진 앞)
+    ],
+    // [수정] 미드 (대각선): 1차 타워를 더 전진시킴
+    MID: [
+        {x: 65, y: 35}, // 1차
+        {x: 75, y: 25}, // 2차
+        {x: 82, y: 18}  // 3차
+    ],
+    // [수정] 봇 (오른쪽 벽): 위에서 아래로 뻗어내려감
+    BOT: [
+        {x: 91, y: 60}, // 1차 (강가 근처까지 전진)
+        {x: 90, y: 35}, // 2차
+        {x: 88, y: 18}  // 3차 (본진 앞)
+    ],
+    NEXUS: {x: 92, y: 8}
   }
 };
 
 export const POI = { 
-  BARON: { x: 25, y: 28 },
-  DRAGON: { x: 78, y: 72 },
-  TOP_RIVER: { x: 20, y: 20 },
-  BOT_RIVER: { x: 80, y: 80 },
+  BARON: { x: 30, y: 25 },
+  DRAGON: { x: 75, y: 70 },
+  
+  TOP_RIVER: { x: 25, y: 25 },
+  BOT_RIVER: { x: 75, y: 75 },
+  
   JUNGLE_SPOTS: [
-    { x: 15, y: 42 }, { x: 50, y: 82 }, 
-    { x: 58, y: 22 }, { x: 82, y: 55 }
+    { x: 22, y: 48 }, 
+    { x: 55, y: 80 }, 
+    { x: 48, y: 20 }, 
+    { x: 80, y: 52 }  
   ]
 };
 
-// 웨이포인트도 단순화
+// [수정] 웨이포인트가 타워 위치를 자연스럽게 지나가도록 보정
 export const WAYPOINTS: Record<string, Vector2[]> = {
-  TOP: [ BASES.BLUE, { x: 8, y: 35 }, LANE_FRONTS.TOP, { x: 45, y: 10 }, BASES.RED ],
-  MID: [ BASES.BLUE, { x: 25, y: 75 }, LANE_FRONTS.MID, { x: 75, y: 25 }, BASES.RED ],
-  BOT: [ BASES.BLUE, { x: 75, y: 92 }, LANE_FRONTS.BOT, { x: 92, y: 65 }, BASES.RED ],
+  TOP: [ 
+      BASES.BLUE, 
+      { x: 12, y: 80 }, 
+      { x: 9, y: 40 }, 
+      { x: 15, y: 15 }, // 탑 코너
+      { x: 40, y: 9 },  // 레드 1차
+      { x: 82, y: 12 }, // 레드 3차
+      BASES.RED 
+  ],
+  MID: [ 
+      BASES.BLUE, 
+      { x: 35, y: 65 }, 
+      { x: 50, y: 50 }, 
+      { x: 65, y: 35 }, 
+      BASES.RED 
+  ],
+  BOT: [ 
+      BASES.BLUE, 
+      { x: 20, y: 90 }, 
+      { x: 60, y: 91 }, 
+      { x: 85, y: 85 }, // 봇 코너
+      { x: 91, y: 60 }, // 레드 1차
+      { x: 88, y: 18 }, // 레드 3차
+      BASES.RED 
+  ],
   JUNGLE: POI.JUNGLE_SPOTS
 };
 
@@ -15316,9 +15947,8 @@ export const MINION_REWARD = {
 };
 
 export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
-  // [안전 장치] armor가 NaN이거나 음수면 0 취급
   const safeArmor = isNaN(armor) ? 0 : Math.max(0, armor);
-  const reduction = 100 / (100 + safeArmor);
+  const reduction = 120 / (120 + safeArmor);
   return rawDmg * reduction;
 };
 
@@ -15326,50 +15956,63 @@ export const calculateHeroDamage = (
     attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
     isBlue: boolean, settings: BattleSettings, roleSettings: RoleSettings, buffType: string
 ) => {
-    // 1. 공격력 (NaN 방지)
+    // [1] 피지컬 격차 계산 (Outplay Mechanic)
+    // mechanics: 0 ~ 100
+    const atkMech = attacker.stats?.mechanics || 50;
+    const defMech = defender.stats?.mechanics || 50;
+    const diff = atkMech - defMech; // 양수면 공격자 우위, 음수면 방어자 우위
+
+    // 피지컬 계수: 차이 10당 5% 데미지 변동 (최대 ±25%)
+    // 예: 피지컬 90 vs 50 -> 차이 40 -> 데미지 +20% (학살)
+    let outplayMod = 1.0 + (diff * 0.005);
+    
+    // 최소 0.7배 ~ 최대 1.3배로 제한 (너무 밸붕 방지)
+    outplayMod = Math.max(0.7, Math.min(1.3, outplayMod));
+
+    // [2] 공격력 계산
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
     
-    // 아이템 스탯 안전 합산
     const itemAD = (attacker.items || []).reduce((s:number, i:any) => s + (i.ad || 0), 0);
     const baseAtk = atkStats.baseAtk || 50;
     const adStat = atkStats.ad || 0;
-    
     const totalAD = (baseAtk + adStat + itemAD) * atkRatio;
 
-    // 2. 크리티컬
+    // [3] 치명타 (피지컬이 높으면 급소 타격 확률 증가)
     const itemCrit = (attacker.items || []).reduce((s:number, i:any) => s + (i.crit || 0), 0);
-    const critChance = (atkStats.crit || 0) + itemCrit;
+    // 피지컬 10당 치명타율 2% 보너스
+    const mechCritBonus = atkMech * 0.2; 
+    const critChance = (atkStats.crit || 0) + itemCrit + mechCritBonus;
     
     let isCrit = Math.random() < (critChance / 100);
-    let rawDmg = totalAD * (isCrit ? 1.85 : 1.0);
+    // 피지컬이 높으면 치명타 데미지도 증가 (기본 1.75 -> 최대 2.0)
+    const critMult = 1.75 + (atkMech > 80 ? 0.25 : 0);
+    
+    let rawDmg = totalAD * (isCrit ? critMult : 1.0);
 
-    // 3. 방어력
+    // [4] 방어력
     const defGod = isBlue ? settings.izman : settings.dante; 
     const defRatio = defGod?.defRatio || 1.0;
     const itemArmor = (defender.items || []).reduce((s:number, i:any) => s + (i.armor || 0), 0);
     const defArmor = defStats.armor || 0;
-    
     const totalArmor = (defArmor + itemArmor) * defRatio;
     
-    // 관통
     const itemPen = (attacker.items || []).reduce((s:number, i:any) => s + (i.pen || 0), 0);
     const penStat = atkStats.pen || 0;
     const effectiveArmor = Math.max(0, totalArmor - (penStat + itemPen));
     
-    // 4. 최종 데미지
     const finalDamage = calcMitigatedDamage(rawDmg, effectiveArmor);
     
-    // 5. 역할군/버프 보정
     const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
-    let result = finalDamage * damageMod;
+    
+    // [5] 최종 적용 (아웃플레이 계수 적용)
+    let result = finalDamage * damageMod * outplayMod;
 
     if (buffType === 'COMBAT') result *= 1.1; 
 
-    // [최종 안전 장치] NaN이면 최소 데미지 1 반환
     if (isNaN(result) || result < 0) return 1;
 
-    return Math.floor(result * 0.85);
+    return Math.floor(result * 0.95);
 };
 
 export const calculateUnitDamage = (
@@ -15377,7 +16020,7 @@ export const calculateUnitDamage = (
 ) => {
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
-    const itemAD = (attacker.items || []).reduce((s:number, i:any) => s + (i.ad || 0), 0);
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
     
     const baseAtk = atkStats.baseAtk || 50;
     const adStat = atkStats.ad || 0;
@@ -15386,7 +16029,10 @@ export const calculateUnitDamage = (
     const safeArmor = isNaN(targetArmor) ? 0 : targetArmor;
     const dmg = calcMitigatedDamage(totalAD, safeArmor);
     
-    return isNaN(dmg) ? 10 : Math.floor(dmg);
+    // 미니언 막타는 피지컬 좋으면 실수 안 함 (보정)
+    const mechBonus = (attacker.stats?.mechanics || 50) > 70 ? 1.2 : 1.0;
+    
+    return isNaN(dmg) ? 10 : Math.floor(dmg * mechBonus);
 };
 
 export const distributeRewards = (
@@ -15457,8 +16103,8 @@ import { LivePlayer, LiveMatch, Hero } from '../../../types';
 import { AIUtils } from '../ai/AIUtils';
 import { PathSystem } from '../systems/PathSystem'; 
 import { MacroDecision } from '../ai/MacroBrain';
-import { Collision } from '../utils/Collision';
 import { TOWER_COORDS } from '../constants/MapConstants';
+import { InfluenceMap } from '../ai/map/InfluenceMap';
 
 export class LaningLogic {
   
@@ -15467,22 +16113,31 @@ export class LaningLogic {
 
     const isBlue = match.blueTeam.includes(player);
     
-    // [1. 생존 우선] 체력이 30% 이하면 무조건 후퇴 (Wait/Recall)
+    // [1. 생존 우선] 체력 부족 시 후퇴
     if (AIUtils.hpPercent(player) < 0.3) {
-        // 아군 타워로 후퇴
         const myTower = this.getMyFrontTower(player.lane, isBlue, match);
         return { action: 'FLEE', targetPos: myTower, reason: '체력 부족' };
     }
 
-    // 시야 범위 (45)
+    // [2. 갱킹 감지 - New]
+    // 내 위치의 위험도가 갑자기 높아지면(적 정글 출현 등) 타워로 도망
+    const dangerMap = InfluenceMap.getDangerMap(match, isBlue);
+    const gx = Math.floor(player.x / 5); // Grid Size 20 기준 (100/20 = 5)
+    const gy = Math.floor(player.y / 5);
+    
+    // 위험도 30 이상이면 갱킹 위협으로 간주 (적 영웅 1명이 50점이나, 거리 감쇠 고려)
+    if (dangerMap[gy] && dangerMap[gy][gx] > 30) {
+        const myTower = this.getMyFrontTower(player.lane, isBlue, match);
+        return { action: 'FLEE', targetPos: myTower, reason: '갱킹 회피' };
+    }
+
     const SIGHT_RANGE = 45; 
     
-    // 2. 적 영웅 탐색
+    // 3. 적 영웅 탐색 (맞딜)
     const enemies = isBlue ? match.redTeam : match.blueTeam;
     const nearbyEnemyHero = enemies.find(e => e.currentHp > 0 && AIUtils.dist(player, e) < SIGHT_RANGE);
 
     if (nearbyEnemyHero) {
-        // 킬각이거나 체력이 충분하면 싸움
         return { 
             action: 'FIGHT', 
             targetPos: { x: nearbyEnemyHero.x, y: nearbyEnemyHero.y }, 
@@ -15491,13 +16146,10 @@ export class LaningLogic {
         };
     }
 
-    // 3. 적 미니언 탐색 & 파밍
+    // 4. 파밍
     const minions = match.minions || [];
     const enemyMinions = minions.filter(m => 
-        m.lane === player.lane && 
-        m.team !== (isBlue ? 'BLUE' : 'RED') && 
-        m.hp > 0 && 
-        AIUtils.dist(player, m) < SIGHT_RANGE
+        m.lane === player.lane && m.team !== (isBlue ? 'BLUE' : 'RED') && m.hp > 0 && AIUtils.dist(player, m) < SIGHT_RANGE
     );
 
     if (enemyMinions.length > 0) {
@@ -15511,7 +16163,7 @@ export class LaningLogic {
         }
     }
 
-    // 4. 할 일 없으면 전선으로 이동
+    // 5. 전선 복귀
     const nextPos = PathSystem.getNextWaypoint(player, isBlue, match);
     return { action: 'MOVE', targetPos: nextPos, reason: '전선 복귀' };
   }
@@ -15520,7 +16172,6 @@ export class LaningLogic {
     const stats = isBlue ? match.stats.blue : match.stats.red;
     const broken = (stats.towers as any)[lane.toLowerCase()] || 0;
     const tier = Math.min(3, broken + 1);
-    
     const coords = isBlue ? TOWER_COORDS.BLUE : TOWER_COORDS.RED;
     // @ts-ignore
     return coords[lane][tier-1] || coords.NEXUS;
@@ -15976,7 +16627,6 @@ export class TowerLogic {
 
     if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
 
-    // 1. [어그로] 아군 영웅을 친 적 영웅
     const AGGRO_DURATION = 2.0; 
     const aggroTarget = nearbyEnemyHeroes.find(enemy => {
         if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
@@ -15988,13 +16638,11 @@ export class TowerLogic {
 
     if (aggroTarget) return { unit: aggroTarget, type: 'HERO' };
 
-    // 2. 미니언 (가까운 순)
     if (nearbyMinions.length > 0) {
         nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
         return { unit: nearbyMinions[0], type: 'MINION' };
     } 
     
-    // 3. 영웅 (미니언 없으면)
     nearbyEnemyHeroes.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
     return { unit: nearbyEnemyHeroes[0], type: 'HERO' };
   }
@@ -16008,18 +16656,19 @@ export class TowerLogic {
     hasMinionsNearby: boolean,
     defendingTeamColor: 'BLUE' | 'RED'
   ) {
-    const baseAtk = towerStats.atk || (isNexus ? 1000 : 300);
+    // [밸런스 패치] 타워 데미지 대폭 하향 (초반 끔살 방지)
+    // 기존: 150~300 -> 변경: 80 (매우 낮음) + 시간 성장
+    const timeScaling = Math.min(4.0, 1 + (match.currentDuration / 900)); 
+    let baseAtk = isNexus ? 300 : (80 * timeScaling);
     
-    // 기본 타워 공격력
     let damage = baseAtk * dt;
 
-    // [백도어 패널티] 미니언 없이 영웅 혼자면 데미지 3배 (매우 아픔)
+    // 백도어 패널티는 유지하되, 실수로 맞았을 때 즉사는 안 하게 (1.5배)
     if (target.type === 'HERO' && !hasMinionsNearby) {
-        damage *= 3.0;
+        damage *= 1.5;
     }
 
     if (target.type === 'HERO') {
-        // 영웅 방어력 적용
         let armor = (target.unit.level * 3) + (target.unit.items?.length * 10);
         const realDmg = calcMitigatedDamage(damage, armor);
         
@@ -16027,7 +16676,6 @@ export class TowerLogic {
         
         if (target.unit.currentHp <= 0) {
             target.unit.currentHp = 0;
-            // 부활 시간: 5초 + 레벨당 3초 (자연스러운 증가)
             const respawnTime = 5 + (target.unit.level * 3);
             target.unit.respawnTimer = Math.floor(respawnTime);
 
@@ -16036,16 +16684,17 @@ export class TowerLogic {
 
             target.unit.deaths++;
             
+            // 타워 처형은 로그에 남겨서 확인 가능하게 함
             match.logs.push({
                 time: Math.floor(match.currentDuration),
-                message: `💀 [${target.unit.name}] 타워에 처형당했습니다!`,
+                message: `💀 [${target.unit.name}] 타워 다이브 실패! (처형)`,
                 type: 'KILL',
                 team: defendingTeamColor
             });
         }
     } else {
-        // 미니언은 방어력 0으로 가정하고 딜 박힘 (순삭 방지 위해 미니언 체력 세팅 중요)
-        target.unit.hp -= damage;
+        // 미니언은 빨리 지워야 하므로 데미지 3배
+        target.unit.hp -= damage * 3.0;
     }
   }
 }
@@ -17322,7 +17971,6 @@ FILE PATH: src/engine/match/systems/MinionSpawner.ts
 import { LiveMatch, Minion } from '../../../types';
 import { BASES } from '../constants/MapConstants';
 
-// 팀별 최대 미니언 수 (최적화 및 렉 방지)
 const MAX_MINIONS_PER_TEAM = 60;
 
 export class MinionSpawner {
@@ -17330,84 +17978,63 @@ export class MinionSpawner {
   static spawnWave(match: LiveMatch, team: 'BLUE' | 'RED') {
     if (!match.minions) match.minions = [];
 
-    // 1. [개선된 로직] 캡 관리 (공간 확보)
-    // 꽉 찼다고 안 뽑는 게 아니라, 약한 개체를 도태시키고 새로 뽑음
     this.cullExcessMinions(match, team);
 
     const lanes = ['TOP', 'MID', 'BOT'] as const;
     const startPos = team === 'BLUE' ? BASES.BLUE : BASES.RED;
     
-    // 게임 시간에 따른 스탯 스케일링 (15분 기준 약 2배)
-    const rawScaling = 1 + (match.currentDuration / 900); 
-    const timeScaling = Math.min(3.5, rawScaling); 
+    // 성장 속도
+    const rawScaling = 1 + (match.currentDuration / 1200); 
+    const timeScaling = Math.min(2.5, rawScaling); 
 
-    // 대포 미니언 생성 주기 (3웨이브마다)
     const isSiegeWave = Math.floor(match.currentDuration / 30) % 3 === 0;
-
     const newMinions: Minion[] = [];
 
     lanes.forEach(lane => {
-      // 전사 미니언 3마리
       for (let i = 0; i < 3; i++) {
         newMinions.push(this.createMinion(team, lane, 'MELEE', startPos, timeScaling));
       }
-      // 마법사 미니언 3마리
       for (let i = 0; i < 3; i++) {
         newMinions.push(this.createMinion(team, lane, 'RANGED', startPos, timeScaling));
       }
-      // 대포 미니언 1마리
       if (isSiegeWave) {
         newMinions.push(this.createMinion(team, lane, 'SIEGE', startPos, timeScaling));
       }
     });
 
-    // 기존 배열에 새 미니언 추가
     match.minions.push(...newMinions);
   }
 
-  /**
-   * 미니언 수가 한계를 넘으면 우선순위가 낮은(체력이 적거나 오래된) 미니언을 강제로 제거합니다.
-   */
   private static cullExcessMinions(match: LiveMatch, team: 'BLUE' | 'RED') {
     const teamMinions = match.minions!.filter(m => m.team === team && m.hp > 0);
-    const waveSize = 7; // 한 웨이브당 대략 7마리 생성됨 (3+3+1)
+    const waveSize = 7;
     
-    // 새로 생성될 공간(waveSize)만큼 여유가 없으면 정리 시작
     if (teamMinions.length + waveSize > MAX_MINIONS_PER_TEAM) {
         const removeCount = (teamMinions.length + waveSize) - MAX_MINIONS_PER_TEAM;
-        
-        // [우선순위 정렬]
-        // 1. 체력 비율이 낮은 순 (죽기 직전인 놈부터)
-        // 2. ID 기준 (오래된 놈부터)
-        // 거신병(SUMMONED_COLOSSUS)은 절대 삭제하지 않음
         const candidates = teamMinions
             .filter(m => m.type !== 'SUMMONED_COLOSSUS') 
             .sort((a, b) => {
                 const hpRatioA = a.hp / a.maxHp;
                 const hpRatioB = b.hp / b.maxHp;
                 if (Math.abs(hpRatioA - hpRatioB) > 0.1) return hpRatioA - hpRatioB;
-                return a.id.localeCompare(b.id); // 오래된 순
+                return a.id.localeCompare(b.id);
             });
 
-        // 삭제 대상 ID 수집
         const removeIds = new Set(candidates.slice(0, removeCount).map(m => m.id));
-
-        // 실제 배열에서 제거 (직접 할당)
         match.minions = match.minions!.filter(m => !removeIds.has(m.id));
     }
   }
 
   private static createMinion(team: 'BLUE' | 'RED', lane: any, type: any, pos: {x:number, y:number}, scaling: number): Minion {
-    // 겹침 방지를 위한 약간의 위치 랜덤값 (Spawn Jitter)
-    const offsetX = (Math.random() - 0.5) * 3; // 2 -> 3으로 약간 넓힘
+    const offsetX = (Math.random() - 0.5) * 3;
     const offsetY = (Math.random() - 0.5) * 3;
     
-    let hp = 550, atk = 25;
-    // [밸런스 미세 조정]
-    if (type === 'RANGED') { hp = 350; atk = 45; }
-    if (type === 'SIEGE') { hp = 950; atk = 70; } // 대포 체력/공격력 상향
+    // [밸런스] 미니언 공격력 한 자릿수로 너프 (8~15)
+    // 영웅 체력이 1000이므로, 미니언한테는 100대 맞아야 죽음 (안전)
+    let hp = 550, atk = 8; 
+    if (type === 'RANGED') { hp = 280; atk = 12; } 
+    if (type === 'SIEGE') { hp = 850; atk = 25; } 
 
-    // ID에 타임스탬프를 넣어 생성 순서 보장
     return {
       id: `minion_${team}_${lane}_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
       team, lane, type,
@@ -17491,13 +18118,11 @@ FILE PATH: src/engine/match/systems/ObjectiveSystem.ts
 // FILE PATH: /src/engine/match/systems/ObjectiveSystem.ts
 // ==========================================
 import { LiveMatch } from '../../../types';
-import { useGameStore } from '../../../store/useGameStore';
 import { POI, getDistance, BASES } from '../../data/MapData';
 
 // [거신병 보상]
 export function applyColossusReward(match: LiveMatch, isBlueTeam: boolean) {
   const teamName = isBlueTeam ? '단테' : '이즈마한';
-  const teamColor = isBlueTeam ? '#58a6ff' : '#e84057';
   const teamCode = isBlueTeam ? 'BLUE' : 'RED';
   
   const stats = isBlueTeam ? match.stats.blue : match.stats.red;
@@ -17528,16 +18153,8 @@ export function applyColossusReward(match: LiveMatch, isBlueTeam: boolean) {
     message: `🤖 [거신병] ${teamName} 팀이 거신병을 소환했습니다!`, 
     type: 'COLOSSUS', team: teamCode 
   });
-
-  // 알림 트리거
-  useGameStore.getState().setAnnouncement({
-      type: 'OBJECTIVE',
-      title: '거신병 해킹 성공!',
-      subtext: `${teamName} 진영이 거신병을 해킹하여 소환했습니다.`,
-      color: teamColor,
-      duration: 5.0,
-      createdAt: Date.now()
-  });
+  
+  // [수정] 전역 알림(setAnnouncement) 제거 -> 관전 화면에서 로그를 보고 띄우도록 변경
 }
 
 // [주시자 보상]
@@ -17564,15 +18181,7 @@ export function applyWatcherReward(match: LiveMatch, isBlueTeam: boolean) {
     team: teamCode
   });
 
-  // 알림 트리거
-  useGameStore.getState().setAnnouncement({
-      type: 'OBJECTIVE',
-      title: '심연의 주시자 처치!',
-      subtext: `${teamName} 진영이 주시자를 처형하고 공허의 힘을 흡수합니다!`,
-      color: '#f1c40f',
-      duration: 5.0,
-      createdAt: Date.now()
-  });
+  // [수정] 전역 알림(setAnnouncement) 제거
 }
 
 export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt: number) => {
@@ -17599,39 +18208,31 @@ export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt
         if (obj.status === 'ALIVE') {
             const objectivePos = type === 'colossus' ? POI.BARON : POI.DRAGON;
             
-            // 주변 12거리 내의 살아있는 영웅들 탐색
             const nearbyHeroes = [...match.blueTeam, ...match.redTeam].filter(p => 
                 p.currentHp > 0 && p.respawnTimer <= 0 && getDistance(p, objectivePos) < 12
             );
 
             if (nearbyHeroes.length > 0) {
-                // 팀별 DPS 계산
                 let blueDmg = 0;
                 let redDmg = 0;
 
                 nearbyHeroes.forEach(p => {
-                    const dmg = (p.level * 30) + (p.items.length * 20); // 대략적인 영웅 DPS
+                    const dmg = (p.level * 30) + (p.items.length * 20); 
                     if (match.blueTeam.includes(p)) blueDmg += dmg;
                     else redDmg += dmg;
                 });
 
-                // 총 데미지 (이번 틱)
                 const totalDmgTick = (blueDmg + redDmg) * dt;
                 
-                // [오브젝트 반격]
                 const damagePerHero = (setting.attack || 50) * dt;
                 nearbyHeroes.forEach(h => { h.currentHp -= damagePerHero; });
                 (obj as any).lastAttackedTime = match.currentDuration;
 
-                // [처치 판정]
-                // 이번 틱 데미지로 죽는가?
                 if (obj.hp <= totalDmgTick) {
                     obj.hp = 0;
                     obj.status = 'DEAD';
                     obj.nextSpawnTime = match.currentDuration + (setting.respawnTime || 300);
 
-                    // [핵심 수정] 머릿수가 아니라 "데미지 비중"으로 확률적 막타 판정
-                    // (스틸의 묘미를 살리기 위해, 데미지가 쎈 쪽이 확률이 높음)
                     const totalDps = blueDmg + redDmg;
                     if (totalDps > 0) {
                         const blueChance = blueDmg / totalDps;
@@ -17640,17 +18241,14 @@ export const updateNeutralObjectives = (match: LiveMatch, fieldSettings: any, dt
                         if (type === 'colossus') applyColossusReward(match, isBlueWin);
                         else applyWatcherReward(match, isBlueWin);
                     } else {
-                        // 만약 둘다 0데미지라면(그럴리 없겠지만), 머릿수로 fallback
                         const blueCnt = nearbyHeroes.filter(p => match.blueTeam.includes(p)).length;
                         if (type === 'colossus') applyColossusReward(match, blueCnt > 0);
                         else applyWatcherReward(match, blueCnt > 0);
                     }
                 } else {
-                    // 안 죽었으면 체력 감소
                     obj.hp -= totalDmgTick;
                 }
             } else {
-                // [리셋] 비전투 시 회복
                 const lastAttacked = (obj as any).lastAttackedTime || 0;
                 if (match.currentDuration - lastAttacked > 10 && obj.hp < obj.maxHp) {
                     obj.hp += obj.maxHp * 0.1 * dt; 
@@ -17741,15 +18339,14 @@ FILE PATH: src/engine/match/systems/PlayerSystem.ts
 import { LivePlayer, LiveMatch, Hero, RoleSettings } from '../../../types';
 import { updateLivePlayerStats } from './ItemManager'; 
 import { SteeringSystem } from './SteeringSystem';
-import { PathSystem } from './PathSystem';
-import { BASES, TOWER_COORDS } from '../constants/MapConstants';
-import { MacroBrain } from '../ai/MacroBrain';
-import { MicroBrain } from '../ai/MicroBrain';
+import { BASES } from '../constants/MapConstants';
 import { getDistance } from '../../data/MapData';
 import { RecallSystem } from './RecallSystem';
 import { processSkillEffect } from './SkillProcessor';
-import { AIUtils } from '../ai/AIUtils';
 import { StatusManager } from './StatusManager';
+import { UtilityBrain } from '../ai/UtilityBrain';
+import { MicroBrain } from '../ai/MicroBrain';
+import { InfluenceMap } from '../ai/map/InfluenceMap';
 
 const isSafeToRecall = (player: LivePlayer, match: LiveMatch, isBlue: boolean): boolean => {
   const enemies = isBlue ? match.redTeam : match.blueTeam;
@@ -17771,15 +18368,13 @@ export const updatePlayerBehavior = (
   roleSettings: RoleSettings,
   dt: number
 ) => {
-  // [Zombie Killer] 시작부터 죽었는지 체크
   if (player.currentHp <= 0 && player.respawnTimer <= 0) {
       player.currentHp = 0;
       player.respawnTimer = 10 + (player.level * 3);
-      return; // 죽었으면 행동 종료
+      return; 
   }
 
   StatusManager.update(player, dt);
-  
   if (player.attackTimer > 0) player.attackTimer -= dt;
 
   if (StatusManager.isStunned(player)) {
@@ -17820,7 +18415,6 @@ export const updatePlayerBehavior = (
   }
 
   RecallSystem.update(player, match, heroes, shopItems, dt);
-  
   if (player.isRecalling) return;
 
   const hero = heroes.find(h => h.id === player.heroId);
@@ -17829,17 +18423,15 @@ export const updatePlayerBehavior = (
   const isBlue = match.blueTeam.includes(player);
   const allies = isBlue ? match.blueTeam : match.redTeam;
 
-  const macroDecision = MacroBrain.decide(player, match, hero);
-  let finalTargetPos = macroDecision.targetPos;
+  const decision = UtilityBrain.decideAction(player, match, hero);
+  let finalTargetPos = decision.targetPos;
   let moveSpeed = (player as any).moveSpeed || hero.stats.speed;
 
-  switch (macroDecision.action) {
+  switch (decision.action) {
     case 'RECALL':
       const myBase = isBlue ? BASES.BLUE : BASES.RED;
-      if (getDistance(player, myBase) < 10) return; 
-
       if (!isSafeToRecall(player, match, isBlue)) {
-          finalTargetPos = myBase;
+          finalTargetPos = myBase; 
       } else {
           RecallSystem.startRecall(player);
           return;
@@ -17847,14 +18439,13 @@ export const updatePlayerBehavior = (
       break;
 
     case 'FIGHT':
-    case 'DEFEND': 
-      if (macroDecision.targetUnit) {
-        const micro = MicroBrain.control(player, macroDecision.targetUnit, hero, isBlue);
+      if (decision.targetUnit) {
+        const micro = MicroBrain.control(player, decision.targetUnit, hero, isBlue);
         
         if (micro.type === 'MOVE') {
           finalTargetPos = micro.targetPos;
         } else {
-          finalTargetPos = { x: player.x, y: player.y }; 
+          finalTargetPos = { x: player.x, y: player.y };
           
           if (micro.skillKey) {
              const key = micro.skillKey as 'q'|'w'|'e'|'r';
@@ -17863,9 +18454,11 @@ export const updatePlayerBehavior = (
              if ((player.cooldowns as any)[key] <= 0 && player.currentMp >= cost) {
                  player.currentMp -= cost;
                  (player.cooldowns as any)[key] = skill.cd * (1 - (roleSettings.prophet.cdrPerLevel * 0.01 * player.level));
-                 processSkillEffect(skill, player, macroDecision.targetUnit);
+                 processSkillEffect(skill, player, decision.targetUnit);
                  player.activeSkill = { key, timestamp: match.currentDuration };
-                 player.attackTimer = Math.max(0, player.attackTimer - 0.5);
+                 
+                 // [피지컬 보상] 스킬 사용 시 평타 딜레이 30% 감소 (연계 속도 증가)
+                 player.attackTimer = Math.max(0, player.attackTimer - 0.3); 
 
                  if (key === 'r') {
                      match.logs.push({
@@ -17876,22 +18469,20 @@ export const updatePlayerBehavior = (
                  }
              }
           }
+          
+          // [피지컬 보상] 평캔 적용 (공격 후 딜레이 감소)
+          if (micro.cancelAnimation && player.attackTimer > 0) {
+              // 남은 딜레이의 20%를 즉시 삭제
+              player.attackTimer *= 0.8;
+          }
         }
       }
       break;
 
-    case 'FLEE':
-    case 'SUPPORT':
-    case 'GANK':
-    case 'OBJECTIVE':
-    case 'CHASE': 
-      finalTargetPos = macroDecision.targetPos;
-      break;
-
+    case 'ASSEMBLE':
     case 'PUSH':
-    case 'FARM':
     default:
-      finalTargetPos = PathSystem.getNextWaypoint(player, isBlue, match);
+      finalTargetPos = InfluenceMap.getOptimalPos(player, match, finalTargetPos);
       break;
   }
 
@@ -18305,24 +18896,23 @@ export const processSkillEffect = (skill: SkillDetail, attacker: any, target: an
 
   switch (skill.mechanic) {
     case 'EXECUTE':
-      if (target.currentHp / target.maxHp < 0.25) power *= 5; 
+      // 잃은 체력 비례 데미지
+      if (target.currentHp / target.maxHp < 0.3) power *= 2.5; 
       break;
       
     case 'STUN':
     case 'HOOK':
-      // [수정] StatusManager를 통해 정확한 시간 동안 기절시킴
-      // 스킬 데이터에 duration이 없으면 기본 1.5초
+      // [핵심] CC 적용
       const duration = skill.duration || 1.5;
       StatusManager.applyStun(target, duration);
       break;
       
     case 'HEAL':
       attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + power);
-      return 0;
+      return 0; // 데미지 없음
       
     case 'SHIELD':
-      // 쉴드 로직은 간소화 (체력을 임시로 늘림 or 별도 처리)
-      // 여기서는 즉시 회복으로 대체 (구현 복잡도 완화)
+      // 즉시 회복으로 구현 (임시)
       attacker.currentHp = Math.min(attacker.maxHp, attacker.currentHp + power * 0.5);
       return 0;
   }
@@ -20241,10 +20831,22 @@ const initialGameState: GameState = {
     positions: initialPositions
   },
   roleSettings: { executor: { damage: 10, defense: 10 }, tracker: { gold: 20, smiteChance: 1.5 }, prophet: { cdrPerLevel: 2 }, slayer: { structureDamage: 30 }, guardian: { survivalRate: 20 } },
-  growthSettings: { hp: { early: 3, mid: 5, late: 7 }, ad: { early: 5, mid: 10, late: 15 }, ap: { early: 5, mid: 10, late: 15 }, armor: { early: 2, mid: 3, late: 4 }, baseAtk: { early: 2, mid: 3, late: 4 }, regen: { early: 1, mid: 2, late: 3 }, respawnPerLevel: 3.0, recallTime: 10.0 },
+  
+  // [수정 완료] 요청하신 4%, 9%, 14% 설정 반영
+  growthSettings: { 
+    hp: { early: 4, mid: 9, late: 14 },     // HP 상향
+    ad: { early: 5, mid: 10, late: 15 },    // (참고: 공격력은 5, 10, 15)
+    ap: { early: 5, mid: 10, late: 15 }, 
+    armor: { early: 4, mid: 9, late: 14 },  // Armor 상향
+    baseAtk: { early: 2, mid: 3, late: 4 }, 
+    regen: { early: 1, mid: 2, late: 3 }, 
+    respawnPerLevel: 3.0, 
+    recallTime: 10.0 
+  },
+  
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
   customImages: INITIAL_CUSTOM_IMAGES,
-  announcement: null // [초기화] 알림 없음
+  announcement: null
 };
 
 let timeBuffer = 0;

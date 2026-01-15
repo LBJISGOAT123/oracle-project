@@ -13,9 +13,8 @@ export const MINION_REWARD = {
 };
 
 export const calcMitigatedDamage = (rawDmg: number, armor: number) => {
-  // [안전 장치] armor가 NaN이거나 음수면 0 취급
   const safeArmor = isNaN(armor) ? 0 : Math.max(0, armor);
-  const reduction = 100 / (100 + safeArmor);
+  const reduction = 120 / (120 + safeArmor);
   return rawDmg * reduction;
 };
 
@@ -23,50 +22,63 @@ export const calculateHeroDamage = (
     attacker: any, defender: any, atkStats: any, defStats: any, attackerHero: any, 
     isBlue: boolean, settings: BattleSettings, roleSettings: RoleSettings, buffType: string
 ) => {
-    // 1. 공격력 (NaN 방지)
+    // [1] 피지컬 격차 계산 (Outplay Mechanic)
+    // mechanics: 0 ~ 100
+    const atkMech = attacker.stats?.mechanics || 50;
+    const defMech = defender.stats?.mechanics || 50;
+    const diff = atkMech - defMech; // 양수면 공격자 우위, 음수면 방어자 우위
+
+    // 피지컬 계수: 차이 10당 5% 데미지 변동 (최대 ±25%)
+    // 예: 피지컬 90 vs 50 -> 차이 40 -> 데미지 +20% (학살)
+    let outplayMod = 1.0 + (diff * 0.005);
+    
+    // 최소 0.7배 ~ 최대 1.3배로 제한 (너무 밸붕 방지)
+    outplayMod = Math.max(0.7, Math.min(1.3, outplayMod));
+
+    // [2] 공격력 계산
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
     
-    // 아이템 스탯 안전 합산
     const itemAD = (attacker.items || []).reduce((s:number, i:any) => s + (i.ad || 0), 0);
     const baseAtk = atkStats.baseAtk || 50;
     const adStat = atkStats.ad || 0;
-    
     const totalAD = (baseAtk + adStat + itemAD) * atkRatio;
 
-    // 2. 크리티컬
+    // [3] 치명타 (피지컬이 높으면 급소 타격 확률 증가)
     const itemCrit = (attacker.items || []).reduce((s:number, i:any) => s + (i.crit || 0), 0);
-    const critChance = (atkStats.crit || 0) + itemCrit;
+    // 피지컬 10당 치명타율 2% 보너스
+    const mechCritBonus = atkMech * 0.2; 
+    const critChance = (atkStats.crit || 0) + itemCrit + mechCritBonus;
     
     let isCrit = Math.random() < (critChance / 100);
-    let rawDmg = totalAD * (isCrit ? 1.85 : 1.0);
+    // 피지컬이 높으면 치명타 데미지도 증가 (기본 1.75 -> 최대 2.0)
+    const critMult = 1.75 + (atkMech > 80 ? 0.25 : 0);
+    
+    let rawDmg = totalAD * (isCrit ? critMult : 1.0);
 
-    // 3. 방어력
+    // [4] 방어력
     const defGod = isBlue ? settings.izman : settings.dante; 
     const defRatio = defGod?.defRatio || 1.0;
     const itemArmor = (defender.items || []).reduce((s:number, i:any) => s + (i.armor || 0), 0);
     const defArmor = defStats.armor || 0;
-    
     const totalArmor = (defArmor + itemArmor) * defRatio;
     
-    // 관통
     const itemPen = (attacker.items || []).reduce((s:number, i:any) => s + (i.pen || 0), 0);
     const penStat = atkStats.pen || 0;
     const effectiveArmor = Math.max(0, totalArmor - (penStat + itemPen));
     
-    // 4. 최종 데미지
     const finalDamage = calcMitigatedDamage(rawDmg, effectiveArmor);
     
-    // 5. 역할군/버프 보정
     const { damageMod } = applyRoleBonus(attacker, attackerHero.role, false, [], roleSettings);
-    let result = finalDamage * damageMod;
+    
+    // [5] 최종 적용 (아웃플레이 계수 적용)
+    let result = finalDamage * damageMod * outplayMod;
 
     if (buffType === 'COMBAT') result *= 1.1; 
 
-    // [최종 안전 장치] NaN이면 최소 데미지 1 반환
     if (isNaN(result) || result < 0) return 1;
 
-    return Math.floor(result * 0.85);
+    return Math.floor(result * 0.95);
 };
 
 export const calculateUnitDamage = (
@@ -74,7 +86,7 @@ export const calculateUnitDamage = (
 ) => {
     const god = isBlue ? settings.dante : settings.izman;
     const atkRatio = god?.atkRatio || 1.0;
-    const itemAD = (attacker.items || []).reduce((s:number, i:any) => s + (i.ad || 0), 0);
+    const itemAD = attacker.items.reduce((s:number, i:any) => s + (i.ad||0), 0);
     
     const baseAtk = atkStats.baseAtk || 50;
     const adStat = atkStats.ad || 0;
@@ -83,7 +95,10 @@ export const calculateUnitDamage = (
     const safeArmor = isNaN(targetArmor) ? 0 : targetArmor;
     const dmg = calcMitigatedDamage(totalAD, safeArmor);
     
-    return isNaN(dmg) ? 10 : Math.floor(dmg);
+    // 미니언 막타는 피지컬 좋으면 실수 안 함 (보정)
+    const mechBonus = (attacker.stats?.mechanics || 50) > 70 ? 1.2 : 1.0;
+    
+    return isNaN(dmg) ? 10 : Math.floor(dmg * mechBonus);
 };
 
 export const distributeRewards = (

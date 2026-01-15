@@ -1,28 +1,75 @@
 // ==========================================
 // FILE PATH: /src/components/battle/spectate/InGameScreen.tsx
 // ==========================================
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../../store/useGameStore';
 import { SpectateHeader } from './views/SpectateHeader';
 import { SpectateMapView } from './views/SpectateMapView';
 import { SpectateListView } from './views/SpectateListView';
-import { HeroDetailPopup } from './modals/HeroDetailPopup'; // 신규 팝업 import
+import { HeroDetailPopup } from './modals/HeroDetailPopup';
 
 export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) => {
   const match = useGameStore(state => state.gameState.liveMatches.find(m => m.id === initialMatch.id));
-  const { heroes, gameState, setSpeed, togglePlay } = useGameStore();
+  const { heroes, gameState, setSpeed, togglePlay, setAnnouncement } = useGameStore();
 
-  // selectedHeroId는 이제 팝업을 띄우는 용도로도 사용됩니다.
   const [selectedHeroId, setSelectedHeroId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [mobileTab, setMobileTab] = useState<'LIST' | 'MAP'>('MAP'); // 기본값을 맵으로 변경 (요청사항 흐름상 자연스러움)
+  const [mobileTab, setMobileTab] = useState<'LIST' | 'MAP'>('MAP');
+
+  const lastLogTimeRef = useRef<number>(match ? match.currentDuration : 0);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     setSpeed(1); 
-    return () => window.removeEventListener('resize', handleResize);
+    setAnnouncement(null);
+    return () => {
+        window.removeEventListener('resize', handleResize);
+        setAnnouncement(null);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!match) return;
+
+    const newLogs = match.logs.filter(log => 
+        log.time > lastLogTimeRef.current && 
+        (log.type === 'COLOSSUS' || log.type === 'WATCHER')
+    );
+
+    if (newLogs.length > 0) {
+        const latestLog = newLogs[newLogs.length - 1];
+        lastLogTimeRef.current = latestLog.time;
+
+        const isBlue = latestLog.team === 'BLUE';
+        const teamName = isBlue ? '단테' : '이즈마한';
+        const color = isBlue ? '#58a6ff' : '#e84057';
+        
+        let title = '';
+        let subtext = '';
+
+        if (latestLog.type === 'COLOSSUS') {
+            title = '거신병 해킹 성공!';
+            subtext = `${teamName} 진영이 거신병을 해킹하여 소환했습니다.`;
+        } else if (latestLog.type === 'WATCHER') {
+            title = '심연의 주시자 처치!';
+            subtext = `${teamName} 진영이 주시자를 처형하고 공허의 힘을 얻었습니다.`;
+        }
+
+        setAnnouncement({
+            type: 'OBJECTIVE',
+            title,
+            subtext,
+            color: latestLog.type === 'WATCHER' ? '#f1c40f' : color,
+            duration: 5.0,
+            createdAt: Date.now()
+        });
+    } else {
+        if (match.currentDuration > lastLogTimeRef.current) {
+            lastLogTimeRef.current = match.currentDuration;
+        }
+    }
+  }, [match?.logs.length, match?.currentDuration]);
 
   if (!match) return <div style={{color:'white', padding:50, textAlign:'center'}}>게임 종료됨</div>;
 
@@ -36,7 +83,6 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
 
   const getHeroName = (id: string) => heroes.find((h:any) => h.id === id)?.name || id;
 
-  // 선택된 플레이어 객체 찾기
   const selectedPlayer = selectedHeroId 
     ? [...match.blueTeam, ...match.redTeam].find(p => p.heroId === selectedHeroId) 
     : null;
@@ -48,10 +94,9 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
   return (
     <div style={{ 
       position: 'fixed', inset: 0, background: '#0f0f0f', zIndex: 10000,
-      display: 'flex', flexDirection: 'column'
+      display: 'flex', flexDirection: 'column', overflow: 'hidden'
     }}>
       
-      {/* 1. 상단바 */}
       <SpectateHeader 
         score={match.score}
         timeStr={isGameEnded ? 'END' : formatTime(match.currentDuration)}
@@ -66,35 +111,57 @@ export const InGameScreen: React.FC<any> = ({ match: initialMatch, onClose }) =>
         setMobileTab={setMobileTab}
       />
 
-      {/* 2. 메인 컨텐츠 */}
-      <div style={{ flex: 1, overflowY: 'hidden', position:'relative' }}>
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row', // [변경] 데스크탑은 가로 배치
+        overflow: 'hidden', 
+        position:'relative' 
+      }}>
         
-        {/* [MAP] 맵 뷰 (하단에 오브젝트 정보 포함됨) */}
-        <SpectateMapView 
-          match={match}
-          isMobile={isMobile}
-          mobileTab={mobileTab}
-          selectedHeroId={null} // 맵에서는 하이라이트만 하고, 클릭 시 팝업 띄움
-          onSelectHero={(id) => setSelectedHeroId(id)}
-          setMobileTab={setMobileTab}
-        />
+        {/* [좌측] 리스트 뷰 (데스크탑에서는 고정폭, 모바일에서는 탭에 따라 표시) */}
+        <div style={{
+          width: isMobile ? '100%' : '420px',
+          height: '100%',
+          flexShrink: 0,
+          borderRight: isMobile ? 'none' : '1px solid #333',
+          display: isMobile ? (mobileTab === 'LIST' ? 'block' : 'none') : 'block',
+          overflow: 'hidden'
+        }}>
+          <SpectateListView 
+            match={match}
+            heroes={heroes}
+            isMobile={isMobile}
+            mobileTab={mobileTab}
+            selectedHeroId={selectedHeroId}
+            onSelectHero={setSelectedHeroId}
+            gameSpeed={gameState.gameSpeed}
+            formatTime={formatTime}
+            getHeroName={getHeroName}
+          />
+        </div>
 
-        {/* [LIST] 리스트 뷰 */}
-        <SpectateListView 
-          match={match}
-          heroes={heroes}
-          isMobile={isMobile}
-          mobileTab={mobileTab}
-          selectedHeroId={selectedHeroId}
-          onSelectHero={setSelectedHeroId}
-          gameSpeed={gameState.gameSpeed}
-          formatTime={formatTime}
-          getHeroName={getHeroName}
-        />
+        {/* [우측] 맵 뷰 (남은 공간 채움) */}
+        <div style={{
+          flex: 1,
+          height: '100%',
+          position: 'relative',
+          display: isMobile ? (mobileTab === 'MAP' ? 'flex' : 'none') : 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          <SpectateMapView 
+            match={match}
+            isMobile={isMobile}
+            mobileTab={mobileTab}
+            selectedHeroId={null} 
+            onSelectHero={(id) => setSelectedHeroId(id)}
+            setMobileTab={setMobileTab}
+          />
+        </div>
 
       </div>
 
-      {/* 3. 영웅 상세 팝업 (모듈화됨) */}
       {selectedPlayer && selectedHeroData && (
         <HeroDetailPopup 
           player={selectedPlayer}

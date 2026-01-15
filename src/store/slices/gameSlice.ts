@@ -38,10 +38,22 @@ const initialGameState: GameState = {
     positions: initialPositions
   },
   roleSettings: { executor: { damage: 10, defense: 10 }, tracker: { gold: 20, smiteChance: 1.5 }, prophet: { cdrPerLevel: 2 }, slayer: { structureDamage: 30 }, guardian: { survivalRate: 20 } },
-  growthSettings: { hp: { early: 3, mid: 5, late: 7 }, ad: { early: 5, mid: 10, late: 15 }, ap: { early: 5, mid: 10, late: 15 }, armor: { early: 2, mid: 3, late: 4 }, baseAtk: { early: 2, mid: 3, late: 4 }, regen: { early: 1, mid: 2, late: 3 }, respawnPerLevel: 3.0, recallTime: 10.0 },
+  
+  // [수정 완료] 요청하신 4%, 9%, 14% 설정 반영
+  growthSettings: { 
+    hp: { early: 4, mid: 9, late: 14 },     // HP 상향
+    ad: { early: 5, mid: 10, late: 15 },    // (참고: 공격력은 5, 10, 15)
+    ap: { early: 5, mid: 10, late: 15 }, 
+    armor: { early: 4, mid: 9, late: 14 },  // Armor 상향
+    baseAtk: { early: 2, mid: 3, late: 4 }, 
+    regen: { early: 1, mid: 2, late: 3 }, 
+    respawnPerLevel: 3.0, 
+    recallTime: 10.0 
+  },
+  
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
   customImages: INITIAL_CUSTOM_IMAGES,
-  announcement: null // [초기화] 알림 없음
+  announcement: null
 };
 
 let timeBuffer = 0;

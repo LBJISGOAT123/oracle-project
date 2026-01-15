@@ -28,10 +28,18 @@ export class SquadController {
     const myBase = isBlue ? BASES.BLUE : BASES.RED;
     if (AIUtils.dist(ace, myBase) < 20) return null;
 
-    // [명령] 에이스 주변으로 집결
+    // [핵심 수정] 
+    // 에이스의 정확히 같은 위치가 아니라, 주변 5~8 거리 내의 랜덤한 위치로 집결시킴
+    // 이렇게 해야 5명이 한 점에 겹쳐서 비비는 현상이 사라짐
+    const offsetX = (Math.random() - 0.5) * 8;
+    const offsetY = (Math.random() - 0.5) * 8;
+
     return {
         action: 'ASSEMBLE',
-        pos: { x: ace.x, y: ace.y }
+        pos: { 
+            x: Math.max(5, Math.min(95, ace.x + offsetX)), 
+            y: Math.max(5, Math.min(95, ace.y + offsetY)) 
+        }
     };
   }
 }

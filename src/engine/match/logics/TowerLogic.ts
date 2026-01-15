@@ -19,7 +19,6 @@ export class TowerLogic {
 
     if (nearbyMinions.length === 0 && nearbyEnemyHeroes.length === 0) return null;
 
-    // 1. [어그로] 아군 영웅을 친 적 영웅
     const AGGRO_DURATION = 2.0; 
     const aggroTarget = nearbyEnemyHeroes.find(enemy => {
         if (!enemy.lastAttackTime || !enemy.lastAttackedTargetId) return false;
@@ -31,13 +30,11 @@ export class TowerLogic {
 
     if (aggroTarget) return { unit: aggroTarget, type: 'HERO' };
 
-    // 2. 미니언 (가까운 순)
     if (nearbyMinions.length > 0) {
         nearbyMinions.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
         return { unit: nearbyMinions[0], type: 'MINION' };
     } 
     
-    // 3. 영웅 (미니언 없으면)
     nearbyEnemyHeroes.sort((a, b) => getDistance(a, towerPos) - getDistance(b, towerPos));
     return { unit: nearbyEnemyHeroes[0], type: 'HERO' };
   }
@@ -51,18 +48,19 @@ export class TowerLogic {
     hasMinionsNearby: boolean,
     defendingTeamColor: 'BLUE' | 'RED'
   ) {
-    const baseAtk = towerStats.atk || (isNexus ? 1000 : 300);
+    // [밸런스 패치] 타워 데미지 대폭 하향 (초반 끔살 방지)
+    // 기존: 150~300 -> 변경: 80 (매우 낮음) + 시간 성장
+    const timeScaling = Math.min(4.0, 1 + (match.currentDuration / 900)); 
+    let baseAtk = isNexus ? 300 : (80 * timeScaling);
     
-    // 기본 타워 공격력
     let damage = baseAtk * dt;
 
-    // [백도어 패널티] 미니언 없이 영웅 혼자면 데미지 3배 (매우 아픔)
+    // 백도어 패널티는 유지하되, 실수로 맞았을 때 즉사는 안 하게 (1.5배)
     if (target.type === 'HERO' && !hasMinionsNearby) {
-        damage *= 3.0;
+        damage *= 1.5;
     }
 
     if (target.type === 'HERO') {
-        // 영웅 방어력 적용
         let armor = (target.unit.level * 3) + (target.unit.items?.length * 10);
         const realDmg = calcMitigatedDamage(damage, armor);
         
@@ -70,7 +68,6 @@ export class TowerLogic {
         
         if (target.unit.currentHp <= 0) {
             target.unit.currentHp = 0;
-            // 부활 시간: 5초 + 레벨당 3초 (자연스러운 증가)
             const respawnTime = 5 + (target.unit.level * 3);
             target.unit.respawnTimer = Math.floor(respawnTime);
 
@@ -79,16 +76,17 @@ export class TowerLogic {
 
             target.unit.deaths++;
             
+            // 타워 처형은 로그에 남겨서 확인 가능하게 함
             match.logs.push({
                 time: Math.floor(match.currentDuration),
-                message: `💀 [${target.unit.name}] 타워에 처형당했습니다!`,
+                message: `💀 [${target.unit.name}] 타워 다이브 실패! (처형)`,
                 type: 'KILL',
                 team: defendingTeamColor
             });
         }
     } else {
-        // 미니언은 방어력 0으로 가정하고 딜 박힘 (순삭 방지 위해 미니언 체력 세팅 중요)
-        target.unit.hp -= damage;
+        // 미니언은 빨리 지워야 하므로 데미지 3배
+        target.unit.hp -= damage * 3.0;
     }
   }
 }
