@@ -17,7 +17,7 @@ export const saveToSlot = async (slotId: string): Promise<boolean> => {
   }));
 
   const saveData = {
-    version: 24, // 버전 업
+    version: 24, 
     time: { season: state.season, day: state.day, hour: state.hour, minute: state.minute },
     config: {
       battle: state.battleSettings,
@@ -87,7 +87,8 @@ export const initializeGame = async (heroes: Hero[]) => {
         console.error("Critical Load Error:", e);
     }
   }
-  if (userPool.length === 0) initUserPool(heroes, 3000);
+  // [수정] 초기 시작 유저 수 250명
+  if (userPool.length === 0) initUserPool(heroes, 250);
 };
 
 const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
@@ -108,7 +109,8 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
             status: 'OFFLINE' 
         }));
     } else {
-        initUserPool(restoredHeroes, 3000);
+        // [수정] 불러오기 실패 시 fallback도 250명
+        initUserPool(restoredHeroes, 250);
         restoredUsers = [...userPool];
     }
 
@@ -165,7 +167,6 @@ const applyLoadedData = (data: any, defaultHeroes: Hero[]) => {
             respawnPerLevel: 3.0, recallTime: 10.0
         };
     }
-    // [호환성] 귀환 시간 10초 강제 (데이터가 없거나 너무 짧으면)
     if (loadedGrowth.recallTime === undefined || loadedGrowth.recallTime < 4) loadedGrowth.recallTime = 10.0;
     if (loadedGrowth.respawnPerLevel === undefined) loadedGrowth.respawnPerLevel = 3.0;
 

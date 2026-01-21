@@ -18,12 +18,14 @@ const initialPositions = {
 
 const initialGameState: GameState = {
   season: 1, day: 1, hour: 12, minute: 0, second: 0,
-  isPlaying: false, gameSpeed: 1, userSentiment: 60, ccu: 0, totalUsers: 3000, maxMatches: 10,
+  isPlaying: false, gameSpeed: 1, userSentiment: 60, ccu: 0, 
+  totalUsers: 250, // [수정] 초기 유저 수 3000 -> 250
+  maxMatches: 10,
   userStatus: { totalGames: 0, playingUsers: 0, queuingUsers: 0, avgWaitTime: 0, tierDistribution: [] },
   topRankers: [],
   godStats: { totalMatches: 0, izmanWins: 0, izmanAvgKills: '0.0', izmanAvgTime: '00:00', danteWins: 0, danteAvgKills: '0.0', danteAvgTime: '00:00', avgGameDuration: 0, guardianDeathRate: 0, godAwakenRate: 0 },
   itemStats: {}, liveMatches: [],
-  tierConfig: { challengerRank: 200, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 } },
+  tierConfig: { challengerRank: 10, master: 4800, ace: 3800, joker: 3200, gold: 2100, silver: 1300, bronze: 300, promos: { master: 5, ace: 5, joker: 5, gold: 3, silver: 3, bronze: 3 } }, // 챌린저 정원도 비율 맞춰 200->10으로 임시 조정
   battleSettings: {
     izman: { name: '이즈마한', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '광란', servantGold: 14, servantXp: 30, minions: { melee: { label: '광신도', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '암흑 사제', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '암흑기사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
     dante: { name: '단테', atkRatio: 1.5, defRatio: 1, hpRatio: 10000, guardianHp: 25000, towerAtk: 100, trait: '가호', servantGold: 14, servantXp: 30, minions: { melee: { label: '수도사', hp: 550, def: 10, atk: 25, gold: 21, xp: 60 }, ranged: { label: '구도자', hp: 350, def: 0, atk: 45, gold: 14, xp: 30 }, siege: { label: '성전사', hp: 950, def: 40, atk: 70, gold: 60, xp: 90 } } },
@@ -38,19 +40,16 @@ const initialGameState: GameState = {
     positions: initialPositions
   },
   roleSettings: { executor: { damage: 10, defense: 10 }, tracker: { gold: 20, smiteChance: 1.5 }, prophet: { cdrPerLevel: 2 }, slayer: { structureDamage: 30 }, guardian: { survivalRate: 20 } },
-  
-  // [수정 완료] 요청하신 4%, 9%, 14% 설정 반영
   growthSettings: { 
-    hp: { early: 4, mid: 9, late: 14 },     // HP 상향
-    ad: { early: 5, mid: 10, late: 15 },    // (참고: 공격력은 5, 10, 15)
+    hp: { early: 4, mid: 9, late: 14 },     
+    ad: { early: 5, mid: 10, late: 15 },    
     ap: { early: 5, mid: 10, late: 15 }, 
-    armor: { early: 4, mid: 9, late: 14 },  // Armor 상향
+    armor: { early: 4, mid: 9, late: 14 },  
     baseAtk: { early: 2, mid: 3, late: 4 }, 
     regen: { early: 1, mid: 2, late: 3 }, 
     respawnPerLevel: 3.0, 
     recallTime: 10.0 
   },
-  
   aiConfig: savedAI || { provider: 'GEMINI', apiKey: '', model: 'gemini-2.5-flash', enabled: false },
   customImages: INITIAL_CUSTOM_IMAGES,
   announcement: null

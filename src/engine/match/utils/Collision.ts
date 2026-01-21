@@ -12,14 +12,8 @@ export class Collision {
     return dx * dx + dy * dy;
   }
 
-  // [최적화] 원형 충돌 체크
-  static checkCircle(p1: Point, r1: number, p2: Point, r2: number): boolean {
-    const d2 = this.distSq(p1, p2);
-    const radSum = r1 + r2;
-    return d2 <= radSum * radSum;
-  }
-
   // [최적화] 사거리 체크 (거리 제곱 비교)
+  // range * range를 미리 계산해서 넘기면 더 빠름
   static inRange(attacker: Point, target: Point, range: number): boolean {
     return this.distSq(attacker, target) <= (range * range);
   }
@@ -29,8 +23,10 @@ export class Collision {
     let nearest: T | null = null;
     let minDistSq = maxRange * maxRange;
 
+    // for-of 대신 for loop 사용 (미세하지만 더 빠름)
     for (let i = 0; i < targets.length; i++) {
       const t = targets[i];
+      // 같은 팀 제외 로직 등은 상위에서 필터링된 배열을 넘겨받는다고 가정
       const dSq = this.distSq(me, t);
       
       if (dSq < minDistSq) {

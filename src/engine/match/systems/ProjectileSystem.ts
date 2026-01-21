@@ -7,15 +7,18 @@ import { Collision } from '../utils/Collision';
 export class ProjectileSystem {
   static update(match: LiveMatch, dt: number) {
     if (!match.projectiles) match.projectiles = [];
+    const projs = match.projectiles;
 
-    // [최적화] 삭제 예정인 투사체 미리 필터링 (메모리 절약)
-    match.projectiles = match.projectiles.filter(p => !p.remove);
+    // [최적화] 배열을 거꾸로 순회하며 삭제 (Splice 사용) -> filter로 인한 새 배열 할당 방지
+    for (let i = projs.length - 1; i >= 0; i--) {
+      const p = projs[i];
 
-    match.projectiles.forEach(p => {
-      // [신규] 수명 관리: 생성된 지 3초 넘으면 강제 삭제
-      // Projectile 타입에 lifeTime이 없으므로 임시로 확장하거나, 거리를 기준으로 체크
-      // 여기서는 맵 밖으로 나가거나 목표 도달 실패 시 삭제 로직 강화
-      
+      // 삭제 플래그 확인
+      if (p.remove) {
+          projs.splice(i, 1);
+          continue;
+      }
+
       let targetPos = p.targetPos;
 
       if (p.targetId) {
@@ -23,12 +26,16 @@ export class ProjectileSystem {
         if (target && target.currentHp > 0) {
           targetPos = { x: target.x, y: target.y };
         } else {
-          p.remove = true; 
-          return;
+          // 타겟 사망/소멸 시 투사체도 소멸
+          projs.splice(i, 1);
+          continue;
         }
       }
 
-      if (!targetPos) { p.remove = true; return; }
+      if (!targetPos) {
+          projs.splice(i, 1);
+          continue;
+      }
 
       const dx = targetPos.x - p.x;
       const dy = targetPos.y - p.y;
@@ -37,27 +44,26 @@ export class ProjectileSystem {
       // 충돌 판정
       if (dist < p.hitRadius || dist < (p.speed * dt * 0.1)) {
         this.onHit(match, p);
-        p.remove = true;
+        projs.splice(i, 1); // 적중 후 삭제
       } else {
         // 이동
         p.x += (dx / dist) * p.speed * dt * 0.1;
         p.y += (dy / dist) * p.speed * dt * 0.1;
 
-        // [안전장치] 맵 밖으로 나가면 삭제
+        // 맵 밖으로 나가면 삭제
         if (p.x < -10 || p.x > 110 || p.y < -10 || p.y > 110) {
-            p.remove = true;
+            projs.splice(i, 1);
         }
       }
-    });
+    }
   }
 
   static spawn(match: LiveMatch, p: Projectile) {
     if (!match.projectiles) match.projectiles = [];
-    // [최적화] 화면에 투사체가 너무 많으면(50개 이상) 이펙트 생략
+    // 화면에 투사체가 너무 많으면(50개 이상) 이펙트 생략하고 즉시 적중 처리 (성능 우선)
     if (match.projectiles.length < 50) {
         match.projectiles.push(p);
     } else {
-        // 이펙트는 생략하되 데미지는 즉시 적용 (시뮬레이션 정합성 유지)
         this.onHit(match, p);
     }
   }
